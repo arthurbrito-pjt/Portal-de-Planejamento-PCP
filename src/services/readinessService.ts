@@ -34,13 +34,13 @@ export interface SlitterProductionProgram {
   sobraMm: number;
   aproveitamentoPercent: number;
   sobraPesoTon: number;
-  status: 'Ideal (10 a 18 mm)' | 'Refilo < 10 mm' | 'Sobra > 18 mm';
+  status: 'Conforme (10 a 18 mm)' | 'Sobra Excedente (> 18 mm)';
 }
 
 export class ReadinessService {
   /**
-   * Generates the complete Ready Slitter Programs (Bobina -> Slitter -> Materiais Produzidos)
-   * Scrap Rule: Minimum 10 mm to Maximum 18 mm (target ~1.5%)
+   * Generates the complete Ready Slitter Programs (Bobina -> Slitter -> Materiais Produzidos).
+   * STRICT CRITERIA: Scrap MUST be between 10mm and 18mm (1.5% limit). Programs with < 10mm are discarded!
    */
   static generateSlitterPrograms(products: Product[], coils: Coil[]): SlitterProductionProgram[] {
     const availableCoils = coils.filter(c => c.status === 'Disponível');
@@ -49,7 +49,6 @@ export class ReadinessService {
     const programs: SlitterProductionProgram[] = [];
     const usedCoilIds = new Set<string>();
 
-    // For each high-demand product, find matching coils and optimize
     for (const prod of productsWithDemand) {
       const matchingCoils = availableCoils.filter(
         c => !usedCoilIds.has(c.id) && Math.abs(c.espessura - prod.espessura) < 0.001
@@ -57,11 +56,10 @@ export class ReadinessService {
 
       if (matchingCoils.length === 0) continue;
 
-      // Pick the best coil that achieves 10mm <= scrap <= 18mm
       let bestCoil: Coil | null = null;
       let bestCombination: SlitterCombination | null = null;
 
-      for (const coil of matchingCoils.slice(0, 6)) {
+      for (const coil of matchingCoils.slice(0, 8)) {
         const combList = SlitterOptimizer.optimize({
           mainProduct: prod,
           desiredQuantityTon: prod.demandaT || 10,
@@ -71,8 +69,10 @@ export class ReadinessService {
           maxScrapAllowedMm: 18
         });
 
-        if (combList.length > 0) {
-          const topComb = combList[0];
+        // Filter out any combination with scrap < 10mm
+        const compliantCombs = combList.filter(c => c.sobraMm >= 10);
+        if (compliantCombs.length > 0) {
+          const topComb = compliantCombs[0];
           const isTopInIdeal = topComb.sobraMm >= 10 && topComb.sobraMm <= 18;
 
           if (!bestCombination) {
@@ -98,7 +98,8 @@ export class ReadinessService {
         }
       }
 
-      if (bestCoil && bestCombination) {
+      // STRICT VALIDATION: Only include if sobraMm >= 10
+      if (bestCoil && bestCombination && bestCombination.sobraMm >= 10) {
         usedCoilIds.add(bestCoil.id);
 
         const materialsProduced = bestCombination.fitas.map(f => {
@@ -120,13 +121,6 @@ export class ReadinessService {
 
         const totalFitas = bestCombination.fitas.reduce((acc, f) => acc + f.quantidade, 0);
 
-        let progStatus: SlitterProductionProgram['status'] = 'Ideal (10 a 18 mm)';
-        if (bestCombination.sobraMm < 10) {
-          progStatus = 'Refilo < 10 mm';
-        } else if (bestCombination.sobraMm > 18) {
-          progStatus = 'Sobra > 18 mm';
-        }
-
         programs.push({
           id: `PROG_${bestCoil.id}_${prod.id}`,
           coil: bestCoil,
@@ -138,12 +132,12 @@ export class ReadinessService {
           sobraMm: bestCombination.sobraMm,
           aproveitamentoPercent: bestCombination.aproveitamentoPercent,
           sobraPesoTon: bestCombination.pesoSobraTon,
-          status: progStatus
+          status: bestCombination.sobraMm <= 18 ? 'Conforme (10 a 18 mm)' : 'Sobra Excedente (> 18 mm)'
         });
       }
     }
 
-    // Sort programs: Ideal (10 a 18 mm) first, then by closest to 14mm, then by coil weight
+    // Sort programs: strictly 10 to 18mm first, then by closest to 14mm
     programs.sort((a, b) => {
       const aIdeal = a.sobraMm >= 10 && a.sobraMm <= 18 ? 1 : 0;
       const bIdeal = b.sobraMm >= 10 && b.sobraMm <= 18 ? 1 : 0;
@@ -199,7 +193,9 @@ export class ReadinessService {
           const strips = Math.floor(c.largura / product.larguraFita);
           if (strips > 0) {
             const scrap = c.largura - (strips * product.larguraFita);
-            const dist = Math.abs(scrap - 14);
+            // Prefer scraps in 10-18mm
+            const inRange = scrap >= 10 && scrap <= 18;
+            const dist = inRange ? Math.abs(scrap - 14) : Math.abs(scrap - 14) + 100;
             if (dist < bestDistanceToIdeal) {
               bestDistanceToIdeal = dist;
               bestCoil = c;

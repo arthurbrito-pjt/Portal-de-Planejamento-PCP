@@ -87,15 +87,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* Top Cockpit Header Banner */}
       <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-6">
         <div className="space-y-1.5 max-w-3xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-800 text-xs font-mono font-bold">
-            <Zap className="w-3.5 h-3.5 text-blue-600" />
-            PROGRAMAÇÃO DE CORTE SLITTER • REFILO PADRÃO 10 A 18 MM (~1,5%)
-          </div>
           <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
             Central de Programação de Slitters & Matéria-Prima
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">
-            Acompanhe exatamente <strong className="text-blue-700">qual bobina de aço será cortada</strong>, <strong className="text-emerald-700">a montagem de facas do slitter</strong> e <strong className="text-purple-700">quais tubos e perfis serão produzidos</strong> com refilo de <strong>10 a 18 mm (1,5%)</strong>.
+            Programação otimizada de corte de bobinas de aço com montagem de facas no slitter e destinação direta para fabricação de tubos e perfis (refilo de 10 a 18 mm).
           </p>
         </div>
 
@@ -140,7 +136,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="text-xs text-slate-600 mt-0.5 font-medium flex items-center gap-1">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            Refilo Ideal: 10 a 18 mm (1,5%)
+            Refilo Padrão: 10 a 18 mm (1,5%)
           </div>
         </div>
 
@@ -230,15 +226,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           <div className="flex rounded-xl bg-slate-100 p-1">
             {[
-              { id: 'TODOS', label: 'Todos' },
-              { id: 'IDEAL', label: '✓ Ideal (10 a 18 mm)' },
-              { id: 'BAIXO', label: '< 10 mm' },
-              { id: 'ALTO', label: '> 18 mm' }
+              { id: 'TODOS', label: 'Todos os Slitters' },
+              { id: 'IDEAL', label: '✓ Conforme (10 a 18 mm)' },
+              { id: 'ALTO', label: 'Sobra > 18 mm' }
             ].map(y => (
               <button
                 key={y.id}
                 onClick={() => setScrapFilter(y.id as any)}
-                className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                className={`px-3.5 py-1 text-xs font-bold rounded-lg transition-all ${
                   scrapFilter === y.id
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'

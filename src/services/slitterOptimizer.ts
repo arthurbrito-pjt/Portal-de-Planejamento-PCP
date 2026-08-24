@@ -5,8 +5,8 @@ export interface OptimizationParams {
   desiredQuantityTon: number;
   selectedCoil: Coil;
   compatibleProducts: Product[];
-  minScrapMm?: number; // default 10mm
-  maxScrapAllowedMm?: number; // default 18mm (~1.5%)
+  minScrapMm?: number; // STRICT: minimum 10mm
+  maxScrapAllowedMm?: number; // STRICT: maximum 18mm (~1.5%)
 }
 
 const STRIP_COLORS = [
@@ -24,8 +24,8 @@ const STRIP_COLORS = [
 
 export class SlitterOptimizer {
   /**
-   * Find all optimal slitter combinations for a selected coil and main product
-   * Target rule: 10mm <= Scrap <= 18mm (~1.5%)
+   * Find all optimal slitter combinations for a selected coil and main product.
+   * STRICT MANDATE: Scrap MUST be between 10mm and 18mm (1.5% limit, never < 10mm).
    */
   static optimize(params: OptimizationParams): SlitterCombination[] {
     const {
@@ -39,7 +39,7 @@ export class SlitterOptimizer {
     const coilWidth = selectedCoil.largura;
     const mainWidth = mainProduct.larguraFita;
 
-    const results: SlitterCombination[] = [];
+    const rawResults: SlitterCombination[] = [];
     const seenSignatures = new Set<string>();
 
     // Filter companion products with the exact same thickness
@@ -50,28 +50,31 @@ export class SlitterOptimizer {
     const maxMainCount = Math.floor(coilWidth / mainWidth);
 
     // 1. Check pure main product cut (single product)
-    for (let k = maxMainCount; k >= Math.max(1, maxMainCount - 3); k--) {
+    for (let k = maxMainCount; k >= Math.max(1, maxMainCount - 4); k--) {
       const usedWidth = k * mainWidth;
       const scrap = coilWidth - usedWidth;
       
-      const singleComb = this.buildCombination(
-        selectedCoil,
-        [{ product: mainProduct, quantidade: k, larguraTotal: usedWidth }],
-        `Corte Exclusivo: ${k}x ${mainProduct.descricao} (${mainWidth}mm)`
-      );
-      
-      const sig = this.getSignature(singleComb);
-      if (!seenSignatures.has(sig)) {
-        seenSignatures.add(sig);
-        results.push(singleComb);
+      // Only add single cut if scrap >= 10mm
+      if (scrap >= minScrapMm) {
+        const singleComb = this.buildCombination(
+          selectedCoil,
+          [{ product: mainProduct, quantidade: k, larguraTotal: usedWidth }],
+          `Corte Exclusivo: ${k}x ${mainProduct.descricao} (${mainWidth}mm)`
+        );
+        
+        const sig = this.getSignature(singleComb);
+        if (!seenSignatures.has(sig)) {
+          seenSignatures.add(sig);
+          rawResults.push(singleComb);
+        }
       }
 
       // Search complementary combinations for remaining space
-      if (scrap > 0) {
+      if (scrap > minScrapMm) {
         const companionSolutions = this.findComplements(
           scrap,
           candidates,
-          mainProduct.id,
+          minScrapMm,
           maxScrapAllowedMm
         );
 
@@ -92,28 +95,31 @@ export class SlitterOptimizer {
           const cSig = this.getSignature(comb);
           if (!seenSignatures.has(cSig)) {
             seenSignatures.add(cSig);
-            results.push(comb);
+            rawResults.push(comb);
           }
         }
       }
     }
 
-    // Rank combinations:
-    // 1. Ideal conforming range: 10mm <= scrap <= 18mm first (Ideal ~1.5%)
-    // 2. Scrap closest to 10-18mm window
-    // 3. More main product strips
-    // 4. Higher demand priority
-    results.sort((a, b) => {
-      const aInIdeal = a.sobraMm >= minScrapMm && a.sobraMm <= maxScrapAllowedMm ? 1 : 0;
-      const bInIdeal = b.sobraMm >= minScrapMm && b.sobraMm <= maxScrapAllowedMm ? 1 : 0;
-      if (aInIdeal !== bInIdeal) return bInIdeal - aInIdeal;
+    // 2. Strict Filter: NEVER allow less than 10mm! (10mm <= sobra <= 18mm)
+    const validResults = rawResults.filter(
+      r => r.sobraMm >= minScrapMm && r.sobraMm <= maxScrapAllowedMm
+    );
 
-      // If both in ideal or both outside, rank by distance to optimal refilo (14mm midpoint)
+    // Fallback if no solution in 10-18mm: allow combinations with sobraMm >= 10mm
+    const finalPool = validResults.length > 0 
+      ? validResults 
+      : rawResults.filter(r => r.sobraMm >= minScrapMm);
+
+    // Rank combinations:
+    // 1. Closest to 12-14mm ideal refilo
+    // 2. Higher count of main product strips
+    // 3. Higher utilization percent
+    finalPool.sort((a, b) => {
       const aDist = Math.abs(a.sobraMm - 14);
       const bDist = Math.abs(b.sobraMm - 14);
       if (Math.abs(aDist - bDist) > 0.5) return aDist - bDist;
 
-      // Priority to combinations with higher count of the main product
       const aMainQty = a.fitas.find(f => f.product.id === mainProduct.id)?.quantidade || 0;
       const bMainQty = b.fitas.find(f => f.product.id === mainProduct.id)?.quantidade || 0;
       if (aMainQty !== bMainQty) return bMainQty - aMainQty;
@@ -121,16 +127,16 @@ export class SlitterOptimizer {
       return b.aproveitamentoPercent - a.aproveitamentoPercent;
     });
 
-    return results.slice(0, 15);
+    return finalPool.slice(0, 15);
   }
 
   /**
-   * Combinatorial helper to find companion items that sum up to target width with scrap <= maxScrap
+   * Combinatorial helper to find companion items that sum up to target width with 10mm <= scrap <= 18mm
    */
   private static findComplements(
     targetSpace: number,
     candidates: Product[],
-    excludeProductId: string,
+    minScrap: number,
     maxScrap: number
   ): { items: { product: Product; quantidade: number; larguraTotal: number }[]; scrap: number }[] {
     const validCandidates = candidates.filter(p => p.larguraFita <= targetSpace);
@@ -139,7 +145,7 @@ export class SlitterOptimizer {
     // Prioritize products with active demand
     validCandidates.sort((a, b) => (b.demandaT || 0) - (a.demandaT || 0));
 
-    // Limit to top 25 candidate products to keep search fast (< 5ms)
+    // Limit to top 25 candidate products to keep search ultra-fast
     const topCandidates = validCandidates.slice(0, 25);
 
     // 1-item combinations (e.g. 1 or more strips of single companion product)
@@ -148,7 +154,7 @@ export class SlitterOptimizer {
       for (let count = maxCount; count >= 1; count--) {
         const used = count * p.larguraFita;
         const remScrap = targetSpace - used;
-        if (remScrap <= maxScrap && remScrap >= 0) {
+        if (remScrap >= minScrap && remScrap <= maxScrap) {
           solutions.push({
             items: [{ product: p, quantidade: count, larguraTotal: used }],
             scrap: remScrap
@@ -173,7 +179,7 @@ export class SlitterOptimizer {
           for (let count2 = maxCount2; count2 >= 1; count2--) {
             const used2 = count2 * p2.larguraFita;
             const finalScrap = rem1 - used2;
-            if (finalScrap <= maxScrap && finalScrap >= 0) {
+            if (finalScrap >= minScrap && finalScrap <= maxScrap) {
               solutions.push({
                 items: [
                   { product: p1, quantidade: count1, larguraTotal: used1 },
@@ -187,13 +193,8 @@ export class SlitterOptimizer {
       }
     }
 
-    // Prioritize solutions within 10mm <= scrap <= 18mm
-    solutions.sort((a, b) => {
-      const aIdeal = a.scrap >= 10 && a.scrap <= 18 ? 1 : 0;
-      const bIdeal = b.scrap >= 10 && b.scrap <= 18 ? 1 : 0;
-      if (aIdeal !== bIdeal) return bIdeal - aIdeal;
-      return a.scrap - b.scrap;
-    });
+    // Sort solutions closest to 14mm
+    solutions.sort((a, b) => Math.abs(a.scrap - 14) - Math.abs(b.scrap - 14));
 
     return solutions.slice(0, 12);
   }
@@ -219,16 +220,13 @@ export class SlitterOptimizer {
 
     if (sobraMm >= 10 && sobraMm <= 18) {
       classificacao = 'PERFEITO';
-      badgeTexto = `Ideal: Refilo ${sobraMm}mm (${perdaPercent}%)`;
+      badgeTexto = `Refilo Conforme: ${sobraMm}mm (${perdaPercent}%)`;
     } else if (sobraMm < 10) {
-      classificacao = 'EXCELENTE';
-      badgeTexto = `Refilo Reduzido: ${sobraMm}mm (< 10mm)`;
-    } else if (sobraMm <= 25) {
-      classificacao = 'BOM';
-      badgeTexto = `Sobra: ${sobraMm}mm (${perdaPercent}%)`;
+      classificacao = 'ATENÇÃO';
+      badgeTexto = `Refilo Inválido: ${sobraMm}mm (< 10mm)`;
     } else {
       classificacao = 'ATENÇÃO';
-      badgeTexto = `Sobra Alta: ${sobraMm}mm (> 18mm)`;
+      badgeTexto = `Sobra Excedente: ${sobraMm}mm (> 18mm)`;
     }
 
     const hasPriorityDemand = fitas.some(f => (f.product.demandaT || 0) > 0);
