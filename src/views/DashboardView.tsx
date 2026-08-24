@@ -346,7 +346,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
 
                     {/* Graphical strip bar */}
-                    <div className="w-full h-10 bg-slate-900 rounded-xl border border-slate-300 p-1 flex items-stretch overflow-hidden shadow-inner">
+                    <div className="w-full h-11 bg-slate-100 rounded-xl border-2 border-slate-300 p-1 flex items-stretch overflow-hidden shadow-inner">
                       {prog.materialsProduced.map((m, mIdx) => {
                         const widthPct = (m.larguraTotal / coil.largura) * 100;
                         const isMain = m.finalidade === 'PRINCIPAL';
@@ -355,13 +355,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           <div
                             key={mIdx}
                             style={{ width: `${widthPct}%` }}
-                            className={`h-full flex items-center justify-between px-2 text-white font-mono text-xs font-bold border-r border-slate-900 ${
+                            className={`h-full flex items-center justify-between px-2.5 text-white font-mono text-xs font-black border-r-2 border-white rounded-lg transition-all ${
                               isMain ? 'bg-blue-600' : 'bg-purple-600'
                             }`}
                             title={`${m.quantidadeFitas}x Fita de ${m.fitaLargura}mm para ${m.product.codigo}`}
                           >
-                            <span className="truncate">{m.quantidadeFitas}x {m.fitaLargura}mm</span>
-                            <span className="text-[10px] opacity-90">{m.pesoAlocadoTon}t</span>
+                            <span className="truncate drop-shadow-sm">{m.quantidadeFitas}x {m.fitaLargura}mm</span>
+                            <span className="text-[11px] opacity-95 shrink-0 ml-1 drop-shadow-sm">{m.pesoAlocadoTon}t</span>
                           </div>
                         );
                       })}
@@ -369,7 +369,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       {prog.sobraMm > 0 && (
                         <div
                           style={{ width: `${(prog.sobraMm / coil.largura) * 100}%` }}
-                          className="h-full bg-emerald-100 border border-dashed border-emerald-400 text-emerald-900 text-[10px] font-mono font-black flex items-center justify-center px-1"
+                          className="h-full bg-emerald-100 border border-dashed border-emerald-400 text-emerald-900 text-[11px] font-mono font-black flex items-center justify-center px-1 rounded-lg"
                         >
                           {prog.sobraMm}mm
                         </div>
