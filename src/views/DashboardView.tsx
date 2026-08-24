@@ -9,9 +9,7 @@ import {
   ResponsiveContainer, 
   PieChart, 
   Pie, 
-  Cell, 
-  AreaChart, 
-  Area 
+  Cell 
 } from 'recharts';
 import { 
   Disc, 
@@ -33,10 +31,15 @@ import {
   Search,
   ArrowUpRight,
   Sliders,
-  Boxes
+  Boxes,
+  Maximize2,
+  CalendarClock,
+  Play,
+  FileSpreadsheet,
+  Check
 } from 'lucide-react';
 import { Coil, Product, SlitterOrder, PCPKPIs } from '../types/pcp';
-import { ReadinessService, ProductReadiness } from '../services/readinessService';
+import { ReadinessService, SlitterProductionProgram, ProductReadiness } from '../services/readinessService';
 import { MetricsBadge } from '../components/MetricsBadge';
 
 interface DashboardViewProps {
@@ -47,6 +50,8 @@ interface DashboardViewProps {
   onNavigateToPlanning: (productId?: string) => void;
   onNavigateToOrders: () => void;
   onNavigateToData: () => void;
+  onOpenProgramSimulation: (program: SlitterProductionProgram) => void;
+  onOpenProgramOrder: (program: SlitterProductionProgram) => void;
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
@@ -58,36 +63,52 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   orders,
   onNavigateToPlanning,
   onNavigateToOrders,
-  onNavigateToData
+  onNavigateToData,
+  onOpenProgramSimulation,
+  onOpenProgramOrder
 }) => {
-  const [readinessFilter, setReadinessFilter] = useState<'TODOS' | 'PRONTO' | 'PARCIAL' | 'BLOQUEADO'>('PRONTO');
-  const [tableSearch, setTableSearch] = useState<string>('');
+  const [activeBoardView, setActiveBoardView] = useState<'slitter_programs' | 'demand_readiness'>('slitter_programs');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [thicknessFilter, setThicknessFilter] = useState<string>('TODOS');
+  const [yieldFilter, setYieldFilter] = useState<'TODOS' | 'PERFEITO' | 'CONFORME'>('TODOS');
 
-  // Analyze readiness for all products against available coils
+  // Generate Slitter Cutting Programs (Bobina -> Slitter -> Materiais Destino)
+  const slitterPrograms = useMemo(() => {
+    return ReadinessService.generateSlitterPrograms(products, coils);
+  }, [products, coils]);
+
+  // Product readiness analysis
   const readinessList = useMemo(() => {
     return ReadinessService.analyze(products, coils);
   }, [products, coils]);
 
-  // Counts by readiness status
-  const prontoCount = readinessList.filter(r => r.status === 'PRONTO').length;
-  const parcialCount = readinessList.filter(r => r.status === 'PARCIAL').length;
-  const bloqueadoCount = readinessList.filter(r => r.status === 'BLOQUEADO').length;
+  // Unique thicknesses for filter
+  const uniqueThicknesses = useMemo(() => {
+    const set = new Set<number>();
+    coils.forEach(c => set.add(c.espessura));
+    return Array.from(set).sort((a, b) => a - b);
+  }, [coils]);
 
-  // Filtered and sorted readiness items for the prioritization table
-  const filteredReadiness = useMemo(() => {
-    let list = readinessList;
-    if (readinessFilter !== 'TODOS') {
-      list = list.filter(r => r.status === readinessFilter);
-    }
-    if (tableSearch.trim()) {
-      const q = tableSearch.toLowerCase();
-      list = list.filter(r => 
-        r.product.codigo.toLowerCase().includes(q) ||
-        r.product.descricao.toLowerCase().includes(q)
-      );
-    }
-    return ReadinessService.sortByReadiness(list);
-  }, [readinessList, readinessFilter, tableSearch]);
+  // Filtered Slitter Programs
+  const filteredPrograms = useMemo(() => {
+    return slitterPrograms.filter(prog => {
+      const matchesSearch = 
+        prog.coil.lote.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        prog.coil.codigo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        prog.materialsProduced.some(m => 
+          m.product.codigo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          m.product.descricao.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+
+      const matchesThickness = thicknessFilter === 'TODOS' || prog.coil.espessura === Number(thicknessFilter);
+      const matchesYield = 
+        yieldFilter === 'TODOS' ||
+        (yieldFilter === 'PERFEITO' && prog.sobraMm === 0) ||
+        (yieldFilter === 'CONFORME' && prog.sobraMm <= 10);
+
+      return matchesSearch && matchesThickness && matchesYield;
+    });
+  }, [slitterPrograms, searchQuery, thicknessFilter, yieldFilter]);
 
   // Coils by Thickness chart data
   const thicknessMap: Record<string, { thickness: number; weight: number; count: number }> = {};
@@ -109,481 +130,413 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }))
     .sort((a, b) => a.espessura - b.espessura);
 
-  // Demand by Family chart
-  const tuboDemand = products.filter(p => p.familia === 'TUBO').reduce((a, b) => a + (b.demandaT || 0), 0);
-  const perfilDemand = products.filter(p => p.familia === 'PERFIL').reduce((a, b) => a + (b.demandaT || 0), 0);
-  
-  const familyChartData = [
-    { name: 'Tubos Industriais', value: Math.round(tuboDemand), color: '#3b82f6' },
-    { name: 'Perfis U Estruturais', value: Math.round(perfilDemand), color: '#8b5cf6' }
-  ];
-
-  // Slitter utilization trend
-  const utilizationData = orders.length > 0 ? orders.slice(0, 10).map(o => ({
-    name: o.numeroOS,
-    aproveitamento: o.aproveitamentoPercent,
-    sobra: o.sobraMm
-  })) : [
-    { name: 'ESP-1.50', aproveitamento: 99.17, sobra: 10 },
-    { name: 'ESP-1.80', aproveitamento: 99.17, sobra: 10 },
-    { name: 'ESP-2.00', aproveitamento: 100.0, sobra: 0 },
-    { name: 'ESP-2.25', aproveitamento: 99.00, sobra: 10 },
-    { name: 'ESP-2.65', aproveitamento: 98.67, sobra: 20 },
-    { name: 'ESP-3.00', aproveitamento: 99.17, sobra: 10 },
-    { name: 'ESP-4.75', aproveitamento: 99.33, sobra: 10 }
-  ];
-
   return (
-    <div className="space-y-7 pb-16 animate-fadeIn">
-      {/* Top Cockpit: Production Feasibility Overview */}
-      <div className="relative overflow-hidden p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-slate-900 via-blue-950/40 to-slate-900 border border-blue-500/30 shadow-2xl">
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-6">
-          <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-300 text-xs font-mono font-bold">
-              <Zap className="w-3.5 h-3.5 text-blue-400" />
-              PAINEL DE PRONTIDÃO & CONTROLE DE PRODUÇÃO PCP
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              Matriz de Viabilidade de Produção
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-300">
-              Identifique instantaneamente quais produtos <strong className="text-emerald-400">possuem bobinas disponíveis em estoque</strong> para corte imediato no Slitter.
-            </p>
+    <div className="space-y-6 pb-16 animate-fadeIn w-full">
+      {/* Top Cockpit Banner */}
+      <div className="p-6 rounded-3xl bg-gradient-to-r from-slate-900 via-blue-950/40 to-slate-900 border border-blue-500/30 shadow-2xl flex flex-wrap items-center justify-between gap-6">
+        <div className="space-y-1.5 max-w-3xl">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-300 text-xs font-mono font-bold">
+            <Zap className="w-3.5 h-3.5 text-blue-400" />
+            PROGRAMAÇÃO DE CORTE SLITTER • PCP METALÚRGICO 2026
           </div>
+          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            Central de Programação de Slitters & Matéria-Prima
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-300">
+            Acompanhe exatamente <strong className="text-blue-400">qual bobina será fatiada</strong>, <strong className="text-emerald-400">qual slitter será montado</strong> e <strong className="text-purple-300">quais tubos e perfis serão produzidos</strong> com cada fita.
+          </p>
+        </div>
 
+        <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => onNavigateToPlanning()}
             className="flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-black shadow-xl shadow-blue-500/30 transition-all hover:scale-105 active:scale-95 glow-blue"
           >
             <Sparkles className="w-4 h-4" />
-            <span>Iniciar Planejamento (6 Passos)</span>
+            <span>Novo Planejamento Customizado (6 Passos)</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
+      </div>
 
-        {/* 3 Feasibility Cockpit Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mt-6 pt-5 border-t border-slate-800/80">
-          {/* Pronto */}
-          <div 
-            onClick={() => setReadinessFilter('PRONTO')}
-            className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-              readinessFilter === 'PRONTO'
-                ? 'bg-emerald-950/60 border-emerald-500 ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-500/20'
-                : 'bg-slate-950/70 border-slate-800 hover:border-emerald-500/50'
+      {/* Main Mode Tabs & Filter Controls */}
+      <div className="glass-card p-4 rounded-3xl border border-slate-800 bg-slate-900/90 shadow-2xl flex flex-wrap items-center justify-between gap-4">
+        {/* Sub-view switcher */}
+        <div className="flex rounded-2xl bg-slate-950 border border-slate-800 p-1.5">
+          <button
+            onClick={() => setActiveBoardView('slitter_programs')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black transition-all ${
+              activeBoardView === 'slitter_programs'
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 font-mono">
-                <CheckCircle className="w-4 h-4 text-emerald-400" />
-                Prontos para Produzir
-              </span>
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            </div>
-            <div className="text-2xl font-black text-white font-mono mt-2">
-              {prontoCount} <span className="text-xs font-sans text-emerald-300 font-medium">produtos 100% viáveis</span>
-            </div>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Possuem bobinas com espessura e peso suficientes em estoque.
-            </p>
+            <Scissors className="w-4 h-4" />
+            <span>Slitters Prontos para Corte ({slitterPrograms.length} programas)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveBoardView('demand_readiness')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black transition-all ${
+              activeBoardView === 'demand_readiness'
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Boxes className="w-4 h-4" />
+            <span>Fila de Demandas por Produto ({readinessList.length} itens)</span>
+          </button>
+        </div>
+
+        {/* Search & Bitola Filters */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative w-64">
+            <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Buscar por lote, fita ou produto..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 shadow-inner"
+            />
           </div>
 
-          {/* Parcial */}
-          <div 
-            onClick={() => setReadinessFilter('PARCIAL')}
-            className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-              readinessFilter === 'PARCIAL'
-                ? 'bg-amber-950/60 border-amber-500 ring-2 ring-amber-500/40 shadow-lg shadow-amber-500/20'
-                : 'bg-slate-950/70 border-slate-800 hover:border-amber-500/50'
-            }`}
+          <select
+            value={thicknessFilter}
+            onChange={(e) => setThicknessFilter(e.target.value)}
+            className="py-2 px-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
           >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-400 flex items-center gap-1.5 font-mono">
-                <AlertTriangle className="w-4 h-4 text-amber-400" />
-                Atendimento Parcial
-              </span>
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-            </div>
-            <div className="text-2xl font-black text-white font-mono mt-2">
-              {parcialCount} <span className="text-xs font-sans text-amber-300 font-medium">produtos parciais</span>
-            </div>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Há bobinas disponíveis, mas quantidade menor que a demanda total.
-            </p>
-          </div>
+            <option value="TODOS">Todas as Bitolas</option>
+            {uniqueThicknesses.map(t => (
+              <option key={t} value={t}>{t} mm</option>
+            ))}
+          </select>
 
-          {/* Bloqueado */}
-          <div 
-            onClick={() => setReadinessFilter('BLOQUEADO')}
-            className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-              readinessFilter === 'BLOQUEADO'
-                ? 'bg-red-950/60 border-red-500 ring-2 ring-red-500/40 shadow-lg shadow-red-500/20'
-                : 'bg-slate-950/70 border-slate-800 hover:border-red-500/50'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-red-400 flex items-center gap-1.5 font-mono">
-                <XCircle className="w-4 h-4 text-red-400" />
-                Sem Matéria-Prima
-              </span>
-              <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
-            </div>
-            <div className="text-2xl font-black text-white font-mono mt-2">
-              {bloqueadoCount} <span className="text-xs font-sans text-red-300 font-medium">produtos bloqueados</span>
-            </div>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Nenhuma bobina com espessura compatível disponível no estoque.
-            </p>
+          <div className="flex rounded-xl bg-slate-950 border border-slate-800 p-1">
+            {[
+              { id: 'TODOS', label: 'Todos' },
+              { id: 'PERFEITO', label: '100% (Sobra 0)' },
+              { id: 'CONFORME', label: '≤ 10mm Conforme' }
+            ].map(y => (
+              <button
+                key={y.id}
+                onClick={() => setYieldFilter(y.id as any)}
+                className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                  yieldFilter === y.id
+                    ? 'bg-blue-600 text-white shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {y.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* PRIORITIZATION TABLE: Products Ready to Produce First */}
-      <div className="glass-card p-6 rounded-3xl border border-slate-800 bg-slate-900/90 shadow-2xl space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-2xl">
-              <Boxes className="w-5 h-5" />
-            </div>
+      {/* VIEW 1: SLITTER PROGRAMS (Bobina -> Slitter -> Materiais Produzidos) */}
+      {activeBoardView === 'slitter_programs' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between text-xs font-mono text-slate-400 px-2">
+            <span>Exibindo <strong>{filteredPrograms.length}</strong> combinações de corte otimizadas prontas para execução</span>
+            <span className="text-emerald-400 font-bold">✓ Regra garantida: Sobra máxima ≤ 10 mm</span>
+          </div>
+
+          <div className="space-y-4">
+            {filteredPrograms.map((prog, idx) => {
+              const coil = prog.coil;
+              const isPerfect = prog.sobraMm === 0;
+
+              return (
+                <div
+                  key={prog.id || idx}
+                  className="glass-card p-6 rounded-3xl border border-slate-800/90 hover:border-blue-500/50 bg-gradient-to-r from-slate-900/95 via-slate-900/90 to-slate-950 transition-all shadow-xl hover:shadow-2xl space-y-4 group"
+                >
+                  {/* Top Bar: Coil info + Performance Badges */}
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-3.5">
+                    {/* Left: Coil Header */}
+                    <div className="flex items-center gap-3.5">
+                      <div className="p-3 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-2xl shadow-md">
+                        <Disc className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-black text-white font-mono tracking-tight">
+                            LOTE: {coil.lote}
+                          </span>
+                          <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-mono font-bold">
+                            {coil.codigo}
+                          </span>
+                          <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/30 font-mono font-bold">
+                            Bitola: {coil.largura} x {coil.espessura} mm
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-0.5 font-mono">
+                          Matéria-prima em Estoque: <strong className="text-emerald-400">{coil.peso} t</strong> disponível
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Right: Yield Badges & Action Buttons */}
+                    <div className="flex items-center gap-3">
+                      <div className="text-right font-mono pr-2">
+                        <div className="text-xs text-slate-400 uppercase font-bold">Aproveitamento</div>
+                        <div className={`text-base font-black ${isPerfect ? 'text-emerald-400' : 'text-emerald-300'}`}>
+                          {prog.aproveitamentoPercent}% ({prog.sobraMm}mm sobra)
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => onOpenProgramSimulation(prog)}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-extrabold rounded-2xl border border-slate-700 transition-all hover:scale-105"
+                      >
+                        <Scissors className="w-4 h-4 text-blue-400" />
+                        <span>Abrir no Estúdio</span>
+                      </button>
+
+                      <button
+                        onClick={() => onOpenProgramOrder(prog)}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black rounded-2xl shadow-xl shadow-emerald-500/30 transition-all hover:scale-105 glow-emerald"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Emitir Ordem de Slitter (OS)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Middle: Slitter Diagram Bar (Mini Cross Section) */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-[11px] font-mono text-slate-400 font-bold">
+                      <span>Montagem de Facas no Slitter ({prog.totalFitas} fitas programadas):</span>
+                      <span className="text-slate-300">
+                        {prog.materialsProduced.map(m => `${m.quantidadeFitas}x ${m.fitaLargura}mm`).join(' + ')} 
+                        {prog.sobraMm > 0 ? ` + [${prog.sobraMm}mm refilo]` : ''} = {coil.largura}mm
+                      </span>
+                    </div>
+
+                    {/* Graphical strip bar */}
+                    <div className="w-full h-10 bg-slate-950 rounded-xl border border-slate-700/80 p-1 flex items-stretch overflow-hidden shadow-inner">
+                      {prog.materialsProduced.map((m, mIdx) => {
+                        const widthPct = (m.larguraTotal / coil.largura) * 100;
+                        const isMain = m.finalidade === 'PRINCIPAL';
+
+                        return (
+                          <div
+                            key={mIdx}
+                            style={{ width: `${widthPct}%` }}
+                            className={`h-full flex items-center justify-between px-2 text-white font-mono text-[10px] font-bold border-r border-slate-950 ${
+                              isMain ? 'bg-blue-600' : 'bg-purple-600'
+                            }`}
+                            title={`${m.quantidadeFitas}x Fita de ${m.fitaLargura}mm para ${m.product.codigo}`}
+                          >
+                            <span className="truncate">{m.quantidadeFitas}x {m.fitaLargura}mm</span>
+                            <span className="text-[9px] opacity-80">{m.pesoAlocadoTon}t</span>
+                          </div>
+                        );
+                      })}
+
+                      {prog.sobraMm > 0 && (
+                        <div
+                          style={{ width: `${(prog.sobraMm / coil.largura) * 100}%` }}
+                          className="h-full bg-emerald-950/80 border border-dashed border-emerald-500/60 text-emerald-400 text-[9px] font-mono font-bold flex items-center justify-center px-1"
+                        >
+                          {prog.sobraMm}mm
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Bottom: Destination Materials (PARA QUAIS MATERIAIS ELE VAI SER UTILIZADO) */}
+                  <div className="space-y-2 pt-2">
+                    <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 font-mono flex items-center gap-2">
+                      <Layers className="w-3.5 h-3.5 text-purple-400" />
+                      Produtos Finais Produzidos a partir deste Slitter:
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {prog.materialsProduced.map((mat, matIdx) => {
+                        const isMain = mat.finalidade === 'PRINCIPAL';
+
+                        return (
+                          <div
+                            key={matIdx}
+                            className={`p-3.5 rounded-2xl border transition-all ${
+                              isMain
+                                ? 'bg-blue-950/40 border-blue-500/40'
+                                : 'bg-purple-950/40 border-purple-500/40'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-black text-white font-mono">{mat.product.codigo}</span>
+                                  <MetricsBadge type="familia" value={mat.product.familia} size="sm" />
+                                  <span className={`text-[10px] px-2 py-0.5 rounded font-bold font-mono ${
+                                    isMain ? 'bg-blue-500/20 text-blue-300' : 'bg-purple-500/20 text-purple-300'
+                                  }`}>
+                                    {mat.finalidade}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-300 mt-1 font-medium line-clamp-1">
+                                  {mat.product.descricao}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2 mt-3 pt-2.5 border-t border-slate-800/80 text-[11px] font-mono">
+                              <div className="text-center bg-slate-950/60 p-1.5 rounded-lg">
+                                <span className="text-slate-400 block text-[9px]">FITAS</span>
+                                <strong className="text-white font-bold">{mat.quantidadeFitas}x ({mat.fitaLargura}mm)</strong>
+                              </div>
+                              <div className="text-center bg-slate-950/60 p-1.5 rounded-lg">
+                                <span className="text-slate-400 block text-[9px]">PESO GERADO</span>
+                                <strong className="text-emerald-400 font-bold">{mat.pesoAlocadoTon} t</strong>
+                              </div>
+                              <div className="text-center bg-slate-950/60 p-1.5 rounded-lg">
+                                <span className="text-slate-400 block text-[9px]">RENDIMENTO</span>
+                                <strong className="text-sky-300 font-bold">{mat.metrosEstimados} m</strong>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 2: PRODUCT DEMAND READINESS */}
+      {activeBoardView === 'demand_readiness' && (
+        <div className="glass-card p-6 rounded-3xl border border-slate-800 bg-slate-900/90 shadow-2xl space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
             <div>
               <h3 className="text-base font-extrabold text-white tracking-tight">
-                Fila de Priorização de Produção no Slitter
+                Cobertura de Estoque de Bobinas por Produto ({readinessList.length} itens)
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                Exibindo primeiro os materiais com matéria-prima pronta para programar corte
+                Consulte o estoque de bobinas disponível para cada item e a bobina recomendada para o corte
               </p>
             </div>
           </div>
 
-          {/* Quick Search & Filter Chips */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Filtrar por código ou descrição..."
-                value={tableSearch}
-                onChange={(e) => setTableSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-              />
-            </div>
-
-            <div className="flex rounded-xl bg-slate-950 border border-slate-800 p-1">
-              {[
-                { id: 'TODOS', label: 'Todos' },
-                { id: 'PRONTO', label: '✓ Prontos' },
-                { id: 'PARCIAL', label: '⚠ Parciais' },
-                { id: 'BLOQUEADO', label: '✕ Bloqueados' }
-              ].map(f => (
-                <button
-                  key={f.id}
-                  onClick={() => setReadinessFilter(f.id as any)}
-                  className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-                    readinessFilter === f.id
-                      ? 'bg-blue-600 text-white shadow'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* The Table */}
-        <div className="overflow-x-auto max-h-[460px]">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px] tracking-wider font-mono sticky top-0 bg-slate-900 z-10">
-                <th className="py-3 px-3">Status de Produção</th>
-                <th className="py-3 px-3">Produto Final</th>
-                <th className="py-3 px-3">Família</th>
-                <th className="py-3 px-3 text-right">Espessura</th>
-                <th className="py-3 px-3 text-right">Largura Fita</th>
-                <th className="py-3 px-3 text-right">Demanda (t)</th>
-                <th className="py-3 px-3 text-right">Estoque Bobinas</th>
-                <th className="py-3 px-3 text-center">Melhor Bobina Lote</th>
-                <th className="py-3 px-3 text-right">Aprov. Teórico</th>
-                <th className="py-3 px-3 text-center">Ação PCP</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60 font-mono">
-              {filteredReadiness.slice(0, 15).map((r) => {
-                const prod = r.product;
-                const isReady = r.status === 'PRONTO';
-                const isPartial = r.status === 'PARCIAL';
-
-                return (
-                  <tr key={prod.id} className="hover:bg-slate-800/40 transition-colors group">
-                    {/* Status Pill */}
-                    <td className="py-3.5 px-3">
-                      {isReady ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
-                          <CheckCircle className="w-3 h-3 text-emerald-400" />
-                          Pronto ({r.compatibleLotCount} lotes)
-                        </span>
-                      ) : isPartial ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold">
-                          <AlertTriangle className="w-3 h-3 text-amber-400" />
-                          Parcial ({r.coveragePercent}%)
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-red-500/15 text-red-300 border border-red-500/30 text-[10px] font-bold">
-                          <XCircle className="w-3 h-3 text-red-400" />
-                          Sem Bobina
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Product Code & Description */}
-                    <td className="py-3.5 px-3">
-                      <div className="font-black text-white group-hover:text-blue-400 transition-colors">{prod.codigo}</div>
-                      <div className="text-[11px] font-sans text-slate-400 truncate max-w-xs">{prod.descricao}</div>
-                    </td>
-
-                    {/* Family */}
-                    <td className="py-3.5 px-3 font-sans">
-                      <MetricsBadge type="familia" value={prod.familia} size="sm" />
-                    </td>
-
-                    {/* Thickness */}
-                    <td className="py-3.5 px-3 text-right text-purple-400 font-bold">
-                      {prod.espessura} mm
-                    </td>
-
-                    {/* Strip Width */}
-                    <td className="py-3.5 px-3 text-right font-black text-white">
-                      {prod.larguraFita} mm
-                    </td>
-
-                    {/* Planned Demand */}
-                    <td className="py-3.5 px-3 text-right text-amber-400 font-bold">
-                      {prod.demandaT || 0} t
-                    </td>
-
-                    {/* Compatible Stock */}
-                    <td className="py-3.5 px-3 text-right">
-                      <div className={`font-black ${r.totalCompatibleWeightTon > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
-                        {r.totalCompatibleWeightTon} t
-                      </div>
-                      <div className="text-[10px] text-slate-500">
-                        {r.compatibleLotCount} lotes disp.
-                      </div>
-                    </td>
-
-                    {/* Best Matching Coil Lot */}
-                    <td className="py-3.5 px-3 text-center">
-                      {r.bestCoil ? (
-                        <div>
-                          <span className="text-blue-400 font-black">{r.bestCoil.lote}</span>
-                          <span className="text-[10px] text-slate-400 block">({r.bestCoil.largura}mm • {r.bestCoil.peso}t)</span>
-                        </div>
-                      ) : (
-                        <span className="text-slate-600">-</span>
-                      )}
-                    </td>
-
-                    {/* Theoretical Yield */}
-                    <td className="py-3.5 px-3 text-right">
-                      {r.estimatedYieldPercent > 0 ? (
-                        <div>
-                          <span className={`font-black ${r.estimatedYieldPercent >= 99 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                            {r.estimatedYieldPercent}%
+          <div className="overflow-x-auto max-h-[500px]">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px] tracking-wider font-mono sticky top-0 bg-slate-900 z-10">
+                  <th className="py-3 px-3">Status</th>
+                  <th className="py-3 px-3">Código / Descrição</th>
+                  <th className="py-3 px-3">Família</th>
+                  <th className="py-3 px-3 text-right">Espessura</th>
+                  <th className="py-3 px-3 text-right">Fita (mm)</th>
+                  <th className="py-3 px-3 text-right">Demanda (t)</th>
+                  <th className="py-3 px-3 text-right">Estoque Bobinas</th>
+                  <th className="py-3 px-3 text-center">Melhor Bobina Lote</th>
+                  <th className="py-3 px-3 text-right">Aprov. Teórico</th>
+                  <th className="py-3 px-3 text-center">Ação</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 font-mono">
+                {readinessList
+                  .filter(r => 
+                    r.product.codigo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    r.product.descricao.toLowerCase().includes(searchQuery.toLowerCase())
+                  )
+                  .map((r) => (
+                    <tr key={r.product.id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3.5 px-3">
+                        {r.status === 'PRONTO' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
+                            <Check className="w-3 h-3" /> Pronto ({r.compatibleLotCount} lotes)
                           </span>
-                          <span className="text-[10px] text-slate-400 block font-sans">
-                            Sobra: {r.estimatedScrapMm}mm
+                        ) : r.status === 'PARCIAL' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold">
+                            Parcial ({r.coveragePercent}%)
                           </span>
-                        </div>
-                      ) : (
-                        <span className="text-slate-600">-</span>
-                      )}
-                    </td>
-
-                    {/* Action */}
-                    <td className="py-3.5 px-3 text-center">
-                      <button
-                        onClick={() => onNavigateToPlanning(prod.id)}
-                        disabled={r.compatibleLotCount === 0}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
-                          r.compatibleLotCount > 0
-                            ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-500/20 hover:scale-105'
-                            : 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-50'
-                        }`}
-                      >
-                        <span>Planejar</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Summary KPI Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Bobinas */}
-        <div className="glass-card p-5 rounded-3xl border border-slate-800 bg-slate-900/80 shadow-xl relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Estoque de Bobinas</span>
-            <div className="p-3 rounded-2xl bg-blue-500/15 text-blue-400 border border-blue-500/30">
-              <Disc className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-black text-white font-mono">
-              {kpis.totalBobinasDisponiveis} <span className="text-xs font-sans text-slate-400">lotes</span>
-            </div>
-            <div className="text-xs text-blue-400 font-mono mt-0.5 font-bold">
-              {kpis.pesoTotalEstoqueTon.toLocaleString('pt-BR')} t disponíveis
-            </div>
-          </div>
-        </div>
-
-        {/* Aproveitamento Médio */}
-        <div className="glass-card p-5 rounded-3xl border border-slate-800 bg-slate-900/80 shadow-xl relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Aproveitamento Médio</span>
-            <div className="p-3 rounded-2xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-              <TrendingUp className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-black text-emerald-400 font-mono">
-              {kpis.aproveitamentoMedioPercent}%
-            </div>
-            <div className="text-xs text-slate-300 mt-0.5 flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              Meta PCP: Sobra ≤ 10mm
-            </div>
-          </div>
-        </div>
-
-        {/* Ordens de Slitter */}
-        <div className="glass-card p-5 rounded-3xl border border-slate-800 bg-slate-900/80 shadow-xl relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Ordens de Slitter</span>
-            <div className="p-3 rounded-2xl bg-purple-500/15 text-purple-400 border border-purple-500/30">
-              <Scissors className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-black text-white font-mono">
-              {orders.length} <span className="text-xs font-sans text-slate-400">OS</span>
-            </div>
-            <div className="text-xs text-purple-400 mt-0.5 font-bold">
-              {kpis.totalOrdensAtivas} ordens ativas
-            </div>
-          </div>
-        </div>
-
-        {/* Demanda Total */}
-        <div className="glass-card p-5 rounded-3xl border border-slate-800 bg-slate-900/80 shadow-xl relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Demanda Cadastrada</span>
-            <div className="p-3 rounded-2xl bg-amber-500/15 text-amber-400 border border-amber-500/30">
-              <Percent className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-black text-amber-400 font-mono">
-              {kpis.demandaTotalTon.toLocaleString('pt-BR')} t
-            </div>
-            <div className="text-xs text-slate-300 mt-0.5">
-              {products.length} produtos cadastrados
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Coils by Thickness */}
-        <div className="lg:col-span-2 glass-card p-6 rounded-3xl border border-slate-800 bg-slate-900/80 shadow-xl space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3.5">
-            <div>
-              <h3 className="text-sm font-extrabold text-white flex items-center gap-2 tracking-tight">
-                <Disc className="w-4 h-4 text-blue-400" />
-                Estoque de Bobinas por Espessura (Toneladas)
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">Volume de aço disponível em cada bitola de matéria-prima</p>
-            </div>
-            <button
-              onClick={onNavigateToData}
-              className="text-xs text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1"
-            >
-              <span>Ver Bobinas</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={coilsByThickness} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.6} />
-                <XAxis dataKey="name" stroke="#64748b" fontSize={11} />
-                <YAxis stroke="#64748b" fontSize={11} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '16px', color: '#fff' }}
-                  formatter={(val: any) => [`${val} t`, 'Estoque Disponível']}
-                />
-                <Bar dataKey="peso" fill="#3b82f6" radius={[8, 8, 0, 0]}>
-                  {coilsByThickness.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-red-500/15 text-red-300 border border-red-500/30 text-[10px] font-bold">
+                            Sem Bobina
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-3">
+                        <div className="font-black text-white">{r.product.codigo}</div>
+                        <div className="text-[11px] font-sans text-slate-400 truncate max-w-xs">{r.product.descricao}</div>
+                      </td>
+                      <td className="py-3.5 px-3 font-sans">
+                        <MetricsBadge type="familia" value={r.product.familia} size="sm" />
+                      </td>
+                      <td className="py-3.5 px-3 text-right text-purple-400 font-bold">{r.product.espessura} mm</td>
+                      <td className="py-3.5 px-3 text-right font-black text-white">{r.product.larguraFita} mm</td>
+                      <td className="py-3.5 px-3 text-right text-amber-400 font-bold">{r.product.demandaT || 0} t</td>
+                      <td className="py-3.5 px-3 text-right font-black text-emerald-400">{r.totalCompatibleWeightTon} t</td>
+                      <td className="py-3.5 px-3 text-center">
+                        {r.bestCoil ? (
+                          <span className="text-blue-400 font-black">{r.bestCoil.lote} ({r.bestCoil.largura}mm)</span>
+                        ) : '-'}
+                      </td>
+                      <td className="py-3.5 px-3 text-right font-black text-emerald-400">
+                        {r.estimatedYieldPercent > 0 ? `${r.estimatedYieldPercent}%` : '-'}
+                      </td>
+                      <td className="py-3.5 px-3 text-center">
+                        <button
+                          onClick={() => onNavigateToPlanning(r.product.id)}
+                          disabled={r.compatibleLotCount === 0}
+                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-xl text-xs font-black transition-all"
+                        >
+                          Planejar
+                        </button>
+                      </td>
+                    </tr>
                   ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* KPI Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-2">
+        <div className="glass-card p-5 rounded-3xl border border-slate-800 bg-slate-900/80">
+          <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Estoque de Bobinas</span>
+          <div className="text-2xl font-black text-white font-mono mt-2">
+            {kpis.totalBobinasDisponiveis} <span className="text-xs font-sans text-slate-400">lotes</span>
+          </div>
+          <div className="text-xs text-blue-400 font-mono mt-0.5 font-bold">
+            {kpis.pesoTotalEstoqueTon.toLocaleString('pt-BR')} t disponíveis
           </div>
         </div>
 
-        {/* Demand breakdown */}
-        <div className="glass-card p-6 rounded-3xl border border-slate-800 bg-slate-900/80 shadow-xl space-y-4">
-          <div className="border-b border-slate-800 pb-3.5">
-            <h3 className="text-sm font-extrabold text-white flex items-center gap-2 tracking-tight">
-              <Layers className="w-4 h-4 text-purple-400" />
-              Demanda por Família
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">Proporção: Tubos vs Perfis U</p>
+        <div className="glass-card p-5 rounded-3xl border border-slate-800 bg-slate-900/80">
+          <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Aproveitamento Médio</span>
+          <div className="text-2xl font-black text-emerald-400 font-mono mt-2">
+            {kpis.aproveitamentoMedioPercent}%
           </div>
-
-          <div className="h-48 w-full flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={familyChartData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={75}
-                  paddingAngle={6}
-                  dataKey="value"
-                >
-                  {familyChartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '16px', color: '#fff' }}
-                  formatter={(val: any) => [`${val} t`, 'Demanda']}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+          <div className="text-xs text-slate-300 mt-0.5">
+            Meta: Sobra ≤ 10 mm
           </div>
+        </div>
 
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            {familyChartData.map((item, idx) => (
-              <div key={idx} className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full shadow" style={{ backgroundColor: item.color }} />
-                <div>
-                  <div className="text-slate-400 text-[10px] font-bold uppercase">{item.name}</div>
-                  <div className="font-black text-white font-mono text-xs">{item.value} t</div>
-                </div>
-              </div>
-            ))}
+        <div className="glass-card p-5 rounded-3xl border border-slate-800 bg-slate-900/80">
+          <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Ordens de Slitter</span>
+          <div className="text-2xl font-black text-white font-mono mt-2">
+            {orders.length} <span className="text-xs font-sans text-slate-400">OS geradas</span>
+          </div>
+          <div className="text-xs text-purple-400 mt-0.5 font-bold">
+            {kpis.totalOrdensAtivas} em andamento
+          </div>
+        </div>
+
+        <div className="glass-card p-5 rounded-3xl border border-slate-800 bg-slate-900/80">
+          <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Demanda Cadastrada</span>
+          <div className="text-2xl font-black text-amber-400 font-mono mt-2">
+            {kpis.demandaTotalTon.toLocaleString('pt-BR')} t
+          </div>
+          <div className="text-xs text-slate-300 mt-0.5">
+            {products.length} produtos cadastrados
           </div>
         </div>
       </div>

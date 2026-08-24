@@ -8,15 +8,9 @@ import { SlitterOrderView } from './views/SlitterOrderView';
 import { ReportsView } from './views/ReportsView';
 import { DataManagementView } from './views/DataManagementView';
 import { StorageService } from './services/storageService';
+import { SlitterOptimizer } from './services/slitterOptimizer';
 import { Product, Coil, SlitterStrip, SlitterOrder, SlitterCombination } from './types/pcp';
-import { 
-  LayoutDashboard, 
-  Sliders, 
-  Scissors, 
-  ClipboardCheck, 
-  BarChart3, 
-  Database 
-} from 'lucide-react';
+import { SlitterProductionProgram } from './services/readinessService';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
@@ -72,6 +66,22 @@ export const App: React.FC = () => {
     setActiveTab('planning');
   };
 
+  const handleOpenProgramInSimulation = (program: SlitterProductionProgram) => {
+    const strips = SlitterOptimizer.generateStripsFromCombination(program.combination, program.coil);
+    setActiveCoil(program.coil);
+    setActiveStrips(strips);
+    setActiveOrder(null);
+    setActiveTab('simulation');
+  };
+
+  const handleOpenProgramInOrder = (program: SlitterProductionProgram) => {
+    const strips = SlitterOptimizer.generateStripsFromCombination(program.combination, program.coil);
+    setActiveCoil(program.coil);
+    setActiveStrips(strips);
+    setActiveOrder(null);
+    setActiveTab('order');
+  };
+
   const handleProceedToSimulation = (coil: Coil, strips: SlitterStrip[], combination?: SlitterCombination) => {
     setActiveCoil(coil);
     setActiveStrips(strips);
@@ -115,8 +125,8 @@ export const App: React.FC = () => {
         isSyncing={isSyncing}
       />
 
-      {/* Main Container with Sidebar + Content */}
-      <div className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col lg:flex-row gap-6">
+      {/* Fullscreen PC Container: w-full without max-w constraints */}
+      <div className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-5 flex flex-col lg:flex-row gap-6">
         {/* Desktop Sidebar */}
         <Sidebar
           activeTab={activeTab}
@@ -125,7 +135,7 @@ export const App: React.FC = () => {
           coilsCount={coils.filter(c => c.status === 'Disponível').length}
         />
 
-        {/* Dynamic View Panel */}
+        {/* Dynamic View Panel occupying the entire remaining screen width */}
         <main className="flex-1 min-w-0">
           {activeTab === 'dashboard' && (
             <DashboardView
@@ -136,6 +146,8 @@ export const App: React.FC = () => {
               onNavigateToPlanning={handleNavigateToPlanning}
               onNavigateToOrders={() => setActiveTab('reports')}
               onNavigateToData={() => setActiveTab('data')}
+              onOpenProgramSimulation={handleOpenProgramInSimulation}
+              onOpenProgramOrder={handleOpenProgramInOrder}
             />
           )}
 
@@ -188,33 +200,6 @@ export const App: React.FC = () => {
             />
           )}
         </main>
-      </div>
-
-      {/* Mobile Bottom Navigation Bar */}
-      <div className="lg:hidden sticky bottom-0 z-40 w-full border-t border-slate-800 bg-slate-950/95 backdrop-blur-xl px-2 py-1.5 flex items-center justify-around">
-        {[
-          { id: 'dashboard' as TabType, label: 'Dashboard', icon: LayoutDashboard },
-          { id: 'planning' as TabType, label: 'Planejar', icon: Sliders },
-          { id: 'simulation' as TabType, label: 'Slitter', icon: Scissors },
-          { id: 'order' as TabType, label: 'OS', icon: ClipboardCheck },
-          { id: 'reports' as TabType, label: 'Relatórios', icon: BarChart3 },
-          { id: 'data' as TabType, label: 'Dados', icon: Database }
-        ].map(item => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`flex flex-col items-center gap-1 p-2 rounded-xl text-[10px] font-bold transition-all ${
-                isActive ? 'text-blue-400 bg-blue-500/10' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
       </div>
     </div>
   );
