@@ -66,7 +66,8 @@ export interface SlitterCombination {
 
 export interface SlitterOrder {
   id: string;
-  numeroOS: string; // ex: SLT-2026-001
+  numeroOP: string; // ex: OP-SLT-2026-001
+  numeroOS?: string; // retrocompatibilidade
   dataCriacao: string;
   bobinaId: string;
   bobinaCodigo: string;

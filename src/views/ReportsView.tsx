@@ -35,7 +35,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   };
 
   const filteredOrders = orders.filter(o => 
-    o.numeroOS.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (o.numeroOP || o.numeroOS || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     o.bobinaLote.toLowerCase().includes(searchTerm.toLowerCase()) ||
     o.bobinaCodigo.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -72,9 +72,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {/* Sub-Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
         {[
-          { id: 'slitters', label: 'Histórico de Slitters Gerados', icon: Scissors, count: orders.length },
+          { id: 'slitters', label: 'Ordens de Produção (OP) Geradas', icon: Scissors, count: orders.length },
           { id: 'bobinas', label: 'Consumo por Bobina / Lote', icon: Disc, count: coils.length },
-          { id: 'produtos', label: 'Planejamento por Produto', icon: Layers, count: products.length },
+          { id: 'produtos', label: 'Planejamento por Produto Base', icon: Layers, count: products.length },
           { id: 'perdas', label: 'Balanço de Perdas & Sobras', icon: TrendingUp, count: null }
         ].map((tab) => {
           const Icon = tab.icon;
@@ -109,7 +109,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
         <input
           type="text"
-          placeholder="Pesquisar por OS, lote, código..."
+          placeholder="Pesquisar por OP, lote, código..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-sm"
@@ -121,26 +121,26 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
             <h3 className="text-sm font-black text-slate-900 tracking-tight">
-              Ordens de Slitter Registradas ({filteredOrders.length})
+              Ordens de Produção (OP) de Slitter Registradas ({filteredOrders.length})
             </h3>
           </div>
 
           {filteredOrders.length === 0 ? (
             <div className="text-center py-16 text-slate-400 text-xs font-medium">
-              Nenhuma ordem de slitter gerada ainda. Realize um planejamento para emitir sua primeira OS!
+              Nenhuma ordem de produção (OP) gerada ainda. Realize um planejamento para emitir sua primeira OP!
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider font-mono font-bold">
-                    <th className="py-3 px-3">Número OS</th>
+                    <th className="py-3 px-3">Número OP</th>
                     <th className="py-3 px-3">Data</th>
                     <th className="py-3 px-3">Lote Bobina</th>
                     <th className="py-3 px-3 text-right">Largura</th>
                     <th className="py-3 px-3 text-right">Espessura</th>
                     <th className="py-3 px-3 text-right">Fitas</th>
-                    <th className="py-3 px-3 text-right">Sobra</th>
+                    <th className="py-3 px-3 text-right">Refilo</th>
                     <th className="py-3 px-3 text-right">Aproveitamento</th>
                     <th className="py-3 px-3 text-center">Status</th>
                     <th className="py-3 px-3 text-center">Ação</th>
@@ -149,13 +149,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 <tbody className="divide-y divide-slate-100 font-mono">
                   {filteredOrders.map((o) => (
                     <tr key={o.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3.5 px-3 font-black text-blue-700">{o.numeroOS}</td>
+                      <td className="py-3.5 px-3 font-black text-blue-700">{o.numeroOP || o.numeroOS}</td>
                       <td className="py-3.5 px-3 text-slate-600 font-sans">{o.dataCriacao}</td>
                       <td className="py-3.5 px-3 font-black text-slate-900">{o.bobinaLote}</td>
                       <td className="py-3.5 px-3 text-right text-slate-700">{o.bobinaLargura} mm</td>
                       <td className="py-3.5 px-3 text-right text-purple-700">{o.bobinaEspessura} mm</td>
                       <td className="py-3.5 px-3 text-right text-slate-900 font-bold">{o.totalFitas}</td>
-                      <td className={`py-3.5 px-3 text-right font-black ${o.sobraMm <= 10 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                      <td className={`py-3.5 px-3 text-right font-black ${o.sobraMm >= 10 && o.sobraMm <= 18 ? 'text-emerald-700' : 'text-slate-900'}`}>
                         {o.sobraMm} mm
                       </td>
                       <td className="py-3.5 px-3 text-right font-black text-emerald-700">
@@ -168,7 +168,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         <button
                           onClick={() => onViewOrderDetails(o)}
                           className="p-2 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white border border-blue-200 transition-all shadow-sm"
-                          title="Visualizar OS"
+                          title="Visualizar OP"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -285,9 +285,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </div>
 
             <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-              <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Sobra Média</span>
+              <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Refilo Médio</span>
               <span className="text-2xl font-black font-mono text-emerald-700 mt-1.5 block">
-                {avgScrapMm} mm (Meta ≤ 10mm)
+                {avgScrapMm} mm (Faixa 10 a 18 mm)
               </span>
             </div>
 

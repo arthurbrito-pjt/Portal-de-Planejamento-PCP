@@ -25,7 +25,6 @@ import {
   AlertTriangle, 
   XCircle 
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 
 interface PlanningViewProps {
   products: Product[];
@@ -168,10 +167,6 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
 
   const handleFinishPlanning = (action: 'simulation' | 'order') => {
     if (!selectedCoil || currentStrips.length === 0) return;
-
-    if (selectedCombination?.sobraMm === 0) {
-      confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
-    }
 
     if (action === 'simulation') {
       onProceedToSimulation(selectedCoil, currentStrips, selectedCombination || undefined);
@@ -661,7 +656,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                 className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-2xl shadow-md shadow-emerald-600/20 transition-all hover:scale-105"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Gerar Ordem de Slitter (OS)</span>
+                <span>Gerar Ordem de Produção (OP)</span>
               </button>
             </div>
           </div>

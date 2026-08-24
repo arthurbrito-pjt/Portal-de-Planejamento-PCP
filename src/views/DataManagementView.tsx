@@ -13,7 +13,6 @@ import {
   RotateCcw,
   Cloud
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 
 interface DataManagementViewProps {
   coils: Coil[];
@@ -66,7 +65,6 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
           const current = StorageService.getCoils();
           StorageService.saveCoils([...importedCoils, ...current]);
           setImportStatus(`Sucesso! ${importedCoils.length} bobinas importadas.`);
-          confetti({ particleCount: 50 });
           onDataUpdated();
         } else {
           setImportStatus('Nenhuma bobina válida identificada no arquivo.');
@@ -77,7 +75,6 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
           const current = StorageService.getProducts();
           StorageService.saveProducts([...importedProducts, ...current]);
           setImportStatus(`Sucesso! ${importedProducts.length} produtos importados.`);
-          confetti({ particleCount: 50 });
           onDataUpdated();
         } else {
           setImportStatus('Nenhum produto válido identificado no arquivo.');
@@ -109,7 +106,6 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
 
     StorageService.addCoil(coilObj);
     onDataUpdated();
-    confetti({ particleCount: 40 });
     setNewCoil({
       codigo: 'BQN10040',
       lote: `LOTE-${Math.floor(Math.random() * 9000) + 1000}`,
@@ -138,7 +134,6 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
 
     StorageService.addProduct(prodObj);
     onDataUpdated();
-    confetti({ particleCount: 40 });
   };
 
   const handleSyncCloud = async () => {

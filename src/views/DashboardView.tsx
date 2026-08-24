@@ -142,13 +142,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-400">Ordens de Slitter</span>
+            <span className="text-xs font-black uppercase tracking-wider text-slate-400">Ordens de Produção (OP)</span>
             <div className="p-2.5 rounded-2xl bg-purple-50 text-purple-600">
               <Scissors className="w-5 h-5" />
             </div>
           </div>
           <div className="text-2xl font-black text-slate-900 font-mono mt-2">
-            {orders.length} <span className="text-xs font-sans text-slate-500 font-normal">OS geradas</span>
+            {orders.length} <span className="text-xs font-sans text-slate-500 font-normal">OP geradas</span>
           </div>
           <div className="text-xs text-purple-700 mt-0.5 font-bold">
             {kpis.totalOrdensAtivas} em andamento
@@ -273,6 +273,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-slate-900 text-white font-mono">
+                            BOBINA MATRIZ
+                          </span>
                           <span className="text-base font-black text-slate-900 font-mono tracking-tight">
                             LOTE: {coil.lote}
                           </span>
@@ -280,11 +283,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             {coil.codigo}
                           </span>
                           <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200 font-mono font-bold">
-                            Bitola: {coil.largura} x {coil.espessura} mm
+                            {coil.largura} x {coil.espessura} mm
                           </span>
                         </div>
                         <p className="text-xs text-slate-500 mt-0.5 font-mono">
-                          Matéria-prima em Estoque: <strong className="text-emerald-700 font-black">{coil.peso} t</strong> disponível
+                          Estoque de Matéria-Prima: <strong className="text-emerald-700 font-black">{coil.peso} t</strong> disponível
                         </p>
                       </div>
                     </div>
@@ -292,7 +295,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     {/* Right: Yield Badges & Action Buttons */}
                     <div className="flex items-center gap-3">
                       <div className="text-right font-mono pr-2">
-                        <div className="text-xs text-slate-400 uppercase font-bold">Aproveitamento</div>
+                        <div className="text-xs text-slate-400 uppercase font-bold">Aproveitamento Slitter</div>
                         <div className={`text-base font-black ${isIdeal ? 'text-emerald-700' : 'text-slate-800'}`}>
                           {prog.aproveitamentoPercent}% ({prog.sobraMm}mm refilo)
                         </div>
@@ -303,7 +306,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black rounded-2xl border border-slate-200 transition-all hover:scale-105"
                       >
                         <Scissors className="w-4 h-4 text-blue-600" />
-                        <span>Abrir no Estúdio</span>
+                        <span>Simular Slitter</span>
                       </button>
 
                       <button
@@ -311,23 +314,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-2xl shadow-md shadow-emerald-600/20 transition-all hover:scale-105"
                       >
                         <CheckCircle2 className="w-4 h-4" />
-                        <span>Emitir Ordem de Slitter (OS)</span>
+                        <span>Emitir Ordem de Produção (OP)</span>
                       </button>
                     </div>
                   </div>
 
                   {/* Middle: Slitter Diagram Bar */}
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs font-mono text-slate-600 font-bold">
-                      <span>Montagem de Facas no Slitter ({prog.totalFitas} fitas programadas):</span>
-                      <span className="text-slate-800">
-                        {prog.materialsProduced.map(m => `${m.quantidadeFitas}x ${m.fitaLargura}mm`).join(' + ')} 
+                  <div className="space-y-1.5 bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80">
+                    <div className="flex justify-between text-xs font-mono text-slate-700 font-bold">
+                      <span className="flex items-center gap-1.5 text-blue-900">
+                        <Scissors className="w-4 h-4 text-blue-600" />
+                        <span>PRODUÇÃO NO SLITTER — Montagem de Facas ({prog.totalFitas} fitas / bobinetas):</span>
+                      </span>
+                      <span className="text-slate-900 font-black">
+                        {prog.materialsProduced.map(m => `${m.quantidadeFitas}x fita ${m.fitaLargura}mm`).join(' + ')} 
                         {prog.sobraMm > 0 ? ` + [${prog.sobraMm}mm refilo]` : ''} = {coil.largura}mm
                       </span>
                     </div>
 
                     {/* Graphical strip bar */}
-                    <div className="w-full h-11 bg-slate-100 rounded-xl border-2 border-slate-300 p-1 flex items-stretch overflow-hidden shadow-inner">
+                    <div className="w-full h-12 bg-slate-200 rounded-xl border-2 border-slate-300 p-1 flex items-stretch overflow-hidden shadow-inner">
                       {prog.materialsProduced.map((m, mIdx) => {
                         const widthPct = (m.larguraTotal / coil.largura) * 100;
                         const isMain = m.finalidade === 'PRINCIPAL';
@@ -336,13 +342,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           <div
                             key={mIdx}
                             style={{ width: `${widthPct}%` }}
-                            className={`h-full flex items-center justify-between px-2.5 text-white font-mono text-xs font-black border-r-2 border-white rounded-lg transition-all ${
-                              isMain ? 'bg-blue-600' : 'bg-purple-600'
+                            className={`h-full flex items-center justify-between px-3 text-white font-mono text-xs font-black border-r-2 border-white rounded-lg transition-all shadow-sm ${
+                              isMain ? 'bg-blue-600 hover:bg-blue-700' : 'bg-purple-600 hover:bg-purple-700'
                             }`}
-                            title={`${m.quantidadeFitas}x Fita de ${m.fitaLargura}mm para ${m.product.codigo}`}
+                            title={`${m.quantidadeFitas}x Fita de Slitter ${m.fitaLargura}mm para fabricação de ${m.product.codigo} (${m.product.descricao})`}
                           >
-                            <span className="truncate drop-shadow-sm">{m.quantidadeFitas}x {m.fitaLargura}mm</span>
-                            <span className="text-[11px] opacity-95 shrink-0 ml-1 drop-shadow-sm">{m.pesoAlocadoTon}t</span>
+                            <span className="truncate drop-shadow-sm font-black">
+                              {m.quantidadeFitas}x FITA {m.fitaLargura}mm
+                            </span>
+                            <span className="text-[11px] opacity-95 shrink-0 ml-1 drop-shadow-sm bg-black/20 px-1.5 py-0.5 rounded">
+                              {m.pesoAlocadoTon}t
+                            </span>
                           </div>
                         );
                       })}
@@ -366,9 +376,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                   {/* Bottom: Destination Materials */}
                   <div className="space-y-2 pt-2">
-                    <div className="text-xs font-black uppercase tracking-wider text-slate-500 font-mono flex items-center gap-2">
-                      <Layers className="w-4 h-4 text-purple-600" />
-                      Produtos Finais Produzidos a partir deste Slitter:
+                    <div className="text-xs font-black uppercase tracking-wider text-slate-700 font-mono flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-purple-600" />
+                        Fitas de Slitter Produzidas & Produtos Finais de Destino:
+                      </span>
+                      <span className="text-slate-500 font-normal normal-case">
+                        Cada fita cortada no slitter alimenta a perfiladeira/solda do produto final
+                      </span>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -386,7 +401,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div>
-                                <div className="flex items-center gap-2">
+                                <div className="text-[10px] font-mono font-bold text-slate-500 uppercase">
+                                  Destino da Fita de {mat.fitaLargura}mm:
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5">
                                   <span className="text-xs font-black text-slate-900 font-mono">{mat.product.codigo}</span>
                                   <MetricsBadge type="familia" value={mat.product.familia} size="sm" />
                                   <span className={`text-[10px] px-2 py-0.5 rounded font-black font-mono ${
@@ -403,15 +421,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                             <div className="grid grid-cols-3 gap-2 mt-3 pt-2.5 border-t border-slate-200/80 text-xs font-mono">
                               <div className="text-center bg-white p-2 rounded-xl border border-slate-200/60">
-                                <span className="text-slate-400 block text-[10px] font-bold">FITAS</span>
+                                <span className="text-slate-400 block text-[10px] font-bold">PRODUÇÃO</span>
                                 <strong className="text-slate-900 font-black">{mat.quantidadeFitas}x ({mat.fitaLargura}mm)</strong>
                               </div>
                               <div className="text-center bg-white p-2 rounded-xl border border-slate-200/60">
-                                <span className="text-slate-400 block text-[10px] font-bold">PESO GERADO</span>
+                                <span className="text-slate-400 block text-[10px] font-bold">PESO ROLO</span>
                                 <strong className="text-emerald-700 font-black">{mat.pesoAlocadoTon} t</strong>
                               </div>
                               <div className="text-center bg-white p-2 rounded-xl border border-slate-200/60">
-                                <span className="text-slate-400 block text-[10px] font-bold">METROS</span>
+                                <span className="text-slate-400 block text-[10px] font-bold">METRAGEM</span>
                                 <strong className="text-blue-700 font-black">{mat.metrosEstimados} m</strong>
                               </div>
                             </div>

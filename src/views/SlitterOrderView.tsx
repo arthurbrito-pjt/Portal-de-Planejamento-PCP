@@ -12,7 +12,6 @@ import {
   ArrowLeft, 
   Scissors 
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 
 interface SlitterOrderViewProps {
   order: SlitterOrder | null;
@@ -32,7 +31,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
   const [isSaved, setIsSaved] = useState<boolean>(false);
   const [operador, setOperador] = useState<string>('Operador PCP - Linha 01');
   const [maquina, setMaquina] = useState<string>('Slitter Principal SLT-01');
-  const [observacoes, setObservacoes] = useState<string>('Plano de corte otimizado pelo Portal PCP com aproveitamento máximo de bobina.');
+  const [observacoes, setObservacoes] = useState<string>('Plano de corte otimizado pelo Portal PCP com aproveitamento máximo da bobina e tolerância conforme de refilo (10 a 18 mm).');
 
   const currentCoil = order ? {
     id: order.bobinaId,
@@ -53,9 +52,9 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
         <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center mx-auto shadow-sm">
           <ClipboardCheck className="w-8 h-8" />
         </div>
-        <h3 className="text-xl font-black text-slate-900 tracking-tight">Nenhuma Ordem de Slitter em Edição</h3>
+        <h3 className="text-xl font-black text-slate-900 tracking-tight">Nenhuma Ordem de Produção (OP) em Edição</h3>
         <p className="text-xs text-slate-600 leading-relaxed font-medium">
-          Para gerar uma Ordem de Slitter (OS), selecione uma bobina e planeje o corte no módulo de Planejamento.
+          Para gerar uma Ordem de Produção (OP) de Slitter, selecione uma bobina e planeje o corte no módulo de Planejamento.
         </p>
         <button
           onClick={onNavigateToPlanning}
@@ -74,12 +73,13 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
   const perdaPercent = Number(((sobraMm / currentCoil.largura) * 100).toFixed(2));
   const sobraPesoTon = Number((currentCoil.peso * (sobraMm / currentCoil.largura)).toFixed(3));
 
-  const orderNumber = order ? order.numeroOS : `SLT-2026-${String(Math.floor(Math.random() * 900) + 100).padStart(3, '0')}`;
+  const orderNumber = order ? (order.numeroOP || order.numeroOS || 'OP-SLT-2026-001') : `OP-SLT-2026-${String(Math.floor(Math.random() * 900) + 100).padStart(3, '0')}`;
   const orderDate = order ? order.dataCriacao : new Date().toLocaleDateString('pt-BR');
 
   const handleSaveOrder = () => {
     const newOrder: SlitterOrder = {
       id: order ? order.id : `ORD_${Date.now()}`,
+      numeroOP: orderNumber,
       numeroOS: orderNumber,
       dataCriacao: new Date().toISOString().split('T')[0],
       bobinaId: currentCoil.id,
@@ -103,13 +103,13 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
 
     StorageService.addOrder(newOrder);
     setIsSaved(true);
-    confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
     if (onOrderSaved) onOrderSaved(newOrder);
   };
 
   const handleExportExcel = () => {
     const orderObj: SlitterOrder = {
       id: order ? order.id : `ORD_${Date.now()}`,
+      numeroOP: orderNumber,
       numeroOS: orderNumber,
       dataCriacao: orderDate,
       bobinaId: currentCoil.id,
@@ -152,10 +152,10 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
           <div>
             <h2 className="text-xl font-black text-slate-900 flex items-center gap-2.5 tracking-tight">
               <ClipboardCheck className="w-5 h-5 text-emerald-600" />
-              TELA 4 – Ordem de Slitter & Emissão OS
+              TELA 4 – Ordem de Produção (OP) do Slitter
             </h2>
             <p className="text-xs text-slate-500 mt-0.5 font-medium">
-              Documento oficial de programação de corte para a linha de produção do Slitter.
+              Documento oficial de programação de corte de fitas para a linha de produção do Slitter.
             </p>
           </div>
         </div>
@@ -166,7 +166,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
             className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-black rounded-2xl transition-all shadow-sm"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-            <span>Exportar Excel (.xlsx)</span>
+            <span>Exportar OP (.xlsx)</span>
           </button>
 
           <button
@@ -174,7 +174,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
             className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 text-xs font-black rounded-2xl transition-all shadow-sm"
           >
             <Printer className="w-4 h-4 text-slate-600" />
-            <span>Imprimir OS</span>
+            <span>Imprimir OP</span>
           </button>
 
           <button
@@ -189,12 +189,12 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
             {isSaved ? (
               <>
                 <Check className="w-4 h-4" />
-                <span>OS Salva & Liberada!</span>
+                <span>OP Salva & Liberada!</span>
               </>
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                <span>Aprovar & Liberar OS</span>
+                <span>Aprovar & Liberar OP</span>
               </>
             )}
           </button>
@@ -212,14 +212,14 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl sm:text-2xl font-black text-slate-900 print:text-black tracking-tight">
-                  ORDEM DE CORTE SLITTER
+                  ORDEM DE PRODUÇÃO — CORTE SLITTER (OP)
                 </h1>
                 <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 text-xs font-mono font-black">
-                  LIBERADA
+                  LIBERADA PARA CORTE
                 </span>
               </div>
               <p className="text-xs text-slate-500 print:text-gray-600 mt-0.5 font-medium">
-                Planejamento e Controle da Produção Metalúrgica • Indústria de Aço
+                Planejamento e Controle da Produção Metalúrgica • Indústria de Tubos e Perfis de Aço
               </p>
             </div>
           </div>
@@ -239,7 +239,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
             <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
-              Código Bobina
+              Código Bobina Matriz
             </div>
             <div className="text-base font-black text-slate-900 font-mono mt-1">
               {currentCoil.codigo}
@@ -275,7 +275,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
 
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
             <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
-              Aproveitamento
+              Aproveitamento Slitter
             </div>
             <div className="text-base font-black text-emerald-700 font-mono mt-1">
               {aproveitamentoPercent}%
@@ -287,10 +287,10 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
         <div className="space-y-3">
           <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider font-mono">
-              Sequência de Facas / Tiras no Slitter ({currentStrips.length} fitas)
+              Fitas de Slitter a Produzir ({currentStrips.length} fitas programadas) & Destinação
             </h3>
             <span className="text-xs font-mono text-slate-600 font-bold">
-              Largura Útil: <strong>{totalUsedWidth} mm</strong> | Sobra: <strong className="text-emerald-700">{sobraMm} mm</strong>
+              Largura Útil: <strong>{totalUsedWidth} mm</strong> | Refilo Técnico: <strong className="text-emerald-700">{sobraMm} mm</strong>
             </span>
           </div>
 
@@ -298,12 +298,12 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
             <table className="w-full text-left text-xs border-collapse border border-slate-200 print:border-black">
               <thead>
                 <tr className="bg-slate-100 print:bg-gray-200 border-b border-slate-200 print:border-black text-slate-700 font-mono text-[11px] font-bold">
-                  <th className="py-3 px-3 border-r border-slate-200 print:border-black">Posição</th>
-                  <th className="py-3 px-3 border-r border-slate-200 print:border-black">Produto Final Destino</th>
+                  <th className="py-3 px-3 border-r border-slate-200 print:border-black">Fita Slitter</th>
+                  <th className="py-3 px-3 border-r border-slate-200 print:border-black">Material a ser Produzido com o Slitter</th>
                   <th className="py-3 px-3 border-r border-slate-200 print:border-black">Código Item</th>
                   <th className="py-3 px-3 border-r border-slate-200 print:border-black">Família</th>
-                  <th className="py-3 px-3 border-r border-slate-200 print:border-black text-right">Largura (mm)</th>
-                  <th className="py-3 px-3 border-r border-slate-200 print:border-black text-right">Peso Estimado</th>
+                  <th className="py-3 px-3 border-r border-slate-200 print:border-black text-right">Largura da Fita</th>
+                  <th className="py-3 px-3 border-r border-slate-200 print:border-black text-right">Peso do Rolo</th>
                   <th className="py-3 px-3 text-right">Rendimento</th>
                 </tr>
               </thead>
@@ -337,14 +337,12 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
                 {/* Scrap row */}
                 <tr className="bg-slate-50 font-bold">
                   <td className="py-3 px-3 text-amber-700 border-r border-slate-200">
-                    Refilo / Sobra
+                    Refilo Lateral
                   </td>
                   <td colSpan={3} className="py-3 px-3 text-slate-600 font-sans border-r border-slate-200">
                     {sobraMm >= 10 && sobraMm <= 18 
                       ? 'Refilo padrão ideal de corte (10 a 18 mm ~1,5%)' 
-                      : sobraMm < 10 
-                      ? `Refilo reduzido (${sobraMm}mm < 10mm)` 
-                      : `Refilo excedente (${sobraMm}mm > 18mm)`}
+                      : `Refilo ajustado (${sobraMm} mm)`}
                   </td>
                   <td className="py-3 px-3 text-right text-amber-700 border-r border-slate-200 font-black">
                     {sobraMm} mm

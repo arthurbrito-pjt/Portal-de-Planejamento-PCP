@@ -9,7 +9,6 @@ import {
   Layers, 
   Sliders
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 
 interface SimulationViewProps {
   coil: Coil | null;
@@ -38,7 +37,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
         </div>
         <h3 className="text-xl font-black text-slate-900 tracking-tight">Nenhum Corte em Simulação</h3>
         <p className="text-xs text-slate-600 leading-relaxed font-medium">
-          Para realizar a simulação gráfica e ajuste fino das fitas no Slitter, inicie selecionando um produto e bobina no Planejamento.
+          Para realizar a simulação gráfica e ajuste fino das fitas do Slitter, inicie selecionando um produto base e a bobina no Planejamento.
         </p>
         <button
           onClick={onNavigateToPlanning}
@@ -54,9 +53,6 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   const compatibleProducts = products.filter(
     p => Math.abs(p.espessura - coil.espessura) < 0.001
   );
-
-  const totalUsedWidth = strips.reduce((acc, s) => acc + s.largura, 0);
-  const scrapWidth = Math.max(0, coil.largura - totalUsedWidth);
 
   const handleRemoveStrip = (stripId: string) => {
     const updated = strips.filter(s => s.id !== stripId);
@@ -103,20 +99,17 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
             TELA 3 – Estúdio de Simulação de Corte Slitter
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Visualização milimétrica do corte transversal da bobina com ajuste fino interativo das facas.
+            Visualização milimétrica do corte transversal da bobina com ajuste fino interativo das facas e destinação dos rolos de fita.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <button
-            onClick={() => {
-              if (scrapWidth === 0) confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
-              onProceedToOrder(coil, strips);
-            }}
+            onClick={() => onProceedToOrder(coil, strips)}
             className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-2xl shadow-md shadow-emerald-600/20 transition-all hover:scale-105"
           >
             <CheckCircle2 className="w-4 h-4" />
-            <span>Gerar Ordem de Slitter (OS)</span>
+            <span>Gerar Ordem de Produção (OP)</span>
           </button>
         </div>
       </div>
@@ -133,7 +126,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
         <h3 className="text-sm font-black text-slate-900 flex items-center gap-2 tracking-tight">
           <Plus className="w-4 h-4 text-blue-600" />
-          Bancada de Facas: Adicionar Fita Complementar
+          Bancada de Facas: Adicionar Fita de Slitter Complementar
         </h3>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -142,7 +135,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
             onChange={(e) => setSelectedCompanionProduct(e.target.value)}
             className="flex-1 min-w-[280px] px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-bold"
           >
-            <option value="">Selecione um produto compatível (espessura {coil.espessura}mm)...</option>
+            <option value="">Selecione um produto de destino compatível (espessura {coil.espessura}mm)...</option>
             {compatibleProducts.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.codigo} - {p.descricao.slice(0, 45)} (Fita {p.larguraFita}mm | Demanda {p.demandaT || 0}t)
@@ -166,7 +159,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
         <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
           <h3 className="text-sm font-black text-slate-900 flex items-center gap-2 tracking-tight">
             <Layers className="w-4 h-4 text-purple-600" />
-            Detalhamento da Sequência de Facas ({strips.length} fitas programadas)
+            Fitas de Slitter Produzidas & Destinação de Uso ({strips.length} fitas programadas)
           </h3>
         </div>
 
@@ -174,12 +167,12 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider font-bold font-mono">
-                <th className="py-3 px-3">Fita #</th>
-                <th className="py-3 px-3">Código</th>
-                <th className="py-3 px-3">Descrição do Produto</th>
+                <th className="py-3 px-3">Fita Slitter</th>
+                <th className="py-3 px-3">Material de Destino (Produto Final)</th>
+                <th className="py-3 px-3">Código Destino</th>
                 <th className="py-3 px-3">Família</th>
                 <th className="py-3 px-3 text-right">Largura (mm)</th>
-                <th className="py-3 px-3 text-right">Peso Alocado (t)</th>
+                <th className="py-3 px-3 text-right">Peso do Rolo (t)</th>
                 <th className="py-3 px-3 text-right">Metros Lineares</th>
                 <th className="py-3 px-3 text-center">Ações</th>
               </tr>
@@ -191,8 +184,8 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
                     <span className="w-3 h-3 rounded-full shadow" style={{ backgroundColor: strip.cor }} />
                     Fita {String(strip.stripNumber).padStart(2, '0')}
                   </td>
+                  <td className="py-3.5 px-3 font-sans text-slate-800 font-bold max-w-xs truncate">{strip.productDescription}</td>
                   <td className="py-3.5 px-3 font-black text-blue-700">{strip.productCode}</td>
-                  <td className="py-3.5 px-3 font-sans text-slate-700 max-w-xs truncate font-medium">{strip.productDescription}</td>
                   <td className="py-3.5 px-3 font-sans">
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                       strip.productFamily === 'TUBO' 

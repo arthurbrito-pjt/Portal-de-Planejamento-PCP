@@ -107,29 +107,30 @@ export class ExcelService {
    */
   static exportSlitterOrderToExcel(order: SlitterOrder): void {
     const wb = XLSX.utils.book_new();
+    const opNumber = order.numeroOP || order.numeroOS || 'OP-SLT-001';
 
     // 1. Order Header
     const headerData = [
-      ['PORTAL DE PLANEJAMENTO PCP - ORDEM DE SLITTER'],
-      ['Número OS:', order.numeroOS, 'Data:', order.dataCriacao, 'Status:', order.status],
+      ['PORTAL DE PLANEJAMENTO PCP - ORDEM DE PRODUÇÃO (OP) DE SLITTER'],
+      ['Número OP:', opNumber, 'Data:', order.dataCriacao, 'Status:', order.status],
       [''],
       ['DADOS DA BOBINA DE MATÉRIA-PRIMA'],
       ['Código da Bobina:', order.bobinaCodigo, 'Lote:', order.bobinaLote],
       ['Largura Total (mm):', order.bobinaLargura, 'Espessura (mm):', order.bobinaEspessura, 'Peso Original (t):', order.bobinaPesoOriginal],
       [''],
       ['APROVEITAMENTO E INDICADORES'],
-      ['Largura Útil (mm):', order.totalLarguraFitas, 'Sobra / Refilo (mm):', order.sobraMm],
+      ['Largura Útil (mm):', order.totalLarguraFitas, 'Refilo Técnico (mm):', order.sobraMm],
       ['Aproveitamento (%):', `${order.aproveitamentoPercent}%`, 'Perda (%):', `${order.perdaPercent}%`, 'Peso Refilo (t):', order.sobraPesoTon],
       [''],
-      ['PROGRAMAÇÃO DE FITAS (SLITTER)'],
-      ['Fita Nº', 'Código Produto', 'Descrição do Produto', 'Família', 'Largura Fita (mm)', 'Espessura (mm)', 'Peso Alocado (t)', 'Peso (kg)', 'Metros Lineares (m)']
+      ['PROGRAMAÇÃO DE FITAS DE SLITTER & DESTINAÇÃO DE USO'],
+      ['Fita Slitter', 'Material a Produzir com o Slitter', 'Código Item', 'Família', 'Largura Fita (mm)', 'Espessura (mm)', 'Peso Alocado (t)', 'Peso (kg)', 'Metros Lineares (m)']
     ];
 
     // 2. Strips Data
     const stripsRows = order.fitas.map(f => [
       `Fita ${String(f.stripNumber).padStart(2, '0')}`,
-      f.productCode,
       f.productDescription,
+      f.productCode,
       f.productFamily,
       f.largura,
       f.espessura,
@@ -144,8 +145,8 @@ export class ExcelService {
     // Set column widths
     ws['!cols'] = [
       { wch: 15 },
-      { wch: 18 },
       { wch: 45 },
+      { wch: 18 },
       { wch: 12 },
       { wch: 18 },
       { wch: 16 },
@@ -154,8 +155,8 @@ export class ExcelService {
       { wch: 20 }
     ];
 
-    XLSX.utils.book_append_sheet(wb, ws, `OS_${order.numeroOS}`);
-    XLSX.writeFile(wb, `Ordem_Slitter_${order.numeroOS}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, `OP_${opNumber}`);
+    XLSX.writeFile(wb, `Ordem_Producao_${opNumber}.xlsx`);
   }
 
   /**
@@ -164,9 +165,9 @@ export class ExcelService {
   static exportReportsToExcel(coils: Coil[], products: Product[], orders: SlitterOrder[]): void {
     const wb = XLSX.utils.book_new();
 
-    // Sheet 1: Ordens de Slitter
+    // Sheet 1: Ordens de Produção
     const ordersData = orders.map(o => ({
-      'Número OS': o.numeroOS,
+      'Número OP': o.numeroOP || o.numeroOS,
       'Data': o.dataCriacao,
       'Bobina Código': o.bobinaCodigo,
       'Lote': o.bobinaLote,
@@ -175,12 +176,12 @@ export class ExcelService {
       'Peso Bobina (t)': o.bobinaPesoOriginal,
       'Qtd Fitas': o.totalFitas,
       'Largura Fitas (mm)': o.totalLarguraFitas,
-      'Sobra Refilo (mm)': o.sobraMm,
+      'Refilo Técnico (mm)': o.sobraMm,
       'Aproveitamento (%)': o.aproveitamentoPercent,
       'Status': o.status
     }));
     const wsOrders = XLSX.utils.json_to_sheet(ordersData);
-    XLSX.utils.book_append_sheet(wb, wsOrders, 'Ordens de Slitter');
+    XLSX.utils.book_append_sheet(wb, wsOrders, 'Ordens de Produção (OP)');
 
     // Sheet 2: Estoque Bobinas
     const coilsData = coils.map(c => ({

@@ -52,10 +52,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       id: 'order' as TabType,
       num: '04',
-      title: 'Ordem de Slitter (OS)',
+      title: 'Ordem de Produção (OP)',
       subtitle: 'Folha de Produção & Liberação',
       icon: ClipboardCheck,
-      badge: ordersCount > 0 ? `${ordersCount} OS` : null
+      badge: ordersCount > 0 ? `${ordersCount} OP` : null
     },
     {
       id: 'reports' as TabType,
