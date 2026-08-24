@@ -341,44 +341,59 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                       : 'border-slate-200 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5'
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono font-black text-slate-900">{p.codigo}</span>
+                  {/* Slitter Specific Definition */}
+                  <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-2.5 mb-2.5">
+                    <span className="text-[9px] font-mono font-black text-slate-500 uppercase block tracking-wider">
+                      ✂️ SLITTER A PRODUZIR:
+                    </span>
+                    <div className="flex items-center justify-between mt-0.5">
+                      <span className="text-xs font-black font-mono text-blue-700">
+                        Fita {p.larguraFita} x {p.espessura} mm
+                      </span>
                       <MetricsBadge type="familia" value={p.familia} size="sm" />
                     </div>
-
-                    {isReady ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 text-[10px] font-bold font-mono">
-                        <CheckCircle className="w-2.5 h-2.5 text-emerald-600" />
-                        Pronto ({r.compatibleLotCount} lotes)
-                      </span>
-                    ) : isPartial ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300 text-[10px] font-bold font-mono">
-                        <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
-                        Parcial ({r.coveragePercent}%)
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-800 border border-red-300 text-[10px] font-bold font-mono">
-                        <XCircle className="w-2.5 h-2.5 text-red-600" />
-                        Sem Bobina
-                      </span>
-                    )}
                   </div>
 
-                  <h4 className="text-xs text-slate-700 line-clamp-2 font-semibold mt-2">
-                    {p.descricao}
-                  </h4>
+                  {/* Target Material Details */}
+                  <div>
+                    <span className="text-[9px] font-mono font-black text-slate-500 uppercase block tracking-wider">
+                      🏭 MATERIAL DE DESTINO:
+                    </span>
+                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                      <span className="text-xs font-mono font-black text-slate-900">{p.codigo}</span>
+                      {isReady ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 text-[10px] font-bold font-mono">
+                          <CheckCircle className="w-2.5 h-2.5 text-emerald-600" />
+                          Pronto ({r.compatibleLotCount} lotes)
+                        </span>
+                      ) : isPartial ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300 text-[10px] font-bold font-mono">
+                          <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
+                          Parcial ({r.coveragePercent}%)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-800 border border-red-300 text-[10px] font-bold font-mono">
+                          <XCircle className="w-2.5 h-2.5 text-red-600" />
+                          Sem Bobina
+                        </span>
+                      )}
+                    </div>
+
+                    <h4 className="text-xs text-slate-700 line-clamp-1 font-semibold mt-1">
+                      {p.descricao}
+                    </h4>
+                  </div>
 
                   {r.bestCoil && (
                     <div className="mt-2.5 p-2 rounded-xl bg-slate-50 border border-slate-200 text-[10px] font-mono text-slate-600 flex items-center justify-between">
-                      <span>Melhor Bobina: <strong className="text-blue-700">{r.bestCoil.lote}</strong> ({r.bestCoil.largura}mm)</span>
+                      <span>Bobina Matriz: <strong className="text-blue-700">{r.bestCoil.lote}</strong> ({r.bestCoil.largura}mm)</span>
                       <span className="text-emerald-700 font-bold">Aprov: {r.estimatedYieldPercent}%</span>
                     </div>
                   )}
 
                   <div className="grid grid-cols-3 gap-2 mt-3 pt-2.5 border-t border-slate-100 text-[11px] font-mono">
                     <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 text-center">
-                      <span className="text-slate-400 block text-[9px] font-bold uppercase">Fita Requerida</span>
+                      <span className="text-slate-400 block text-[9px] font-bold uppercase">Largura Fita</span>
                       <strong className="text-blue-700 font-black text-xs">{p.larguraFita} mm</strong>
                     </div>
                     <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 text-center">
@@ -716,9 +731,11 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                             {comb.fitas.map((f, fIdx) => (
                               <span
                                 key={fIdx}
-                                className="text-xs px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 font-mono font-medium"
+                                className="text-xs px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-mono font-medium flex items-center gap-1.5"
                               >
-                                <strong className="text-slate-900">{f.quantidade}x</strong> {f.product.codigo} ({f.product.larguraFita}mm)
+                                <strong className="text-blue-700 font-black">{f.quantidade}x Fita {f.product.larguraFita}mm</strong>
+                                <span className="text-slate-400">→</span>
+                                <span className="text-slate-900 font-bold">p/ {f.product.codigo}</span>
                               </span>
                             ))}
                           </div>
@@ -732,8 +749,8 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                         </div>
 
                         <div className="text-right">
-                          <div className="text-slate-400 text-[10px] uppercase font-bold">Sobra</div>
-                          <div className={`font-black text-sm ${comb.sobraMm <= 10 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                          <div className="text-slate-400 text-[10px] uppercase font-bold">Refilo</div>
+                          <div className={`font-black text-sm ${comb.sobraMm >= 10 && comb.sobraMm <= 18 ? 'text-emerald-700' : 'text-slate-900'}`}>
                             {comb.sobraMm} mm
                           </div>
                         </div>

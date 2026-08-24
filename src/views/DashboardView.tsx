@@ -395,34 +395,45 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             key={matIdx}
                             className={`p-4 rounded-2xl border transition-all ${
                               isMain
-                                ? 'bg-blue-50/70 border-blue-200'
-                                : 'bg-purple-50/70 border-purple-200'
+                                ? 'bg-blue-50/70 border-blue-200 ring-1 ring-blue-300/40'
+                                : 'bg-purple-50/70 border-purple-200 ring-1 ring-purple-300/40'
                             }`}
                           >
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <div className="text-[10px] font-mono font-bold text-slate-500 uppercase">
-                                  Destino da Fita de {mat.fitaLargura}mm:
-                                </div>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-xs font-black text-slate-900 font-mono">{mat.product.codigo}</span>
-                                  <MetricsBadge type="familia" value={mat.product.familia} size="sm" />
-                                  <span className={`text-[10px] px-2 py-0.5 rounded font-black font-mono ${
-                                    isMain ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
-                                  }`}>
-                                    {mat.finalidade}
-                                  </span>
-                                </div>
-                                <p className="text-xs text-slate-700 mt-1 font-semibold line-clamp-1">
-                                  {mat.product.descricao}
-                                </p>
+                            {/* Slitter Specifications */}
+                            <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 mb-3 shadow-xs">
+                              <span className="text-[10px] font-mono font-black text-slate-500 uppercase block tracking-wider">
+                                ✂️ SLITTER A SER PRODUZIDO:
+                              </span>
+                              <div className="flex items-center justify-between mt-1">
+                                <span className="text-sm font-black font-mono text-slate-900">
+                                  Fita {mat.fitaLargura} x {coil.espessura} mm
+                                </span>
+                                <span className={`text-[10px] px-2 py-0.5 rounded font-black font-mono ${
+                                  isMain ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                                }`}>
+                                  {mat.finalidade}
+                                </span>
                               </div>
+                            </div>
+
+                            {/* Destination Material */}
+                            <div>
+                              <span className="text-[10px] font-mono font-black text-slate-500 uppercase block tracking-wider">
+                                🏭 MATERIAL A FABRICAR COM ESTE SLITTER:
+                              </span>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-xs font-black text-slate-900 font-mono">{mat.product.codigo}</span>
+                                <MetricsBadge type="familia" value={mat.product.familia} size="sm" />
+                              </div>
+                              <p className="text-xs text-slate-700 mt-1 font-semibold line-clamp-1">
+                                {mat.product.descricao}
+                              </p>
                             </div>
 
                             <div className="grid grid-cols-3 gap-2 mt-3 pt-2.5 border-t border-slate-200/80 text-xs font-mono">
                               <div className="text-center bg-white p-2 rounded-xl border border-slate-200/60">
-                                <span className="text-slate-400 block text-[10px] font-bold">PRODUÇÃO</span>
-                                <strong className="text-slate-900 font-black">{mat.quantidadeFitas}x ({mat.fitaLargura}mm)</strong>
+                                <span className="text-slate-400 block text-[10px] font-bold">QTD FITAS</span>
+                                <strong className="text-slate-900 font-black">{mat.quantidadeFitas}x rolos</strong>
                               </div>
                               <div className="text-center bg-white p-2 rounded-xl border border-slate-200/60">
                                 <span className="text-slate-400 block text-[10px] font-bold">PESO ROLO</span>
@@ -451,10 +462,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="flex items-center justify-between border-b border-slate-100 pb-4">
             <div>
               <h3 className="text-base font-black text-slate-900 tracking-tight">
-                Cobertura de Estoque de Bobinas por Produto ({readinessList.length} itens)
+                Relação de Slitters & Materiais de Destino ({readinessList.length} itens cadastrados)
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Consulte o estoque de bobinas disponível para cada item e a bobina recomendada para o corte
+                Consulte qual é o <strong>Slitter específico a ser produzido</strong> para alimentar a fabricação de cada material final.
               </p>
             </div>
           </div>
@@ -463,15 +474,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider font-mono sticky top-0 bg-white z-10 font-bold">
-                  <th className="py-3 px-3">Status</th>
-                  <th className="py-3 px-3">Código / Descrição</th>
+                  <th className="py-3 px-3">Status Estoque</th>
+                  <th className="py-3 px-3">Material Final a Fabricar</th>
                   <th className="py-3 px-3">Família</th>
-                  <th className="py-3 px-3 text-right">Espessura</th>
-                  <th className="py-3 px-3 text-right">Fita (mm)</th>
-                  <th className="py-3 px-3 text-right">Demanda (t)</th>
-                  <th className="py-3 px-3 text-right">Estoque Bobinas</th>
-                  <th className="py-3 px-3 text-center">Melhor Bobina Lote</th>
-                  <th className="py-3 px-3 text-right">Aprov. Teórico</th>
+                  <th className="py-3 px-3 text-center bg-blue-50 text-blue-900">✂️ Slitter a Produzir (Fita x Espessura)</th>
+                  <th className="py-3 px-3 text-right">Demanda Material</th>
+                  <th className="py-3 px-3 text-right">Estoque Matéria-Prima</th>
+                  <th className="py-3 px-3 text-center">Melhor Bobina Matriz</th>
+                  <th className="py-3 px-3 text-right">Aprov. Slitter</th>
                   <th className="py-3 px-3 text-center">Ação</th>
                 </tr>
               </thead>
@@ -505,8 +515,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <td className="py-3.5 px-3 font-sans">
                         <MetricsBadge type="familia" value={r.product.familia} size="sm" />
                       </td>
-                      <td className="py-3.5 px-3 text-right text-purple-800 font-bold">{r.product.espessura} mm</td>
-                      <td className="py-3.5 px-3 text-right font-black text-slate-900">{r.product.larguraFita} mm</td>
+                      <td className="py-3.5 px-3 text-center bg-blue-50/70 border-x border-blue-100">
+                        <span className="inline-block px-3 py-1 rounded-xl bg-blue-600 text-white font-mono font-black text-xs shadow-xs">
+                          {r.product.larguraFita} x {r.product.espessura} mm
+                        </span>
+                      </td>
                       <td className="py-3.5 px-3 text-right text-amber-700 font-bold">{r.product.demandaT || 0} t</td>
                       <td className="py-3.5 px-3 text-right font-black text-emerald-700">{r.totalCompatibleWeightTon} t</td>
                       <td className="py-3.5 px-3 text-center">
@@ -523,7 +536,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           disabled={r.compatibleLotCount === 0}
                           className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl text-xs font-black transition-all"
                         >
-                          Planejar
+                          Programar Slitter
                         </button>
                       </td>
                     </tr>
