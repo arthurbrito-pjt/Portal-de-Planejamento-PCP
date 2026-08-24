@@ -241,6 +241,7 @@ Portal-de-Planejamento-PCP/
 <div align="center">
 
 **Portal de Planejamento PCP — Slitter de Bobinas**  
-Desenvolvido para **Setor Projetos - Logística** • 2026
+Desenvolvido por **Arthur Brito**  
+**Setor de Projetos - Logística / Cedisa Central de Aço** • 2026
 
 </div>

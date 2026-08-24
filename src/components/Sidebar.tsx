@@ -131,6 +131,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
           );
         })}
       </div>
+
+      {/* Credit Footer */}
+      <div className="p-3.5 rounded-3xl bg-white border border-slate-200 shadow-sm text-center space-y-1">
+        <div className="text-xs font-black text-slate-800 tracking-tight">
+          Desenvolvido por Arthur Brito
+        </div>
+        <div className="text-[10px] font-medium text-slate-500 leading-tight">
+          Setor de Projetos - Logística / Cedisa Central de Aço
+        </div>
+      </div>
     </aside>
   );
 };
