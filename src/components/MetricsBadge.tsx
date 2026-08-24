@@ -8,19 +8,19 @@ interface MetricsBadgeProps {
 
 export const MetricsBadge: React.FC<MetricsBadgeProps> = ({ type, value, size = 'md' }) => {
   const sizeClasses = {
-    sm: 'px-2 py-0.5 text-xs',
-    md: 'px-2.5 py-1 text-xs font-semibold',
-    lg: 'px-3.5 py-1.5 text-sm font-bold'
+    sm: 'px-2 py-0.5 text-xs font-semibold',
+    md: 'px-2.5 py-1 text-xs font-bold',
+    lg: 'px-3.5 py-1.5 text-sm font-black'
   }[size];
 
   if (type === 'aproveitamento') {
     const val = typeof value === 'number' ? value : parseFloat(value);
-    let bg = 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
-    if (val < 95) bg = 'bg-red-500/15 text-red-400 border-red-500/30';
-    else if (val < 99) bg = 'bg-amber-500/15 text-amber-400 border-amber-500/30';
+    let bg = 'bg-emerald-50 text-emerald-800 border-emerald-300';
+    if (val < 95) bg = 'bg-red-50 text-red-800 border-red-300';
+    else if (val < 99) bg = 'bg-amber-50 text-amber-800 border-amber-300';
 
     return (
-      <span className={`inline-flex items-center gap-1 rounded-full border ${bg} ${sizeClasses}`}>
+      <span className={`inline-flex items-center gap-1.5 rounded-full border ${bg} ${sizeClasses}`}>
         <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
         {val.toFixed(1)}% Aproveitamento
       </span>
@@ -29,21 +29,21 @@ export const MetricsBadge: React.FC<MetricsBadgeProps> = ({ type, value, size = 
 
   if (type === 'sobra') {
     const val = typeof value === 'number' ? value : parseFloat(value);
-    let bg = 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
+    let bg = 'bg-emerald-50 text-emerald-800 border-emerald-300';
     let text = `${val} mm (Ideal ≤ 10mm)`;
     
     if (val === 0) {
       text = '0 mm (Sobra Zero)';
     } else if (val > 18) {
-      bg = 'bg-red-500/15 text-red-400 border-red-500/30';
+      bg = 'bg-red-50 text-red-800 border-red-300';
       text = `${val} mm (Crítico > 10mm)`;
     } else if (val > 10) {
-      bg = 'bg-amber-500/15 text-amber-400 border-amber-500/30';
-      text = `${val} mm (Refilo Padrão)`;
+      bg = 'bg-amber-50 text-amber-800 border-amber-300';
+      text = `${val} mm (Refilo)`;
     }
 
     return (
-      <span className={`inline-flex items-center gap-1 rounded-full border ${bg} ${sizeClasses}`}>
+      <span className={`inline-flex items-center gap-1.5 rounded-full border ${bg} ${sizeClasses}`}>
         {text}
       </span>
     );
@@ -52,10 +52,10 @@ export const MetricsBadge: React.FC<MetricsBadgeProps> = ({ type, value, size = 
   if (type === 'familia') {
     const isTubo = String(value).toUpperCase().includes('TUBO');
     return (
-      <span className={`inline-flex items-center rounded-md border ${
+      <span className={`inline-flex items-center rounded-lg border font-bold ${
         isTubo 
-          ? 'bg-blue-500/15 text-blue-400 border-blue-500/30' 
-          : 'bg-purple-500/15 text-purple-400 border-purple-500/30'
+          ? 'bg-blue-50 text-blue-800 border-blue-200' 
+          : 'bg-purple-50 text-purple-800 border-purple-200'
       } ${sizeClasses}`}>
         {value}
       </span>
@@ -64,13 +64,13 @@ export const MetricsBadge: React.FC<MetricsBadgeProps> = ({ type, value, size = 
 
   // Status
   const statusStr = String(value);
-  let statusColor = 'bg-slate-700/50 text-slate-300 border-slate-600';
+  let statusColor = 'bg-slate-100 text-slate-700 border-slate-300';
   if (statusStr === 'Disponível' || statusStr === 'Concluída' || statusStr === 'Liberada') {
-    statusColor = 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
+    statusColor = 'bg-emerald-50 text-emerald-800 border-emerald-300';
   } else if (statusStr === 'Em Produção' || statusStr === 'Em Corte' || statusStr === 'Planejada') {
-    statusColor = 'bg-blue-500/15 text-blue-400 border-blue-500/30';
+    statusColor = 'bg-blue-50 text-blue-800 border-blue-300';
   } else if (statusStr === 'Consumida' || statusStr === 'Cancelada') {
-    statusColor = 'bg-slate-500/15 text-slate-400 border-slate-500/30';
+    statusColor = 'bg-slate-100 text-slate-500 border-slate-200';
   }
 
   return (

@@ -6,8 +6,7 @@ import {
   ClipboardCheck, 
   BarChart3, 
   Database,
-  Sparkles,
-  ChevronRight
+  Sparkles
 } from 'lucide-react';
 
 export type TabType = 'dashboard' | 'planning' | 'simulation' | 'order' | 'reports' | 'data';
@@ -28,21 +27,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const menuItems = [
     {
       id: 'dashboard' as TabType,
-      label: 'TELA 1 – Dashboard PCP',
+      label: 'TELA 1 – Programação de Slitters',
       shortLabel: 'Dashboard',
       icon: LayoutDashboard,
       badge: null
     },
     {
       id: 'planning' as TabType,
-      label: 'TELA 2 – Planejamento 6P',
+      label: 'TELA 2 – Planejamento em 6 Passos',
       shortLabel: 'Planejamento',
       icon: Sliders,
       badge: 'Motor'
     },
     {
       id: 'simulation' as TabType,
-      label: 'TELA 3 – Simulação Slitter',
+      label: 'TELA 3 – Estúdio do Slitter',
       shortLabel: 'Simulação',
       icon: Scissors,
       badge: null
@@ -63,19 +62,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'data' as TabType,
-      label: 'TELA 6 – Gestão & Importação',
+      label: 'TELA 6 – Gestão & Importador Excel',
       shortLabel: 'Dados & Excel',
       icon: Database,
-      badge: coilsCount > 0 ? `${coilsCount} lotes` : null
+      badge: coilsCount > 0 ? `${coilsCount} bobinas` : null
     }
   ];
 
   return (
     <aside className="w-full lg:w-72 shrink-0 space-y-4">
       {/* Navigation Card */}
-      <div className="glass-card p-3 rounded-3xl border border-slate-800/80 bg-slate-950/80 shadow-2xl space-y-1">
-        <div className="px-3 py-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-500 font-mono">
-          Navegação do Sistema
+      <div className="bg-white p-3 rounded-3xl border border-slate-200 shadow-sm space-y-1">
+        <div className="px-3 py-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 font-mono">
+          Navegação Principal
         </div>
 
         {menuItems.map((item) => {
@@ -86,15 +85,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               key={item.id}
               onClick={() => onSelectTab(item.id)}
-              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition-all group ${
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition-all ${
                 isActive
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl shadow-blue-500/25 ring-1 ring-white/20'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-900/90'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
               <div className="flex items-center gap-3">
                 <div className={`p-2 rounded-xl transition-colors ${
-                  isActive ? 'bg-white/20 text-white' : 'bg-slate-900 text-slate-400 group-hover:text-blue-400 group-hover:bg-slate-800'
+                  isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
                 }`}>
                   <Icon className="w-4 h-4" />
                 </div>
@@ -105,7 +104,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
                   isActive 
                     ? 'bg-white/25 text-white' 
-                    : 'bg-slate-800 text-slate-400 group-hover:bg-slate-700'
+                    : 'bg-slate-100 text-slate-600'
                 }`}>
                   {item.badge}
                 </span>
@@ -116,13 +115,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Quick Info Box in Sidebar */}
-      <div className="hidden lg:block p-4 rounded-3xl bg-gradient-to-br from-slate-900 to-blue-950/40 border border-slate-800 text-xs space-y-2 shadow-xl">
-        <div className="flex items-center gap-2 text-blue-400 font-extrabold text-[11px]">
-          <Sparkles className="w-3.5 h-3.5" />
+      <div className="hidden lg:block p-4 rounded-3xl bg-blue-50/80 border border-blue-200 text-xs space-y-2">
+        <div className="flex items-center gap-2 text-blue-800 font-extrabold text-[11px]">
+          <Sparkles className="w-3.5 h-3.5 text-blue-600" />
           <span>Regra de Ouro PCP</span>
         </div>
-        <p className="text-[11px] text-slate-400 leading-relaxed">
-          O motor de otimização combina automaticamente tubos e perfis de mesma bitola para manter a sobra <strong className="text-emerald-400 font-mono">≤ 10 mm</strong>.
+        <p className="text-[11px] text-slate-600 leading-relaxed">
+          Combinações automáticas com tubos e perfis para garantir sobra <strong className="text-emerald-700 font-mono font-bold">≤ 10 mm</strong>.
         </p>
       </div>
     </aside>

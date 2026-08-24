@@ -6,16 +6,12 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer, 
-  PieChart, 
-  Pie, 
-  Cell 
+  ResponsiveContainer 
 } from 'recharts';
 import { 
   Disc, 
   TrendingUp, 
   Layers, 
-  AlertOctagon, 
   Scissors, 
   CheckCircle2, 
   ArrowRight, 
@@ -26,20 +22,12 @@ import {
   Zap, 
   CheckCircle,
   AlertTriangle,
-  XCircle,
-  Filter,
   Search,
-  ArrowUpRight,
-  Sliders,
   Boxes,
-  Maximize2,
-  CalendarClock,
-  Play,
-  FileSpreadsheet,
-  Check
+  Maximize2
 } from 'lucide-react';
 import { Coil, Product, SlitterOrder, PCPKPIs } from '../types/pcp';
-import { ReadinessService, SlitterProductionProgram, ProductReadiness } from '../services/readinessService';
+import { ReadinessService, SlitterProductionProgram } from '../services/readinessService';
 import { MetricsBadge } from '../components/MetricsBadge';
 
 interface DashboardViewProps {
@@ -54,7 +42,7 @@ interface DashboardViewProps {
   onOpenProgramOrder: (program: SlitterProductionProgram) => void;
 }
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   kpis,
@@ -82,7 +70,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return ReadinessService.analyze(products, coils);
   }, [products, coils]);
 
-  // Unique thicknesses for filter
   const uniqueThicknesses = useMemo(() => {
     const set = new Set<number>();
     coils.forEach(c => set.add(c.espessura));
@@ -110,47 +97,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     });
   }, [slitterPrograms, searchQuery, thicknessFilter, yieldFilter]);
 
-  // Coils by Thickness chart data
-  const thicknessMap: Record<string, { thickness: number; weight: number; count: number }> = {};
-  coils.filter(c => c.status === 'Disponível').forEach(c => {
-    const key = `${c.espessura} mm`;
-    if (!thicknessMap[key]) {
-      thicknessMap[key] = { thickness: c.espessura, weight: 0, count: 0 };
-    }
-    thicknessMap[key].weight += c.peso;
-    thicknessMap[key].count += 1;
-  });
-
-  const coilsByThickness = Object.entries(thicknessMap)
-    .map(([name, data]) => ({
-      name,
-      espessura: data.thickness,
-      peso: Number(data.weight.toFixed(1)),
-      lotes: data.count
-    }))
-    .sort((a, b) => a.espessura - b.espessura);
-
   return (
     <div className="space-y-6 pb-16 animate-fadeIn w-full">
-      {/* Top Cockpit Banner */}
-      <div className="p-6 rounded-3xl bg-gradient-to-r from-slate-900 via-blue-950/40 to-slate-900 border border-blue-500/30 shadow-2xl flex flex-wrap items-center justify-between gap-6">
+      {/* Top Cockpit Header Banner */}
+      <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-6">
         <div className="space-y-1.5 max-w-3xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-300 text-xs font-mono font-bold">
-            <Zap className="w-3.5 h-3.5 text-blue-400" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-800 text-xs font-mono font-bold">
+            <Zap className="w-3.5 h-3.5 text-blue-600" />
             PROGRAMAÇÃO DE CORTE SLITTER • PCP METALÚRGICO 2026
           </div>
-          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
             Central de Programação de Slitters & Matéria-Prima
           </h2>
-          <p className="text-xs sm:text-sm text-slate-300">
-            Acompanhe exatamente <strong className="text-blue-400">qual bobina será fatiada</strong>, <strong className="text-emerald-400">qual slitter será montado</strong> e <strong className="text-purple-300">quais tubos e perfis serão produzidos</strong> com cada fita.
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">
+            Acompanhe exatamente <strong className="text-blue-700">qual bobina de aço será cortada</strong>, <strong className="text-emerald-700">a montagem de facas do slitter</strong> e <strong className="text-purple-700">quais tubos e perfis serão produzidos</strong> com cada fita.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => onNavigateToPlanning()}
-            className="flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-black shadow-xl shadow-blue-500/30 transition-all hover:scale-105 active:scale-95 glow-blue"
+            className="flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black shadow-md shadow-blue-500/20 transition-all hover:scale-105 active:scale-95"
           >
             <Sparkles className="w-4 h-4" />
             <span>Novo Planejamento Customizado (6 Passos)</span>
@@ -159,16 +126,80 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
+      {/* KPI Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-400">Estoque de Bobinas</span>
+            <div className="p-2.5 rounded-2xl bg-blue-50 text-blue-600">
+              <Disc className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-slate-900 font-mono mt-2">
+            {kpis.totalBobinasDisponiveis} <span className="text-xs font-sans text-slate-500 font-normal">lotes disponíveis</span>
+          </div>
+          <div className="text-xs text-blue-700 font-mono mt-0.5 font-bold">
+            {kpis.pesoTotalEstoqueTon.toLocaleString('pt-BR')} t em estoque
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-400">Aproveitamento Médio</span>
+            <div className="p-2.5 rounded-2xl bg-emerald-50 text-emerald-600">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-emerald-700 font-mono mt-2">
+            {kpis.aproveitamentoMedioPercent}%
+          </div>
+          <div className="text-xs text-slate-600 mt-0.5 font-medium flex items-center gap-1">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            Meta PCP: Sobra ≤ 10 mm
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-400">Ordens de Slitter</span>
+            <div className="p-2.5 rounded-2xl bg-purple-50 text-purple-600">
+              <Scissors className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-slate-900 font-mono mt-2">
+            {orders.length} <span className="text-xs font-sans text-slate-500 font-normal">OS geradas</span>
+          </div>
+          <div className="text-xs text-purple-700 mt-0.5 font-bold">
+            {kpis.totalOrdensAtivas} em andamento
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-400">Demanda Cadastrada</span>
+            <div className="p-2.5 rounded-2xl bg-amber-50 text-amber-600">
+              <Percent className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-amber-700 font-mono mt-2">
+            {kpis.demandaTotalTon.toLocaleString('pt-BR')} t
+          </div>
+          <div className="text-xs text-slate-600 mt-0.5 font-medium">
+            {products.length} produtos cadastrados
+          </div>
+        </div>
+      </div>
+
       {/* Main Mode Tabs & Filter Controls */}
-      <div className="glass-card p-4 rounded-3xl border border-slate-800 bg-slate-900/90 shadow-2xl flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
         {/* Sub-view switcher */}
-        <div className="flex rounded-2xl bg-slate-950 border border-slate-800 p-1.5">
+        <div className="flex rounded-2xl bg-slate-100 p-1.5">
           <button
             onClick={() => setActiveBoardView('slitter_programs')}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black transition-all ${
               activeBoardView === 'slitter_programs'
-                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Scissors className="w-4 h-4" />
@@ -179,8 +210,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             onClick={() => setActiveBoardView('demand_readiness')}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black transition-all ${
               activeBoardView === 'demand_readiness'
-                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Boxes className="w-4 h-4" />
@@ -197,14 +228,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               placeholder="Buscar por lote, fita ou produto..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 shadow-inner"
+              className="w-full pl-10 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-medium"
             />
           </div>
 
           <select
             value={thicknessFilter}
             onChange={(e) => setThicknessFilter(e.target.value)}
-            className="py-2 px-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+            className="py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-mono font-bold"
           >
             <option value="TODOS">Todas as Bitolas</option>
             {uniqueThicknesses.map(t => (
@@ -212,7 +243,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             ))}
           </select>
 
-          <div className="flex rounded-xl bg-slate-950 border border-slate-800 p-1">
+          <div className="flex rounded-xl bg-slate-100 p-1">
             {[
               { id: 'TODOS', label: 'Todos' },
               { id: 'PERFEITO', label: '100% (Sobra 0)' },
@@ -223,8 +254,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 onClick={() => setYieldFilter(y.id as any)}
                 className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
                   yieldFilter === y.id
-                    ? 'bg-blue-600 text-white shadow'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 {y.label}
@@ -237,9 +268,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* VIEW 1: SLITTER PROGRAMS (Bobina -> Slitter -> Materiais Produzidos) */}
       {activeBoardView === 'slitter_programs' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between text-xs font-mono text-slate-400 px-2">
+          <div className="flex items-center justify-between text-xs font-mono text-slate-500 px-2 font-bold">
             <span>Exibindo <strong>{filteredPrograms.length}</strong> combinações de corte otimizadas prontas para execução</span>
-            <span className="text-emerald-400 font-bold">✓ Regra garantida: Sobra máxima ≤ 10 mm</span>
+            <span className="text-emerald-700">✓ Regra de ouro: Sobra máxima ≤ 10 mm</span>
           </div>
 
           <div className="space-y-4">
@@ -250,29 +281,29 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               return (
                 <div
                   key={prog.id || idx}
-                  className="glass-card p-6 rounded-3xl border border-slate-800/90 hover:border-blue-500/50 bg-gradient-to-r from-slate-900/95 via-slate-900/90 to-slate-950 transition-all shadow-xl hover:shadow-2xl space-y-4 group"
+                  className="bg-white p-6 rounded-3xl border border-slate-200 hover:border-blue-400 transition-all shadow-sm hover:shadow-md space-y-4 group"
                 >
                   {/* Top Bar: Coil info + Performance Badges */}
-                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-3.5">
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-3.5">
                     {/* Left: Coil Header */}
                     <div className="flex items-center gap-3.5">
-                      <div className="p-3 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-2xl shadow-md">
+                      <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-md shadow-blue-500/20">
                         <Disc className="w-5 h-5" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-black text-white font-mono tracking-tight">
+                          <span className="text-base font-black text-slate-900 font-mono tracking-tight">
                             LOTE: {coil.lote}
                           </span>
-                          <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-mono font-bold">
+                          <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800 border border-slate-200 font-mono font-bold">
                             {coil.codigo}
                           </span>
-                          <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/30 font-mono font-bold">
+                          <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200 font-mono font-bold">
                             Bitola: {coil.largura} x {coil.espessura} mm
                           </span>
                         </div>
-                        <p className="text-xs text-slate-400 mt-0.5 font-mono">
-                          Matéria-prima em Estoque: <strong className="text-emerald-400">{coil.peso} t</strong> disponível
+                        <p className="text-xs text-slate-500 mt-0.5 font-mono">
+                          Matéria-prima em Estoque: <strong className="text-emerald-700 font-black">{coil.peso} t</strong> disponível
                         </p>
                       </div>
                     </div>
@@ -281,22 +312,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <div className="flex items-center gap-3">
                       <div className="text-right font-mono pr-2">
                         <div className="text-xs text-slate-400 uppercase font-bold">Aproveitamento</div>
-                        <div className={`text-base font-black ${isPerfect ? 'text-emerald-400' : 'text-emerald-300'}`}>
+                        <div className={`text-base font-black ${isPerfect ? 'text-emerald-700' : 'text-emerald-700'}`}>
                           {prog.aproveitamentoPercent}% ({prog.sobraMm}mm sobra)
                         </div>
                       </div>
 
                       <button
                         onClick={() => onOpenProgramSimulation(prog)}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-extrabold rounded-2xl border border-slate-700 transition-all hover:scale-105"
+                        className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black rounded-2xl border border-slate-200 transition-all hover:scale-105"
                       >
-                        <Scissors className="w-4 h-4 text-blue-400" />
+                        <Scissors className="w-4 h-4 text-blue-600" />
                         <span>Abrir no Estúdio</span>
                       </button>
 
                       <button
                         onClick={() => onOpenProgramOrder(prog)}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black rounded-2xl shadow-xl shadow-emerald-500/30 transition-all hover:scale-105 glow-emerald"
+                        className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-2xl shadow-md shadow-emerald-600/20 transition-all hover:scale-105"
                       >
                         <CheckCircle2 className="w-4 h-4" />
                         <span>Emitir Ordem de Slitter (OS)</span>
@@ -304,18 +335,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Middle: Slitter Diagram Bar (Mini Cross Section) */}
+                  {/* Middle: Slitter Diagram Bar */}
                   <div className="space-y-1.5">
-                    <div className="flex justify-between text-[11px] font-mono text-slate-400 font-bold">
+                    <div className="flex justify-between text-xs font-mono text-slate-600 font-bold">
                       <span>Montagem de Facas no Slitter ({prog.totalFitas} fitas programadas):</span>
-                      <span className="text-slate-300">
+                      <span className="text-slate-800">
                         {prog.materialsProduced.map(m => `${m.quantidadeFitas}x ${m.fitaLargura}mm`).join(' + ')} 
                         {prog.sobraMm > 0 ? ` + [${prog.sobraMm}mm refilo]` : ''} = {coil.largura}mm
                       </span>
                     </div>
 
                     {/* Graphical strip bar */}
-                    <div className="w-full h-10 bg-slate-950 rounded-xl border border-slate-700/80 p-1 flex items-stretch overflow-hidden shadow-inner">
+                    <div className="w-full h-10 bg-slate-900 rounded-xl border border-slate-300 p-1 flex items-stretch overflow-hidden shadow-inner">
                       {prog.materialsProduced.map((m, mIdx) => {
                         const widthPct = (m.larguraTotal / coil.largura) * 100;
                         const isMain = m.finalidade === 'PRINCIPAL';
@@ -324,13 +355,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           <div
                             key={mIdx}
                             style={{ width: `${widthPct}%` }}
-                            className={`h-full flex items-center justify-between px-2 text-white font-mono text-[10px] font-bold border-r border-slate-950 ${
+                            className={`h-full flex items-center justify-between px-2 text-white font-mono text-xs font-bold border-r border-slate-900 ${
                               isMain ? 'bg-blue-600' : 'bg-purple-600'
                             }`}
                             title={`${m.quantidadeFitas}x Fita de ${m.fitaLargura}mm para ${m.product.codigo}`}
                           >
                             <span className="truncate">{m.quantidadeFitas}x {m.fitaLargura}mm</span>
-                            <span className="text-[9px] opacity-80">{m.pesoAlocadoTon}t</span>
+                            <span className="text-[10px] opacity-90">{m.pesoAlocadoTon}t</span>
                           </div>
                         );
                       })}
@@ -338,7 +369,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       {prog.sobraMm > 0 && (
                         <div
                           style={{ width: `${(prog.sobraMm / coil.largura) * 100}%` }}
-                          className="h-full bg-emerald-950/80 border border-dashed border-emerald-500/60 text-emerald-400 text-[9px] font-mono font-bold flex items-center justify-center px-1"
+                          className="h-full bg-emerald-100 border border-dashed border-emerald-400 text-emerald-900 text-[10px] font-mono font-black flex items-center justify-center px-1"
                         >
                           {prog.sobraMm}mm
                         </div>
@@ -348,8 +379,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                   {/* Bottom: Destination Materials (PARA QUAIS MATERIAIS ELE VAI SER UTILIZADO) */}
                   <div className="space-y-2 pt-2">
-                    <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 font-mono flex items-center gap-2">
-                      <Layers className="w-3.5 h-3.5 text-purple-400" />
+                    <div className="text-xs font-black uppercase tracking-wider text-slate-500 font-mono flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-purple-600" />
                       Produtos Finais Produzidos a partir deste Slitter:
                     </div>
 
@@ -360,41 +391,41 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         return (
                           <div
                             key={matIdx}
-                            className={`p-3.5 rounded-2xl border transition-all ${
+                            className={`p-4 rounded-2xl border transition-all ${
                               isMain
-                                ? 'bg-blue-950/40 border-blue-500/40'
-                                : 'bg-purple-950/40 border-purple-500/40'
+                                ? 'bg-blue-50/70 border-blue-200'
+                                : 'bg-purple-50/70 border-purple-200'
                             }`}
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div>
                                 <div className="flex items-center gap-2">
-                                  <span className="text-xs font-black text-white font-mono">{mat.product.codigo}</span>
+                                  <span className="text-xs font-black text-slate-900 font-mono">{mat.product.codigo}</span>
                                   <MetricsBadge type="familia" value={mat.product.familia} size="sm" />
-                                  <span className={`text-[10px] px-2 py-0.5 rounded font-bold font-mono ${
-                                    isMain ? 'bg-blue-500/20 text-blue-300' : 'bg-purple-500/20 text-purple-300'
+                                  <span className={`text-[10px] px-2 py-0.5 rounded font-black font-mono ${
+                                    isMain ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
                                   }`}>
                                     {mat.finalidade}
                                   </span>
                                 </div>
-                                <p className="text-xs text-slate-300 mt-1 font-medium line-clamp-1">
+                                <p className="text-xs text-slate-700 mt-1 font-semibold line-clamp-1">
                                   {mat.product.descricao}
                                 </p>
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-2 mt-3 pt-2.5 border-t border-slate-800/80 text-[11px] font-mono">
-                              <div className="text-center bg-slate-950/60 p-1.5 rounded-lg">
-                                <span className="text-slate-400 block text-[9px]">FITAS</span>
-                                <strong className="text-white font-bold">{mat.quantidadeFitas}x ({mat.fitaLargura}mm)</strong>
+                            <div className="grid grid-cols-3 gap-2 mt-3 pt-2.5 border-t border-slate-200/80 text-xs font-mono">
+                              <div className="text-center bg-white p-2 rounded-xl border border-slate-200/60">
+                                <span className="text-slate-400 block text-[10px] font-bold">FITAS</span>
+                                <strong className="text-slate-900 font-black">{mat.quantidadeFitas}x ({mat.fitaLargura}mm)</strong>
                               </div>
-                              <div className="text-center bg-slate-950/60 p-1.5 rounded-lg">
-                                <span className="text-slate-400 block text-[9px]">PESO GERADO</span>
-                                <strong className="text-emerald-400 font-bold">{mat.pesoAlocadoTon} t</strong>
+                              <div className="text-center bg-white p-2 rounded-xl border border-slate-200/60">
+                                <span className="text-slate-400 block text-[10px] font-bold">PESO GERADO</span>
+                                <strong className="text-emerald-700 font-black">{mat.pesoAlocadoTon} t</strong>
                               </div>
-                              <div className="text-center bg-slate-950/60 p-1.5 rounded-lg">
-                                <span className="text-slate-400 block text-[9px]">RENDIMENTO</span>
-                                <strong className="text-sky-300 font-bold">{mat.metrosEstimados} m</strong>
+                              <div className="text-center bg-white p-2 rounded-xl border border-slate-200/60">
+                                <span className="text-slate-400 block text-[10px] font-bold">METROS</span>
+                                <strong className="text-blue-700 font-black">{mat.metrosEstimados} m</strong>
                               </div>
                             </div>
                           </div>
@@ -411,13 +442,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* VIEW 2: PRODUCT DEMAND READINESS */}
       {activeBoardView === 'demand_readiness' && (
-        <div className="glass-card p-6 rounded-3xl border border-slate-800 bg-slate-900/90 shadow-2xl space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
             <div>
-              <h3 className="text-base font-extrabold text-white tracking-tight">
+              <h3 className="text-base font-black text-slate-900 tracking-tight">
                 Cobertura de Estoque de Bobinas por Produto ({readinessList.length} itens)
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 mt-0.5">
                 Consulte o estoque de bobinas disponível para cada item e a bobina recomendada para o corte
               </p>
             </div>
@@ -426,7 +457,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="overflow-x-auto max-h-[500px]">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px] tracking-wider font-mono sticky top-0 bg-slate-900 z-10">
+                <tr className="border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider font-mono sticky top-0 bg-white z-10 font-bold">
                   <th className="py-3 px-3">Status</th>
                   <th className="py-3 px-3">Código / Descrição</th>
                   <th className="py-3 px-3">Família</th>
@@ -439,53 +470,53 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <th className="py-3 px-3 text-center">Ação</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-mono">
+              <tbody className="divide-y divide-slate-100 font-mono">
                 {readinessList
                   .filter(r => 
                     r.product.codigo.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     r.product.descricao.toLowerCase().includes(searchQuery.toLowerCase())
                   )
                   .map((r) => (
-                    <tr key={r.product.id} className="hover:bg-slate-800/40 transition-colors">
+                    <tr key={r.product.id} className="hover:bg-slate-50 transition-colors">
                       <td className="py-3.5 px-3">
                         {r.status === 'PRONTO' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
-                            <Check className="w-3 h-3" /> Pronto ({r.compatibleLotCount} lotes)
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-300 text-[10px] font-bold">
+                            <CheckCircle className="w-3 h-3 text-emerald-600" /> Pronto ({r.compatibleLotCount} lotes)
                           </span>
                         ) : r.status === 'PARCIAL' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-50 text-amber-800 border border-amber-300 text-[10px] font-bold">
                             Parcial ({r.coveragePercent}%)
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-red-500/15 text-red-300 border border-red-500/30 text-[10px] font-bold">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-red-50 text-red-800 border border-red-300 text-[10px] font-bold">
                             Sem Bobina
                           </span>
                         )}
                       </td>
                       <td className="py-3.5 px-3">
-                        <div className="font-black text-white">{r.product.codigo}</div>
-                        <div className="text-[11px] font-sans text-slate-400 truncate max-w-xs">{r.product.descricao}</div>
+                        <div className="font-black text-slate-900">{r.product.codigo}</div>
+                        <div className="text-xs font-sans text-slate-600 truncate max-w-xs">{r.product.descricao}</div>
                       </td>
                       <td className="py-3.5 px-3 font-sans">
                         <MetricsBadge type="familia" value={r.product.familia} size="sm" />
                       </td>
-                      <td className="py-3.5 px-3 text-right text-purple-400 font-bold">{r.product.espessura} mm</td>
-                      <td className="py-3.5 px-3 text-right font-black text-white">{r.product.larguraFita} mm</td>
-                      <td className="py-3.5 px-3 text-right text-amber-400 font-bold">{r.product.demandaT || 0} t</td>
-                      <td className="py-3.5 px-3 text-right font-black text-emerald-400">{r.totalCompatibleWeightTon} t</td>
+                      <td className="py-3.5 px-3 text-right text-purple-800 font-bold">{r.product.espessura} mm</td>
+                      <td className="py-3.5 px-3 text-right font-black text-slate-900">{r.product.larguraFita} mm</td>
+                      <td className="py-3.5 px-3 text-right text-amber-700 font-bold">{r.product.demandaT || 0} t</td>
+                      <td className="py-3.5 px-3 text-right font-black text-emerald-700">{r.totalCompatibleWeightTon} t</td>
                       <td className="py-3.5 px-3 text-center">
                         {r.bestCoil ? (
-                          <span className="text-blue-400 font-black">{r.bestCoil.lote} ({r.bestCoil.largura}mm)</span>
+                          <span className="text-blue-700 font-black">{r.bestCoil.lote} ({r.bestCoil.largura}mm)</span>
                         ) : '-'}
                       </td>
-                      <td className="py-3.5 px-3 text-right font-black text-emerald-400">
+                      <td className="py-3.5 px-3 text-right font-black text-emerald-700">
                         {r.estimatedYieldPercent > 0 ? `${r.estimatedYieldPercent}%` : '-'}
                       </td>
                       <td className="py-3.5 px-3 text-center">
                         <button
                           onClick={() => onNavigateToPlanning(r.product.id)}
                           disabled={r.compatibleLotCount === 0}
-                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-xl text-xs font-black transition-all"
+                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl text-xs font-black transition-all"
                         >
                           Planejar
                         </button>
@@ -497,49 +528,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
       )}
-
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-2">
-        <div className="glass-card p-5 rounded-3xl border border-slate-800 bg-slate-900/80">
-          <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Estoque de Bobinas</span>
-          <div className="text-2xl font-black text-white font-mono mt-2">
-            {kpis.totalBobinasDisponiveis} <span className="text-xs font-sans text-slate-400">lotes</span>
-          </div>
-          <div className="text-xs text-blue-400 font-mono mt-0.5 font-bold">
-            {kpis.pesoTotalEstoqueTon.toLocaleString('pt-BR')} t disponíveis
-          </div>
-        </div>
-
-        <div className="glass-card p-5 rounded-3xl border border-slate-800 bg-slate-900/80">
-          <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Aproveitamento Médio</span>
-          <div className="text-2xl font-black text-emerald-400 font-mono mt-2">
-            {kpis.aproveitamentoMedioPercent}%
-          </div>
-          <div className="text-xs text-slate-300 mt-0.5">
-            Meta: Sobra ≤ 10 mm
-          </div>
-        </div>
-
-        <div className="glass-card p-5 rounded-3xl border border-slate-800 bg-slate-900/80">
-          <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Ordens de Slitter</span>
-          <div className="text-2xl font-black text-white font-mono mt-2">
-            {orders.length} <span className="text-xs font-sans text-slate-400">OS geradas</span>
-          </div>
-          <div className="text-xs text-purple-400 mt-0.5 font-bold">
-            {kpis.totalOrdensAtivas} em andamento
-          </div>
-        </div>
-
-        <div className="glass-card p-5 rounded-3xl border border-slate-800 bg-slate-900/80">
-          <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Demanda Cadastrada</span>
-          <div className="text-2xl font-black text-amber-400 font-mono mt-2">
-            {kpis.demandaTotalTon.toLocaleString('pt-BR')} t
-          </div>
-          <div className="text-xs text-slate-300 mt-0.5">
-            {products.length} produtos cadastrados
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

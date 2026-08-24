@@ -8,7 +8,7 @@ import {
 import { 
   SlitterOptimizer 
 } from '../services/slitterOptimizer';
-import { ReadinessService, ProductReadiness } from '../services/readinessService';
+import { ReadinessService } from '../services/readinessService';
 import { CoilCard } from '../components/CoilCard';
 import { MetricsBadge } from '../components/MetricsBadge';
 import { SlitterVisualizer } from '../components/SlitterVisualizer';
@@ -18,23 +18,12 @@ import {
   AlertCircle, 
   Sparkles, 
   ArrowRight, 
-  ChevronLeft, 
-  Layers, 
-  Disc, 
-  Weight, 
   Scissors, 
-  Check,
-  ChevronRight,
-  Filter,
-  Info,
-  Maximize2,
-  Gauge,
-  Zap,
-  CheckCircle,
-  AlertTriangle,
-  XCircle,
-  Boxes,
-  Sliders
+  Check, 
+  ChevronRight, 
+  CheckCircle, 
+  AlertTriangle, 
+  XCircle 
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -53,7 +42,6 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   onProceedToSimulation,
   onProceedToOrder
 }) => {
-  // Wizard Step (1 to 6)
   const [currentStep, setCurrentStep] = useState<number>(1);
 
   // Step 1: Selected Product & Filters
@@ -72,7 +60,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   // Step 6: Selected Slitter Combination
   const [selectedCombination, setSelectedCombination] = useState<SlitterCombination | null>(null);
 
-  // Analyze readiness for all products against stock
+  // Analyze readiness
   const readinessList = useMemo(() => {
     return ReadinessService.analyze(products, coils);
   }, [products, coils]);
@@ -81,26 +69,23 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   const parcialCount = readinessList.filter(r => r.status === 'PARCIAL').length;
   const bloqueadoCount = readinessList.filter(r => r.status === 'BLOQUEADO').length;
 
-  // Auto-select product if preSelectedProductId is given
   useEffect(() => {
     if (preSelectedProductId) {
       const p = products.find(prod => prod.id === preSelectedProductId || prod.codigo === preSelectedProductId);
       if (p) {
         setSelectedProduct(p);
         setDesiredQtyTon(p.demandaT || 10);
-        setCurrentStep(3); // Jump to coil selection
+        setCurrentStep(3);
       }
     }
   }, [preSelectedProductId, products]);
 
-  // Unique thicknesses
   const uniqueThicknesses = useMemo(() => {
     const set = new Set<number>();
     products.forEach(p => set.add(p.espessura));
     return Array.from(set).sort((a, b) => a - b);
   }, [products]);
 
-  // Filtered & Sorted Product Readiness
   const filteredProductReadiness = useMemo(() => {
     let list = readinessList;
 
@@ -124,7 +109,6 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     return ReadinessService.sortByReadiness(list);
   }, [readinessList, readinessFilter, familyFilter, thicknessFilter, productSearch]);
 
-  // Step 3: Compatible Coils in Stock (matching thickness)
   const compatibleCoils = useMemo(() => {
     if (!selectedProduct) return [];
     return coils.filter(c => 
@@ -133,14 +117,12 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     ).sort((a, b) => b.largura - a.largura);
   }, [coils, selectedProduct]);
 
-  // Auto-select best matching coil when entering Step 3
   useEffect(() => {
     if (compatibleCoils.length > 0 && (!selectedCoil || selectedCoil.espessura !== selectedProduct?.espessura)) {
       setSelectedCoil(compatibleCoils[0]);
     }
   }, [compatibleCoils, selectedProduct]);
 
-  // Step 5 & 6: Compute optimal combinations when coil is selected
   const combinations = useMemo(() => {
     if (!selectedProduct || !selectedCoil) return [];
     return SlitterOptimizer.optimize({
@@ -152,14 +134,12 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     });
   }, [selectedProduct, selectedCoil, desiredQtyTon, products]);
 
-  // Auto-select best combination on calculation
   useEffect(() => {
     if (combinations.length > 0) {
       setSelectedCombination(combinations[0]);
     }
   }, [combinations]);
 
-  // Single-cut primary calculation for step 5
   const step5Calculation = useMemo(() => {
     if (!selectedProduct || !selectedCoil) return null;
     const fitasPossiveis = Math.floor(selectedCoil.largura / selectedProduct.larguraFita);
@@ -177,7 +157,6 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     };
   }, [selectedProduct, selectedCoil]);
 
-  // Strips generated from current selection for live preview
   const currentStrips = useMemo(() => {
     if (!selectedCoil) return [];
     if (selectedCombination) {
@@ -201,18 +180,18 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   };
 
   const stepsList = [
-    { num: 1, title: 'Produto & Matéria-Prima' },
-    { num: 2, title: 'Quantidade' },
+    { num: 1, title: 'Produto Final' },
+    { num: 2, title: 'Quantidade (t)' },
     { num: 3, title: 'Bobinas Compatíveis' },
     { num: 4, title: 'Selecionar Lote' },
     { num: 5, title: 'Cálculo de Fitas' },
-    { num: 6, title: 'Otimização Slitter' }
+    { num: 6, title: 'Otimização do Slitter' }
   ];
 
   return (
     <div className="space-y-6 pb-16 animate-fadeIn">
       {/* Wizard Progress Header Bar */}
-      <div className="glass-card p-4 rounded-3xl border border-slate-800 bg-slate-900/90 shadow-2xl">
+      <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
         <div className="flex items-center justify-between overflow-x-auto gap-2.5 pb-1">
           {stepsList.map((st) => {
             const isCompleted = currentStep > st.num;
@@ -226,16 +205,16 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                     setCurrentStep(st.num);
                   }
                 }}
-                className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl text-xs font-extrabold whitespace-nowrap transition-all ${
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-2xl text-xs font-black whitespace-nowrap transition-all ${
                   isCurrent
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl shadow-blue-500/30 ring-2 ring-blue-400/50 scale-[1.02]'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
                     : isCompleted
-                    ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25'
-                    : 'bg-slate-950/60 text-slate-500 border border-slate-800/80 opacity-60 cursor-not-allowed'
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
+                    : 'bg-slate-50 text-slate-400 border border-slate-200 opacity-60 cursor-not-allowed'
                 }`}
               >
                 <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
-                  isCompleted ? 'bg-emerald-500 text-slate-950 font-black' : isCurrent ? 'bg-white text-blue-700' : 'bg-slate-800 text-slate-400'
+                  isCompleted ? 'bg-emerald-600 text-white' : isCurrent ? 'bg-white text-blue-700' : 'bg-slate-200 text-slate-600'
                 }`}>
                   {isCompleted ? '✓' : st.num}
                 </div>
@@ -246,26 +225,26 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         </div>
       </div>
 
-      {/* STEP 1: Select Product (FEASIBILITY FIRST!) */}
+      {/* STEP 1: Select Product */}
       {currentStep === 1 && (
-        <div className="space-y-5">
+        <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h3 className="text-lg font-black text-white flex items-center gap-2.5 tracking-tight">
-                <span className="p-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-2xl shadow-md">
+              <h3 className="text-lg font-black text-slate-900 flex items-center gap-2.5 tracking-tight">
+                <span className="p-2 bg-blue-600 text-white rounded-xl text-xs">
                   1
                 </span>
                 Passo 1: Selecionar o Produto Final a Produzir
               </h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Listando primeiro os produtos que <strong>possuem matéria-prima pronta em estoque</strong> para programar.
+              <p className="text-xs text-slate-500 mt-1">
+                Listando primeiro os materiais que possuem matéria-prima em estoque para corte imediato.
               </p>
             </div>
 
             {selectedProduct && (
               <button
                 onClick={() => setCurrentStep(2)}
-                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-extrabold rounded-2xl shadow-xl shadow-blue-500/25 transition-all hover:scale-105"
+                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-2xl shadow-md shadow-blue-500/20 transition-all hover:scale-105"
               >
                 <span>Avançar para Passo 2 (Quantidade)</span>
                 <ChevronRight className="w-4 h-4" />
@@ -274,25 +253,25 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
           </div>
 
           {/* Quick Feasibility Filter Tabs */}
-          <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3">
+          <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
             {[
-              { id: 'PRONTO', label: '🔥 Prontos para Produzir (100% Viáveis)', count: prontoCount, color: 'text-emerald-400' },
-              { id: 'PARCIAL', label: '⚠️ Atendimento Parcial', count: parcialCount, color: 'text-amber-400' },
-              { id: 'TODOS', label: 'Todos os Produtos', count: products.length, color: 'text-blue-400' },
-              { id: 'BLOQUEADO', label: '✕ Sem Bobina no Estoque', count: bloqueadoCount, color: 'text-red-400' }
+              { id: 'PRONTO', label: '🔥 Prontos para Produzir (100% Viáveis)', count: prontoCount },
+              { id: 'PARCIAL', label: '⚠️ Atendimento Parcial', count: parcialCount },
+              { id: 'TODOS', label: 'Todos os Produtos', count: products.length },
+              { id: 'BLOQUEADO', label: '✕ Sem Bobina no Estoque', count: bloqueadoCount }
             ].map((f) => (
               <button
                 key={f.id}
                 onClick={() => setReadinessFilter(f.id as any)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-2xl text-xs font-extrabold transition-all ${
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-2xl text-xs font-black transition-all ${
                   readinessFilter === f.id
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-1 ring-white/20'
-                    : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
                 }`}
               >
                 <span>{f.label}</span>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                  readinessFilter === f.id ? 'bg-white/20 text-white' : 'bg-slate-950 text-slate-400'
+                  readinessFilter === f.id ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-700'
                 }`}>
                   {f.count}
                 </span>
@@ -300,7 +279,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             ))}
           </div>
 
-          {/* Search and Bitola Filters */}
+          {/* Search and Filters */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="relative">
               <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
@@ -309,19 +288,19 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                 placeholder="Buscar por código ou descrição..."
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-900/90 border border-slate-700/80 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 shadow-inner"
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-sm"
               />
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400 font-bold uppercase text-[10px]">Família:</span>
-              <div className="flex rounded-2xl bg-slate-900/90 border border-slate-700/80 p-1 flex-1 shadow-inner">
+              <span className="text-xs text-slate-500 font-bold uppercase text-[10px]">Família:</span>
+              <div className="flex rounded-2xl bg-white border border-slate-200 p-1 flex-1 shadow-sm">
                 {(['TODOS', 'TUBO', 'PERFIL'] as const).map(fam => (
                   <button
                     key={fam}
                     onClick={() => setFamilyFilter(fam)}
                     className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all ${
-                      familyFilter === fam ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                      familyFilter === fam ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     {fam}
@@ -331,11 +310,11 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400 font-bold uppercase text-[10px]">Espessura:</span>
+              <span className="text-xs text-slate-500 font-bold uppercase text-[10px]">Espessura:</span>
               <select
                 value={thicknessFilter}
                 onChange={(e) => setThicknessFilter(e.target.value)}
-                className="flex-1 py-2.5 px-3.5 bg-slate-900/90 border border-slate-700/80 rounded-2xl text-xs text-white focus:outline-none focus:border-blue-500 shadow-inner"
+                className="flex-1 py-2.5 px-3.5 bg-white border border-slate-200 rounded-2xl text-xs text-slate-900 focus:outline-none focus:border-blue-500 shadow-sm font-bold"
               >
                 <option value="TODOS">Todas as Espessuras</option>
                 {uniqueThicknesses.map(th => (
@@ -345,7 +324,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             </div>
           </div>
 
-          {/* Product Cards Grid with Feasibility Badges */}
+          {/* Product Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[520px] overflow-y-auto pr-1">
             {filteredProductReadiness.map((r) => {
               const p = r.product;
@@ -360,61 +339,59 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                     setSelectedProduct(p);
                     setDesiredQtyTon(p.demandaT || 10);
                   }}
-                  className={`glass-card p-4 rounded-3xl border transition-all cursor-pointer group relative overflow-hidden ${
+                  className={`p-4 rounded-3xl border transition-all cursor-pointer group bg-white shadow-sm ${
                     isSelected
-                      ? 'bg-blue-950/70 border-blue-500 ring-2 ring-blue-500/50 shadow-2xl -translate-y-1'
-                      : 'border-slate-800/80 hover:border-blue-500/40 hover:bg-slate-900/90 hover:-translate-y-1'
+                      ? 'bg-blue-50/80 border-blue-500 ring-2 ring-blue-400/40 -translate-y-1'
+                      : 'border-slate-200 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5'
                   }`}
                 >
-                  {/* Status header badge */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono font-black text-white">{p.codigo}</span>
+                      <span className="text-xs font-mono font-black text-slate-900">{p.codigo}</span>
                       <MetricsBadge type="familia" value={p.familia} size="sm" />
                     </div>
 
                     {isReady ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-bold font-mono">
-                        <CheckCircle className="w-2.5 h-2.5 text-emerald-400" />
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 text-[10px] font-bold font-mono">
+                        <CheckCircle className="w-2.5 h-2.5 text-emerald-600" />
                         Pronto ({r.compatibleLotCount} lotes)
                       </span>
                     ) : isPartial ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold font-mono">
-                        <AlertTriangle className="w-2.5 h-2.5 text-amber-400" />
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300 text-[10px] font-bold font-mono">
+                        <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
                         Parcial ({r.coveragePercent}%)
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/40 text-[9px] font-bold font-mono">
-                        <XCircle className="w-2.5 h-2.5 text-red-400" />
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-800 border border-red-300 text-[10px] font-bold font-mono">
+                        <XCircle className="w-2.5 h-2.5 text-red-600" />
                         Sem Bobina
                       </span>
                     )}
                   </div>
 
-                  <h4 className="text-xs text-slate-300 line-clamp-2 font-medium mt-2">
+                  <h4 className="text-xs text-slate-700 line-clamp-2 font-semibold mt-2">
                     {p.descricao}
                   </h4>
 
-                  {/* Stock Match Highlight */}
                   {r.bestCoil && (
-                    <div className="mt-2.5 p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-[10px] font-mono text-slate-400 flex items-center justify-between">
-                      <span>Melhor Bobina: <strong className="text-blue-400">{r.bestCoil.lote}</strong> ({r.bestCoil.largura}mm)</span>
-                      <span className="text-emerald-400 font-bold">Aprov: {r.estimatedYieldPercent}%</span>
+                    <div className="mt-2.5 p-2 rounded-xl bg-slate-50 border border-slate-200 text-[10px] font-mono text-slate-600 flex items-center justify-between">
+                      <span>Melhor Bobina: <strong className="text-blue-700">{r.bestCoil.lote}</strong> ({r.bestCoil.largura}mm)</span>
+                      <span className="text-emerald-700 font-bold">Aprov: {r.estimatedYieldPercent}%</span>
                     </div>
                   )}
 
-                  <div className="grid grid-cols-3 gap-2 mt-3 pt-2.5 border-t border-slate-800/80 text-[11px] font-mono">
-                    <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800 text-center">
+                  <div className="grid grid-cols-3 gap-2 mt-3 pt-2.5 border-t border-slate-100 text-[11px] font-mono">
+                    <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 text-center">
                       <span className="text-slate-400 block text-[9px] font-bold uppercase">Fita Requerida</span>
-                      <strong className="text-blue-400 font-extrabold text-xs">{p.larguraFita} mm</strong>
+                      <strong className="text-blue-700 font-black text-xs">{p.larguraFita} mm</strong>
                     </div>
-                    <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800 text-center">
+                    <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 text-center">
                       <span className="text-slate-400 block text-[9px] font-bold uppercase">Espessura</span>
-                      <strong className="text-purple-400 font-extrabold text-xs">{p.espessura} mm</strong>
+                      <strong className="text-purple-800 font-black text-xs">{p.espessura} mm</strong>
                     </div>
-                    <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800 text-center">
+                    <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 text-center">
                       <span className="text-slate-400 block text-[9px] font-bold uppercase">Estoque Disp.</span>
-                      <strong className={`font-extrabold text-xs ${r.totalCompatibleWeightTon > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
+                      <strong className={`font-black text-xs ${r.totalCompatibleWeightTon > 0 ? 'text-emerald-700' : 'text-slate-400'}`}>
                         {r.totalCompatibleWeightTon} t
                       </strong>
                     </div>
@@ -426,44 +403,44 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         </div>
       )}
 
-      {/* STEP 2: Enter Desired Quantity */}
+      {/* STEP 2: Quantity */}
       {currentStep === 2 && selectedProduct && (
-        <div className="glass-card p-8 rounded-3xl border border-slate-800 bg-slate-900/90 shadow-2xl space-y-6 max-w-2xl mx-auto">
+        <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6 max-w-2xl mx-auto">
           <div>
-            <h3 className="text-lg font-black text-white flex items-center gap-2.5 tracking-tight">
-              <span className="p-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-2xl shadow-md">
+            <h3 className="text-lg font-black text-slate-900 flex items-center gap-2.5 tracking-tight">
+              <span className="p-2 bg-blue-600 text-white rounded-xl text-xs">
                 2
               </span>
               Passo 2: Informar a Quantidade Desejada
             </h3>
-            <p className="text-xs text-slate-400 mt-1">
-              Informe a quantidade de <strong>{selectedProduct.codigo}</strong> que você deseja programar no Slitter.
+            <p className="text-xs text-slate-500 mt-1">
+              Informe a quantidade de <strong>{selectedProduct.codigo}</strong> que você deseja produzir no Slitter.
             </p>
           </div>
 
-          <div className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-4">
+          <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-black text-white font-mono">{selectedProduct.codigo}</span>
+                <span className="text-sm font-black text-slate-900 font-mono">{selectedProduct.codigo}</span>
                 <MetricsBadge type="familia" value={selectedProduct.familia} size="sm" />
               </div>
-              <p className="text-xs text-slate-300 mt-1">{selectedProduct.descricao}</p>
-              <div className="flex items-center gap-3 text-xs font-mono text-slate-400 mt-2">
-                <span>Largura Fita: <strong className="text-blue-400">{selectedProduct.larguraFita} mm</strong></span>
+              <p className="text-xs text-slate-700 mt-1 font-semibold">{selectedProduct.descricao}</p>
+              <div className="flex items-center gap-3 text-xs font-mono text-slate-600 mt-2 font-medium">
+                <span>Largura Fita: <strong className="text-blue-700">{selectedProduct.larguraFita} mm</strong></span>
                 <span>•</span>
-                <span>Espessura: <strong className="text-purple-400">{selectedProduct.espessura} mm</strong></span>
+                <span>Espessura: <strong className="text-purple-700">{selectedProduct.espessura} mm</strong></span>
               </div>
             </div>
             <button
               onClick={() => setCurrentStep(1)}
-              className="text-xs text-blue-400 hover:text-blue-300 font-bold underline"
+              className="text-xs text-blue-700 hover:text-blue-800 font-black underline"
             >
               Trocar Produto
             </button>
           </div>
 
           <div className="space-y-3">
-            <label className="block text-xs font-extrabold text-slate-300 uppercase tracking-wider">
+            <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
               Quantidade Planejada (Toneladas):
             </label>
             <div className="flex items-center gap-3">
@@ -473,9 +450,9 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                 step="0.5"
                 value={desiredQtyTon}
                 onChange={(e) => setDesiredQtyTon(parseFloat(e.target.value) || 0)}
-                className="flex-1 px-5 py-3.5 bg-slate-950 border-2 border-slate-700/80 rounded-2xl text-2xl font-mono font-black text-emerald-400 focus:outline-none focus:border-blue-500 shadow-inner"
+                className="flex-1 px-5 py-3.5 bg-slate-50 border-2 border-slate-300 rounded-2xl text-2xl font-mono font-black text-emerald-700 focus:outline-none focus:border-blue-600"
               />
-              <span className="text-base font-black text-slate-400 font-mono">TONELADAS</span>
+              <span className="text-base font-black text-slate-500 font-mono">TONELADAS</span>
             </div>
 
             <div className="flex items-center gap-2 pt-1">
@@ -484,10 +461,10 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                   key={t}
                   type="button"
                   onClick={() => setDesiredQtyTon(t)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all ${
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-mono font-black transition-all ${
                     desiredQtyTon === t
-                      ? 'bg-blue-600 text-white shadow-md'
-                      : 'bg-slate-800 text-slate-400 hover:text-white'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
                   {t} t
@@ -496,16 +473,16 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+          <div className="flex items-center justify-between pt-4 border-t border-slate-100">
             <button
               onClick={() => setCurrentStep(1)}
-              className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-2xl"
+              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-2xl"
             >
               ← Voltar ao Passo 1
             </button>
             <button
               onClick={() => setCurrentStep(3)}
-              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-extrabold rounded-2xl shadow-xl shadow-blue-500/25"
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-2xl shadow-md shadow-blue-500/20"
             >
               <span>Localizar Bobinas Compatíveis</span>
               <ArrowRight className="w-4 h-4" />
@@ -514,26 +491,26 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         </div>
       )}
 
-      {/* STEP 3 & 4: Compatible Coils & Lot Selection */}
+      {/* STEP 3 & 4: Compatible Coils */}
       {(currentStep === 3 || currentStep === 4) && selectedProduct && (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h3 className="text-lg font-black text-white flex items-center gap-2.5 tracking-tight">
-                <span className="p-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-2xl shadow-md">
+              <h3 className="text-lg font-black text-slate-900 flex items-center gap-2.5 tracking-tight">
+                <span className="p-2 bg-blue-600 text-white rounded-xl text-xs">
                   {currentStep}
                 </span>
                 Passo {currentStep === 3 ? '3: Bobinas Compatíveis Localizadas' : '4: Selecionar o Lote da Bobina'}
               </h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Localizamos <strong>{compatibleCoils.length} lotes disponíveis</strong> no estoque com espessura compatível de <strong className="text-purple-400 font-mono">{selectedProduct.espessura} mm</strong>.
+              <p className="text-xs text-slate-500 mt-1">
+                Localizamos <strong>{compatibleCoils.length} lotes disponíveis</strong> no estoque com espessura compatível de <strong className="text-purple-700 font-mono">{selectedProduct.espessura} mm</strong>.
               </p>
             </div>
 
             {selectedCoil && (
               <button
                 onClick={() => setCurrentStep(5)}
-                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-extrabold rounded-2xl shadow-xl shadow-blue-500/25 transition-all hover:scale-105"
+                className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-2xl shadow-md shadow-blue-500/20 transition-all hover:scale-105"
               >
                 <span>Avançar para Passo 5 (Calcular Fitas)</span>
                 <ArrowRight className="w-4 h-4" />
@@ -542,14 +519,11 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
           </div>
 
           {compatibleCoils.length === 0 ? (
-            <div className="glass-card p-10 rounded-3xl border border-red-500/30 bg-red-950/20 text-center space-y-3">
-              <AlertCircle className="w-12 h-12 text-red-400 mx-auto" />
-              <h4 className="text-base font-bold text-red-300">
+            <div className="bg-red-50 p-10 rounded-3xl border border-red-200 text-center space-y-3">
+              <AlertCircle className="w-12 h-12 text-red-600 mx-auto" />
+              <h4 className="text-base font-bold text-red-900">
                 Nenhuma bobina disponível no estoque para espessura de {selectedProduct.espessura} mm!
               </h4>
-              <p className="text-xs text-slate-400 max-w-md mx-auto">
-                Não há lotes com status &quot;Disponível&quot; com esta espessura no momento. Cadastre novas bobinas ou importe uma planilha atualizada.
-              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -569,106 +543,80 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         </div>
       )}
 
-      {/* STEP 5: Initial Strip Calculation & Scrap Check */}
+      {/* STEP 5: Initial Strip Calculation */}
       {currentStep === 5 && selectedProduct && selectedCoil && step5Calculation && (
-        <div className="glass-card p-8 rounded-3xl border border-slate-800 bg-slate-900/90 shadow-2xl space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
+        <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
             <div>
-              <h3 className="text-lg font-black text-white flex items-center gap-2.5 tracking-tight">
-                <span className="p-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-2xl shadow-md">
+              <h3 className="text-lg font-black text-slate-900 flex items-center gap-2.5 tracking-tight">
+                <span className="p-2 bg-blue-600 text-white rounded-xl text-xs">
                   5
                 </span>
                 Passo 5: Resultado do Corte Exclusivo na Bobina
               </h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Lote selecionado: <strong className="text-blue-400 font-mono">{selectedCoil.lote}</strong> ({selectedCoil.codigo}) | Largura: <strong className="text-white font-mono">{selectedCoil.largura} mm</strong>
+              <p className="text-xs text-slate-500 mt-1">
+                Lote: <strong className="text-blue-700 font-mono">{selectedCoil.lote}</strong> | Largura: <strong className="text-slate-900 font-mono">{selectedCoil.largura} mm</strong>
               </p>
             </div>
 
             <button
               onClick={() => setCurrentStep(4)}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl"
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl"
             >
               Trocar Lote
             </button>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800">
-              <span className="text-xs text-slate-400 block font-semibold uppercase text-[10px]">Largura da Bobina</span>
-              <span className="text-2xl font-black font-mono text-white mt-1 block">
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+              <span className="text-xs text-slate-500 block font-bold uppercase text-[10px]">Largura Bobina</span>
+              <span className="text-2xl font-black font-mono text-slate-900 mt-1 block">
                 {selectedCoil.largura} mm
               </span>
             </div>
 
-            <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800">
-              <span className="text-xs text-slate-400 block font-semibold uppercase text-[10px]">Fitas do Produto Principal</span>
-              <span className="text-2xl font-black font-mono text-blue-400 mt-1 block">
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+              <span className="text-xs text-slate-500 block font-bold uppercase text-[10px]">Fitas do Produto Principal</span>
+              <span className="text-2xl font-black font-mono text-blue-700 mt-1 block">
                 {step5Calculation.fitasPossiveis} fitas ({selectedProduct.larguraFita} mm cada)
               </span>
-              <span className="text-[11px] text-slate-500 font-mono">
+              <span className="text-xs text-slate-500 font-mono">
                 Total: {step5Calculation.larguraOcupada} mm
               </span>
             </div>
 
-            <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800">
-              <span className="text-xs text-slate-400 block font-semibold uppercase text-[10px]">Sobra Resultante</span>
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+              <span className="text-xs text-slate-500 block font-bold uppercase text-[10px]">Sobra Resultante</span>
               <span className={`text-2xl font-black font-mono mt-1 block ${
-                step5Calculation.isSobraPermitida ? 'text-emerald-400' : 'text-amber-400'
+                step5Calculation.isSobraPermitida ? 'text-emerald-700' : 'text-amber-700'
               }`}>
                 {step5Calculation.sobraMm} mm
               </span>
-              <span className="text-[11px] text-slate-500 font-semibold">
+              <span className="text-xs text-slate-600 font-bold">
                 {step5Calculation.isSobraPermitida ? '✓ Dentro do limite (≤ 10mm)' : '⚠ Superior a 10 mm'}
               </span>
             </div>
 
-            <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800">
-              <span className="text-xs text-slate-400 block font-semibold uppercase text-[10px]">Aproveitamento</span>
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+              <span className="text-xs text-slate-500 block font-bold uppercase text-[10px]">Aproveitamento</span>
               <span className={`text-2xl font-black font-mono mt-1 block ${
-                step5Calculation.aproveitamento >= 99 ? 'text-emerald-400' : 'text-amber-400'
+                step5Calculation.aproveitamento >= 99 ? 'text-emerald-700' : 'text-amber-700'
               }`}>
                 {step5Calculation.aproveitamento}%
               </span>
             </div>
           </div>
 
-          {step5Calculation.isSobraPermitida ? (
-            <div className="p-5 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 flex items-start gap-3.5 shadow-lg">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-extrabold text-sm text-emerald-200">
-                  Excelente Aproveitamento Inicial!
-                </h4>
-                <p className="text-xs text-emerald-300/90 mt-0.5 leading-relaxed">
-                  A sobra de <strong>{step5Calculation.sobraMm} mm</strong> já respeita a regra de ouro do PCP de corte com sobra máxima de 10 mm.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="p-5 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-300 flex items-start gap-3.5 shadow-lg">
-              <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-extrabold text-sm text-amber-200">
-                  Sobra de {step5Calculation.sobraMm} mm é superior ao limite máximo de 10 mm!
-                </h4>
-                <p className="text-xs text-amber-300/90 mt-0.5 leading-relaxed">
-                  O motor de otimização combinatória irá sugerir no <strong>Passo 6</strong> produtos complementares de mesma espessura para preencher essa sobra e garantir até 100% de aproveitamento.
-                </p>
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+          <div className="flex items-center justify-between pt-4 border-t border-slate-100">
             <button
               onClick={() => setCurrentStep(4)}
-              className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-2xl"
+              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-2xl"
             >
               ← Voltar à Seleção de Lote
             </button>
             <button
               onClick={() => setCurrentStep(6)}
-              className="flex items-center gap-2 px-7 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-black rounded-2xl shadow-xl shadow-blue-500/30 hover:scale-105 transition-all"
+              className="flex items-center gap-2 px-7 py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-2xl shadow-md shadow-blue-500/20 hover:scale-105 transition-all"
             >
               <Sparkles className="w-4 h-4" />
               <span>Ver Sugestões de Otimização (Passo 6)</span>
@@ -678,34 +626,34 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         </div>
       )}
 
-      {/* STEP 6: Automatic Optimization & Complementary Combinations */}
+      {/* STEP 6: Combinations */}
       {currentStep === 6 && selectedProduct && selectedCoil && (
         <div className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h3 className="text-lg font-black text-white flex items-center gap-2.5 tracking-tight">
-                <span className="p-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-2xl shadow-md">
+              <h3 className="text-lg font-black text-slate-900 flex items-center gap-2.5 tracking-tight">
+                <span className="p-2 bg-blue-600 text-white rounded-xl text-xs">
                   <Sparkles className="w-4 h-4" />
                 </span>
                 Passo 6: Sugestões de Combinação & Otimização do Slitter
               </h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Motor de otimização combinatória buscando soluções com <strong>sobra entre 0 e 10 mm</strong> para a bobina de <strong className="text-white font-mono">{selectedCoil.largura} mm</strong>.
+              <p className="text-xs text-slate-500 mt-1">
+                Motor de otimização combinatória buscando soluções com <strong>sobra entre 0 e 10 mm</strong> para a bobina de <strong className="text-slate-900 font-mono">{selectedCoil.largura} mm</strong>.
               </p>
             </div>
 
             <div className="flex items-center gap-3">
               <button
                 onClick={() => handleFinishPlanning('simulation')}
-                className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-2xl border border-slate-700"
+                className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black rounded-2xl border border-slate-200"
               >
-                <Scissors className="w-4 h-4 text-blue-400" />
+                <Scissors className="w-4 h-4 text-blue-600" />
                 <span>Simular no Visualizador</span>
               </button>
 
               <button
                 onClick={() => handleFinishPlanning('order')}
-                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black rounded-2xl shadow-xl shadow-emerald-500/30 transition-all hover:scale-105 glow-emerald"
+                className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-2xl shadow-md shadow-emerald-600/20 transition-all hover:scale-105"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Gerar Ordem de Slitter (OS)</span>
@@ -715,10 +663,6 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
 
           {selectedCombination && (
             <div className="space-y-3">
-              <div className="text-xs font-extrabold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                <Scissors className="w-3.5 h-3.5 text-blue-400" />
-                Visualização Gráfica do Corte Selecionado:
-              </div>
               <SlitterVisualizer
                 coil={selectedCoil}
                 strips={currentStrips}
@@ -728,10 +672,10 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
           )}
 
           <div className="space-y-3">
-            <h4 className="text-sm font-extrabold text-white flex items-center gap-2">
+            <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
               <span>Opções de Combinações Ranqueadas</span>
-              <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono">
-                {combinations.length} combinações encontradas
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-mono">
+                {combinations.length} combinações
               </span>
             </h4>
 
@@ -743,45 +687,38 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                   <div
                     key={comb.id || idx}
                     onClick={() => setSelectedCombination(comb)}
-                    className={`glass-card p-5 rounded-3xl border transition-all cursor-pointer group ${
+                    className={`p-5 rounded-3xl border transition-all cursor-pointer bg-white shadow-sm ${
                       isSelected
-                        ? 'bg-blue-950/70 border-blue-500 ring-2 ring-blue-500/50 shadow-2xl -translate-y-1'
-                        : 'border-slate-800/80 hover:border-blue-500/40 hover:bg-slate-900/90 hover:-translate-y-0.5'
+                        ? 'bg-blue-50/80 border-blue-500 ring-2 ring-blue-400/40 shadow-md'
+                        : 'border-slate-200 hover:border-blue-400 hover:shadow-md'
                     }`}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-3.5">
-                        <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-black text-xs font-mono shadow-md ${
-                          isSelected ? 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white' : 'bg-slate-800 text-slate-300'
+                        <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-black text-xs font-mono ${
+                          isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'
                         }`}>
                           #{idx + 1}
                         </div>
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs font-bold text-white">{comb.descricao}</span>
-                            <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                            <span className="text-xs font-bold text-slate-900">{comb.descricao}</span>
+                            <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border ${
                               comb.classificacao === 'PERFEITO'
-                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                                : comb.classificacao === 'EXCELENTE'
-                                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-                                : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                : 'bg-emerald-50 text-emerald-800 border-emerald-200'
                             }`}>
                               {comb.badgeTexto}
                             </span>
-                            {comb.prioridadeDemanda && (
-                              <span className="text-[10px] bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-semibold">
-                                ★ Atende Demanda
-                              </span>
-                            )}
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+                          <div className="flex flex-wrap items-center gap-1.5 mt-2">
                             {comb.fitas.map((f, fIdx) => (
                               <span
                                 key={fIdx}
-                                className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-mono font-medium"
+                                className="text-xs px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 font-mono font-medium"
                               >
-                                <strong className="text-white">{f.quantidade}x</strong> {f.product.codigo} ({f.product.larguraFita}mm)
+                                <strong className="text-slate-900">{f.quantidade}x</strong> {f.product.codigo} ({f.product.larguraFita}mm)
                               </span>
                             ))}
                           </div>
@@ -791,29 +728,29 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                       <div className="flex items-center gap-5 text-xs font-mono">
                         <div className="text-right">
                           <div className="text-slate-400 text-[10px] uppercase font-bold">Largura Útil</div>
-                          <div className="font-black text-white text-sm">{comb.totalLarguraUsada} mm</div>
+                          <div className="font-black text-slate-900 text-sm">{comb.totalLarguraUsada} mm</div>
                         </div>
 
                         <div className="text-right">
                           <div className="text-slate-400 text-[10px] uppercase font-bold">Sobra</div>
-                          <div className={`font-black text-sm ${comb.sobraMm <= 10 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                          <div className={`font-black text-sm ${comb.sobraMm <= 10 ? 'text-emerald-700' : 'text-amber-700'}`}>
                             {comb.sobraMm} mm
                           </div>
                         </div>
 
                         <div className="text-right">
                           <div className="text-slate-400 text-[10px] uppercase font-bold">Aproveitamento</div>
-                          <div className="font-black text-emerald-400 text-base">
+                          <div className="font-black text-emerald-700 text-base">
                             {comb.aproveitamentoPercent}%
                           </div>
                         </div>
 
                         <button
                           type="button"
-                          className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all ${
+                          className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
                             isSelected
-                              ? 'bg-blue-600 text-white shadow-md'
-                              : 'bg-slate-800 text-slate-300 hover:bg-blue-600 hover:text-white'
+                              ? 'bg-blue-600 text-white shadow-sm'
+                              : 'bg-slate-100 text-slate-700 hover:bg-blue-600 hover:text-white'
                           }`}
                         >
                           {isSelected ? '✓ Selecionada' : 'Selecionar'}

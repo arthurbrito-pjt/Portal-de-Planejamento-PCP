@@ -7,17 +7,10 @@ import {
   FileSpreadsheet, 
   Printer, 
   Save, 
-  CheckCircle2, 
-  Disc, 
-  Layers, 
-  Weight, 
-  Scissors, 
-  ArrowLeft,
-  Calendar,
-  User,
-  Check,
-  QrCode,
-  ShieldCheck
+  Check, 
+  Calendar, 
+  ArrowLeft, 
+  Scissors 
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -56,17 +49,17 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
 
   if (!currentCoil || currentStrips.length === 0) {
     return (
-      <div className="glass-card p-12 rounded-3xl border border-slate-800 bg-slate-900/80 text-center space-y-4 max-w-xl mx-auto my-12 animate-fadeIn">
-        <div className="w-16 h-16 rounded-2xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center mx-auto shadow-lg">
+      <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-4 max-w-xl mx-auto my-12 shadow-sm animate-fadeIn">
+        <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center mx-auto shadow-sm">
           <ClipboardCheck className="w-8 h-8" />
         </div>
-        <h3 className="text-xl font-extrabold text-white tracking-tight">Nenhuma Ordem de Slitter em Edição</h3>
-        <p className="text-xs text-slate-400 leading-relaxed">
+        <h3 className="text-xl font-black text-slate-900 tracking-tight">Nenhuma Ordem de Slitter em Edição</h3>
+        <p className="text-xs text-slate-600 leading-relaxed font-medium">
           Para gerar uma Ordem de Slitter (OS), selecione uma bobina e planeje o corte no módulo de Planejamento.
         </p>
         <button
           onClick={onNavigateToPlanning}
-          className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold rounded-2xl shadow-xl shadow-blue-500/25 transition-all hover:scale-105"
+          className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl shadow-md shadow-blue-500/20 transition-all hover:scale-105"
         >
           <Scissors className="w-4 h-4" />
           <span>Iniciar Planejamento</span>
@@ -152,16 +145,16 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
         <div className="flex items-center gap-3.5">
           <button
             onClick={onNavigateToPlanning}
-            className="p-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700"
+            className="p-3 rounded-2xl bg-white hover:bg-slate-100 text-slate-700 transition-colors border border-slate-200 shadow-sm"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
-            <h2 className="text-xl font-black text-white flex items-center gap-2.5 tracking-tight">
-              <ClipboardCheck className="w-5 h-5 text-emerald-400" />
+            <h2 className="text-xl font-black text-slate-900 flex items-center gap-2.5 tracking-tight">
+              <ClipboardCheck className="w-5 h-5 text-emerald-600" />
               TELA 4 – Ordem de Slitter & Emissão OS
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-slate-500 mt-0.5 font-medium">
               Documento oficial de programação de corte para a linha de produção do Slitter.
             </p>
           </div>
@@ -170,27 +163,27 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
         <div className="flex items-center gap-3">
           <button
             onClick={handleExportExcel}
-            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/40 text-xs font-extrabold rounded-2xl transition-all shadow-md"
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-black rounded-2xl transition-all shadow-sm"
           >
-            <FileSpreadsheet className="w-4 h-4" />
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
             <span>Exportar Excel (.xlsx)</span>
           </button>
 
           <button
             onClick={handlePrint}
-            className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-extrabold rounded-2xl transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 text-xs font-black rounded-2xl transition-all shadow-sm"
           >
-            <Printer className="w-4 h-4" />
+            <Printer className="w-4 h-4 text-slate-600" />
             <span>Imprimir OS</span>
           </button>
 
           <button
             onClick={handleSaveOrder}
             disabled={isSaved}
-            className={`flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-2xl shadow-xl transition-all ${
+            className={`flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-2xl shadow-md transition-all ${
               isSaved
                 ? 'bg-emerald-600 text-white cursor-default'
-                : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-blue-500/30 hover:scale-105 active:scale-95 glow-blue'
+                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20 hover:scale-105 active:scale-95'
             }`}
           >
             {isSaved ? (
@@ -209,33 +202,33 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
       </div>
 
       {/* Printable Sheet Container */}
-      <div className="glass-card p-8 sm:p-10 rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl space-y-7 print:bg-white print:text-black print:p-0 print:border-none print:shadow-none">
+      <div className="bg-white p-8 sm:p-10 rounded-3xl border border-slate-200 shadow-sm space-y-7 print:bg-white print:text-black print:p-0 print:border-none print:shadow-none">
         {/* Document Header */}
-        <div className="border-b-2 border-slate-800 print:border-black pb-6 flex flex-wrap items-center justify-between gap-4">
+        <div className="border-b-2 border-slate-200 print:border-black pb-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="p-3.5 bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-2xl print:bg-black font-black text-xl shadow-lg">
+            <div className="p-3.5 bg-blue-600 text-white rounded-2xl font-black text-xl shadow-md">
               PCP
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-black text-white print:text-black tracking-tight">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 print:text-black tracking-tight">
                   ORDEM DE CORTE SLITTER
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 print:text-black border border-emerald-500/30 text-[10px] font-mono font-bold">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 text-xs font-mono font-black">
                   LIBERADA
                 </span>
               </div>
-              <p className="text-xs text-slate-400 print:text-gray-600 mt-0.5">
+              <p className="text-xs text-slate-500 print:text-gray-600 mt-0.5 font-medium">
                 Planejamento e Controle da Produção Metalúrgica • Indústria de Aço
               </p>
             </div>
           </div>
 
           <div className="text-right font-mono">
-            <div className="text-2xl sm:text-3xl font-black text-blue-400 print:text-black tracking-tight">
+            <div className="text-2xl sm:text-3xl font-black text-blue-700 print:text-black tracking-tight">
               {orderNumber}
             </div>
-            <div className="text-xs text-slate-400 print:text-gray-600 flex items-center gap-2 justify-end mt-1 font-sans">
+            <div className="text-xs text-slate-500 print:text-gray-600 flex items-center gap-2 justify-end mt-1 font-sans font-medium">
               <Calendar className="w-3.5 h-3.5" />
               <span>Emissão: <strong>{orderDate}</strong></span>
             </div>
@@ -244,47 +237,47 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
 
         {/* Coil Summary Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
-          <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 print:bg-gray-100 print:border-gray-300">
-            <div className="text-[10px] font-extrabold text-slate-400 print:text-gray-600 uppercase tracking-wider">
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+            <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
               Código Bobina
             </div>
-            <div className="text-base font-black text-white print:text-black font-mono mt-1">
+            <div className="text-base font-black text-slate-900 font-mono mt-1">
               {currentCoil.codigo}
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 print:bg-gray-100 print:border-gray-300">
-            <div className="text-[10px] font-extrabold text-slate-400 print:text-gray-600 uppercase tracking-wider">
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+            <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
               Lote da Matéria-Prima
             </div>
-            <div className="text-base font-black text-blue-400 print:text-black font-mono mt-1">
+            <div className="text-base font-black text-blue-700 font-mono mt-1">
               {currentCoil.lote}
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 print:bg-gray-100 print:border-gray-300">
-            <div className="text-[10px] font-extrabold text-slate-400 print:text-gray-600 uppercase tracking-wider">
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+            <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
               Largura & Espessura
             </div>
-            <div className="text-base font-black text-white print:text-black font-mono mt-1">
+            <div className="text-base font-black text-slate-900 font-mono mt-1">
               {currentCoil.largura} x {currentCoil.espessura} mm
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 print:bg-gray-100 print:border-gray-300">
-            <div className="text-[10px] font-extrabold text-slate-400 print:text-gray-600 uppercase tracking-wider">
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+            <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
               Peso da Bobina
             </div>
-            <div className="text-base font-black text-emerald-400 print:text-black font-mono mt-1">
+            <div className="text-base font-black text-emerald-700 font-mono mt-1">
               {currentCoil.peso} t
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 print:bg-gray-100 print:border-gray-300">
-            <div className="text-[10px] font-extrabold text-slate-400 print:text-gray-600 uppercase tracking-wider">
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+            <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
               Aproveitamento
             </div>
-            <div className="text-base font-black text-emerald-400 print:text-black font-mono mt-1">
+            <div className="text-base font-black text-emerald-700 font-mono mt-1">
               {aproveitamentoPercent}%
             </div>
           </div>
@@ -292,70 +285,70 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
 
         {/* Strips List Table */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-800 print:border-gray-400 pb-2.5">
-            <h3 className="text-sm font-extrabold text-white print:text-black uppercase tracking-wider font-mono">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider font-mono">
               Sequência de Facas / Tiras no Slitter ({currentStrips.length} fitas)
             </h3>
-            <span className="text-xs font-mono text-slate-400 print:text-black font-semibold">
-              Largura Útil: <strong>{totalUsedWidth} mm</strong> | Sobra: <strong className="text-emerald-400">{sobraMm} mm</strong>
+            <span className="text-xs font-mono text-slate-600 font-bold">
+              Largura Útil: <strong>{totalUsedWidth} mm</strong> | Sobra: <strong className="text-emerald-700">{sobraMm} mm</strong>
             </span>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse border border-slate-800 print:border-black">
+            <table className="w-full text-left text-xs border-collapse border border-slate-200 print:border-black">
               <thead>
-                <tr className="bg-slate-950 print:bg-gray-200 border-b border-slate-800 print:border-black text-slate-300 print:text-black font-mono text-[11px]">
-                  <th className="py-3 px-3 border-r border-slate-800 print:border-black">Posição</th>
-                  <th className="py-3 px-3 border-r border-slate-800 print:border-black">Produto Final Destino</th>
-                  <th className="py-3 px-3 border-r border-slate-800 print:border-black">Código Item</th>
-                  <th className="py-3 px-3 border-r border-slate-800 print:border-black">Família</th>
-                  <th className="py-3 px-3 border-r border-slate-800 print:border-black text-right">Largura (mm)</th>
-                  <th className="py-3 px-3 border-r border-slate-800 print:border-black text-right">Peso Estimado</th>
+                <tr className="bg-slate-100 print:bg-gray-200 border-b border-slate-200 print:border-black text-slate-700 font-mono text-[11px] font-bold">
+                  <th className="py-3 px-3 border-r border-slate-200 print:border-black">Posição</th>
+                  <th className="py-3 px-3 border-r border-slate-200 print:border-black">Produto Final Destino</th>
+                  <th className="py-3 px-3 border-r border-slate-200 print:border-black">Código Item</th>
+                  <th className="py-3 px-3 border-r border-slate-200 print:border-black">Família</th>
+                  <th className="py-3 px-3 border-r border-slate-200 print:border-black text-right">Largura (mm)</th>
+                  <th className="py-3 px-3 border-r border-slate-200 print:border-black text-right">Peso Estimado</th>
                   <th className="py-3 px-3 text-right">Rendimento</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800 print:divide-black font-mono">
+              <tbody className="divide-y divide-slate-200 font-mono">
                 {currentStrips.map((strip, idx) => (
-                  <tr key={idx} className="hover:bg-slate-800/30 print:hover:bg-transparent">
-                    <td className="py-3 px-3 font-extrabold border-r border-slate-800 print:border-black">
+                  <tr key={idx} className="hover:bg-slate-50">
+                    <td className="py-3 px-3 font-black border-r border-slate-200 text-slate-900">
                       Fita {String(strip.stripNumber).padStart(2, '0')}
                     </td>
-                    <td className="py-3 px-3 font-sans text-white print:text-black font-medium border-r border-slate-800 print:border-black">
+                    <td className="py-3 px-3 font-sans text-slate-800 font-bold border-r border-slate-200">
                       {strip.productDescription}
                     </td>
-                    <td className="py-3 px-3 text-blue-400 print:text-black font-black border-r border-slate-800 print:border-black">
+                    <td className="py-3 px-3 text-blue-700 font-black border-r border-slate-200">
                       {strip.productCode}
                     </td>
-                    <td className="py-3 px-3 font-sans border-r border-slate-800 print:border-black">
+                    <td className="py-3 px-3 font-sans border-r border-slate-200 font-bold">
                       {strip.productFamily}
                     </td>
-                    <td className="py-3 px-3 text-right font-black text-white print:text-black border-r border-slate-800 print:border-black">
+                    <td className="py-3 px-3 text-right font-black text-slate-900 border-r border-slate-200">
                       {strip.largura} mm
                     </td>
-                    <td className="py-3 px-3 text-right text-emerald-400 print:text-black font-bold border-r border-slate-800 print:border-black">
+                    <td className="py-3 px-3 text-right text-emerald-700 font-bold border-r border-slate-200">
                       {strip.pesoTon} t ({strip.pesoKg} kg)
                     </td>
-                    <td className="py-3 px-3 text-right text-sky-300 print:text-black">
+                    <td className="py-3 px-3 text-right text-blue-700 font-bold">
                       {strip.metrosLineares} m
                     </td>
                   </tr>
                 ))}
 
                 {/* Scrap row */}
-                <tr className="bg-slate-950/90 print:bg-gray-100 font-bold">
-                  <td className="py-3 px-3 text-amber-400 print:text-black border-r border-slate-800 print:border-black">
+                <tr className="bg-slate-50 font-bold">
+                  <td className="py-3 px-3 text-amber-700 border-r border-slate-200">
                     Refilo / Sobra
                   </td>
-                  <td colSpan={3} className="py-3 px-3 text-slate-400 print:text-gray-700 font-sans border-r border-slate-800 print:border-black">
+                  <td colSpan={3} className="py-3 px-3 text-slate-600 font-sans border-r border-slate-200">
                     {sobraMm === 0 ? 'Sobra zero (100% de aproveitamento)' : `Refilo residual dentro da tolerância máxima (≤ 10mm)`}
                   </td>
-                  <td className="py-3 px-3 text-right text-amber-400 print:text-black border-r border-slate-800 print:border-black">
+                  <td className="py-3 px-3 text-right text-amber-700 border-r border-slate-200 font-black">
                     {sobraMm} mm
                   </td>
-                  <td className="py-3 px-3 text-right text-amber-400 print:text-black border-r border-slate-800 print:border-black">
+                  <td className="py-3 px-3 text-right text-amber-700 border-r border-slate-200 font-black">
                     {sobraPesoTon} t ({perdaPercent}%)
                   </td>
-                  <td className="py-3 px-3 text-right text-slate-500 print:text-gray-600">
+                  <td className="py-3 px-3 text-right text-slate-400">
                     -
                   </td>
                 </tr>
@@ -364,43 +357,43 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
           </div>
         </div>
 
-        {/* Slitter Machine Setup Details & Operator Signatures */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-slate-800 print:border-black">
+        {/* Operational lines & Signatures */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-slate-200 print:border-black">
           <div className="space-y-3">
-            <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-400 print:text-black">
+            <h4 className="text-xs font-black uppercase tracking-wider text-slate-500">
               Dados Operacionais da Linha
             </h4>
             <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between">
-                <span className="text-slate-400 print:text-gray-600">Equipamento / Máquina:</span>
+                <span className="text-slate-600">Equipamento / Máquina:</span>
                 <input
                   type="text"
                   value={maquina}
                   onChange={(e) => setMaquina(e.target.value)}
-                  className="bg-transparent border-b border-slate-700 print:border-black text-right font-mono font-bold text-white print:text-black focus:outline-none"
+                  className="bg-transparent border-b border-slate-300 text-right font-mono font-bold text-slate-900 focus:outline-none"
                 />
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400 print:text-gray-600">Programador PCP:</span>
+                <span className="text-slate-600">Programador PCP:</span>
                 <input
                   type="text"
                   value={operador}
                   onChange={(e) => setOperador(e.target.value)}
-                  className="bg-transparent border-b border-slate-700 print:border-black text-right font-mono font-bold text-white print:text-black focus:outline-none"
+                  className="bg-transparent border-b border-slate-300 text-right font-mono font-bold text-slate-900 focus:outline-none"
                 />
               </div>
             </div>
           </div>
 
           <div className="space-y-6">
-            <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-400 print:text-black">
+            <h4 className="text-xs font-black uppercase tracking-wider text-slate-500">
               Assinaturas de Liberação
             </h4>
             <div className="grid grid-cols-2 gap-4 text-center text-xs">
-              <div className="border-t-2 border-slate-700 print:border-black pt-2 text-slate-400 print:text-black font-semibold">
+              <div className="border-t-2 border-slate-300 print:border-black pt-2 text-slate-600 font-bold">
                 Responsável PCP
               </div>
-              <div className="border-t-2 border-slate-700 print:border-black pt-2 text-slate-400 print:text-black font-semibold">
+              <div className="border-t-2 border-slate-300 print:border-black pt-2 text-slate-600 font-bold">
                 Operador Slitter
               </div>
             </div>
