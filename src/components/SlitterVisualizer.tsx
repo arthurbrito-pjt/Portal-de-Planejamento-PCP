@@ -37,6 +37,10 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
   const scrapWeightTon = Number((coil.peso * (scrapWidth / coil.largura)).toFixed(3));
   const usedWeightTon = Number((coil.peso * (Math.min(totalUsedWidth, coil.largura) / coil.largura)).toFixed(3));
 
+  const isScrapIdeal = scrapWidth >= 10 && scrapWidth <= 18;
+  const isScrapLow = scrapWidth < 10;
+  const isScrapHigh = scrapWidth > 18;
+
   const formulaText = strips.map(s => `${s.largura}`).join(' + ') + (scrapWidth > 0 ? ` + [${scrapWidth} refilo]` : '') + ` = ${coil.largura} mm`;
 
   return (
@@ -52,8 +56,8 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
               <h3 className="text-base font-black text-slate-900 tracking-tight">
                 Simulação Gráfica do Corte Slitter
               </h3>
-              <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-mono font-bold">
-                Tolerância ≤ 10 mm
+              <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-mono font-bold">
+                Faixa Padrão: 10 a 18 mm (1,5%)
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-2 font-mono font-medium">
@@ -70,26 +74,31 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
 
         {/* Status badges */}
         <div className="flex items-center gap-3">
-          {scrapWidth <= 10 && !isOverflow ? (
+          {isScrapIdeal && !isOverflow ? (
             <div className="flex items-center gap-2 px-3.5 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-black shadow-sm">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Conforme (Sobra {scrapWidth} mm ≤ 10mm)</span>
+              <span>Ideal: Refilo {scrapWidth} mm (10 a 18 mm ~1,5%)</span>
             </div>
           ) : isOverflow ? (
             <div className="flex items-center gap-2 px-3.5 py-1.5 bg-red-50 text-red-800 border border-red-300 rounded-xl text-xs font-black">
               <AlertTriangle className="w-4 h-4 text-red-600" />
               <span>Largura Excedida em +{overflowAmount} mm!</span>
             </div>
-          ) : (
+          ) : isScrapLow ? (
             <div className="flex items-center gap-2 px-3.5 py-1.5 bg-amber-50 text-amber-800 border border-amber-300 rounded-xl text-xs font-black">
               <AlertTriangle className="w-4 h-4 text-amber-600" />
-              <span>Sobra Alta ({scrapWidth} mm &gt; 10 mm)</span>
+              <span>Refilo Baixo ({scrapWidth} mm &lt; 10 mm)</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-3.5 py-1.5 bg-red-50 text-red-800 border border-red-300 rounded-xl text-xs font-black">
+              <AlertTriangle className="w-4 h-4 text-red-600" />
+              <span>Sobra Alta ({scrapWidth} mm &gt; 18 mm)</span>
             </div>
           )}
 
           <div className="px-3.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-mono font-black text-slate-800 flex items-center gap-1.5">
             <Gauge className="w-3.5 h-3.5 text-blue-600" />
-            <span className={utilizationPercent >= 99 ? 'text-emerald-700' : 'text-blue-700'}>
+            <span className={utilizationPercent >= 98.5 ? 'text-emerald-700' : 'text-blue-700'}>
               {utilizationPercent}% Útil
             </span>
           </div>
@@ -113,7 +122,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
         </div>
 
         {/* 3D-effect Cross Section */}
-        <div className="relative w-full h-28 bg-slate-900 rounded-2xl p-2 border-2 border-slate-300 shadow-md flex items-stretch overflow-hidden">
+        <div className="relative w-full h-28 bg-slate-100 rounded-2xl p-1.5 border-2 border-slate-300 shadow-sm flex items-stretch overflow-hidden">
           {strips.map((strip, idx) => {
             const widthPercent = (strip.largura / coil.largura) * 100;
             const isHovered = hoveredStrip?.id === strip.id;
@@ -127,8 +136,8 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
                 }}
                 onMouseEnter={() => setHoveredStrip(strip)}
                 onMouseLeave={() => setHoveredStrip(null)}
-                className={`relative group h-full flex flex-col justify-between p-2 border-r-2 border-slate-900 transition-all duration-150 cursor-pointer coil-texture strip-shadow ${
-                  isHovered ? 'brightness-125 ring-2 ring-white z-20 scale-[1.02]' : 'hover:brightness-110'
+                className={`relative group h-full flex flex-col justify-between p-2 border-r-2 border-white rounded-lg transition-all duration-150 cursor-pointer coil-texture strip-shadow ${
+                  isHovered ? 'brightness-125 ring-2 ring-blue-500 z-20 scale-[1.02]' : 'hover:brightness-110'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -170,10 +179,12 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
           {scrapWidth > 0 && !isOverflow && (
             <div
               style={{ width: `${scrapPercent}%` }}
-              className={`h-full flex flex-col justify-between items-center p-2 border-2 border-dashed transition-all ${
-                scrapWidth <= 10
+              className={`h-full flex flex-col justify-between items-center p-2 border-2 border-dashed rounded-lg transition-all ${
+                isScrapIdeal
                   ? 'scrap-stripes-green border-emerald-500 text-emerald-800'
-                  : 'scrap-stripes border-amber-500 text-amber-800'
+                  : isScrapLow
+                  ? 'scrap-stripes border-amber-500 text-amber-800'
+                  : 'scrap-stripes border-red-400 text-red-800'
               }`}
             >
               <div className="text-[9px] uppercase font-black tracking-wider bg-white/90 px-1.5 py-0.5 rounded shadow-sm">
@@ -188,7 +199,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
                 </div>
               </div>
               <div className="text-[8px] font-black uppercase">
-                {scrapWidth <= 10 ? '✓ CONFORME' : '⚠ ALERTA'}
+                {isScrapIdeal ? '✓ IDEAL 10-18mm' : isScrapLow ? '⚠ < 10mm' : '⚠ > 18mm'}
               </div>
             </div>
           )}
@@ -196,7 +207,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
           {isOverflow && (
             <div
               style={{ width: '12%' }}
-              className="h-full flex flex-col justify-center items-center p-1 bg-red-600 text-white font-mono font-black text-xs"
+              className="h-full flex flex-col justify-center items-center p-1 bg-red-600 text-white font-mono font-black text-xs rounded-lg"
             >
               <span>+{overflowAmount}mm</span>
             </div>
@@ -273,7 +284,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
             Aproveitamento Útil
           </div>
           <div className={`text-xl font-black font-mono mt-1 ${
-            utilizationPercent >= 99 ? 'text-emerald-700' : 'text-blue-700'
+            utilizationPercent >= 98.5 ? 'text-emerald-700' : 'text-blue-700'
           }`}>
             {utilizationPercent}%
           </div>
@@ -288,7 +299,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
             Sobra / Refilo
           </div>
           <div className={`text-xl font-black font-mono mt-1 ${
-            scrapWidth <= 10 ? 'text-emerald-700' : 'text-amber-700'
+            isScrapIdeal ? 'text-emerald-700' : isScrapLow ? 'text-amber-700' : 'text-red-700'
           }`}>
             {scrapWidth} mm
           </div>

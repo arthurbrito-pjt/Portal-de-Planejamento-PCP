@@ -340,7 +340,11 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
                     Refilo / Sobra
                   </td>
                   <td colSpan={3} className="py-3 px-3 text-slate-600 font-sans border-r border-slate-200">
-                    {sobraMm === 0 ? 'Sobra zero (100% de aproveitamento)' : `Refilo residual dentro da tolerância máxima (≤ 10mm)`}
+                    {sobraMm >= 10 && sobraMm <= 18 
+                      ? 'Refilo padrão ideal de corte (10 a 18 mm ~1,5%)' 
+                      : sobraMm < 10 
+                      ? `Refilo reduzido (${sobraMm}mm < 10mm)` 
+                      : `Refilo excedente (${sobraMm}mm > 18mm)`}
                   </td>
                   <td className="py-3 px-3 text-right text-amber-700 border-r border-slate-200 font-black">
                     {sobraMm} mm

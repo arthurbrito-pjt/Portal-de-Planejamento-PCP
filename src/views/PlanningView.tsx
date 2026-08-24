@@ -130,7 +130,8 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
       desiredQuantityTon: desiredQtyTon,
       selectedCoil: selectedCoil,
       compatibleProducts: products,
-      maxScrapAllowedMm: 10
+      minScrapMm: 10,
+      maxScrapAllowedMm: 18
     });
   }, [selectedProduct, selectedCoil, desiredQtyTon, products]);
 
@@ -146,7 +147,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     const larguraOcupada = fitasPossiveis * selectedProduct.larguraFita;
     const sobraMm = selectedCoil.largura - larguraOcupada;
     const aproveitamento = Number(((larguraOcupada / selectedCoil.largura) * 100).toFixed(2));
-    const isSobraPermitida = sobraMm <= 10;
+    const isSobraPermitida = sobraMm >= 10 && sobraMm <= 18;
 
     return {
       fitasPossiveis,
@@ -593,14 +594,18 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                 {step5Calculation.sobraMm} mm
               </span>
               <span className="text-xs text-slate-600 font-bold">
-                {step5Calculation.isSobraPermitida ? '✓ Dentro do limite (≤ 10mm)' : '⚠ Superior a 10 mm'}
+                {step5Calculation.isSobraPermitida 
+                  ? '✓ Dentro da faixa ideal (10 a 18 mm ~1,5%)' 
+                  : step5Calculation.sobraMm < 10 
+                  ? '⚠ Refilo baixo (< 10 mm)' 
+                  : '⚠ Superior a 18 mm'}
               </span>
             </div>
 
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
               <span className="text-xs text-slate-500 block font-bold uppercase text-[10px]">Aproveitamento</span>
               <span className={`text-2xl font-black font-mono mt-1 block ${
-                step5Calculation.aproveitamento >= 99 ? 'text-emerald-700' : 'text-amber-700'
+                step5Calculation.aproveitamento >= 98.5 ? 'text-emerald-700' : 'text-amber-700'
               }`}>
                 {step5Calculation.aproveitamento}%
               </span>
@@ -638,7 +643,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                 Passo 6: Sugestões de Combinação & Otimização do Slitter
               </h3>
               <p className="text-xs text-slate-500 mt-1">
-                Motor de otimização combinatória buscando soluções com <strong>sobra entre 0 e 10 mm</strong> para a bobina de <strong className="text-slate-900 font-mono">{selectedCoil.largura} mm</strong>.
+                Motor de otimização combinatória buscando soluções com <strong>refilo ideal entre 10 e 18 mm (~1,5%)</strong> para a bobina de <strong className="text-slate-900 font-mono">{selectedCoil.largura} mm</strong>.
               </p>
             </div>
 

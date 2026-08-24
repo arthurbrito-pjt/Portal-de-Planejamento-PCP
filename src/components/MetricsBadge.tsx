@@ -17,7 +17,7 @@ export const MetricsBadge: React.FC<MetricsBadgeProps> = ({ type, value, size = 
     const val = typeof value === 'number' ? value : parseFloat(value);
     let bg = 'bg-emerald-50 text-emerald-800 border-emerald-300';
     if (val < 95) bg = 'bg-red-50 text-red-800 border-red-300';
-    else if (val < 99) bg = 'bg-amber-50 text-amber-800 border-amber-300';
+    else if (val < 98.5) bg = 'bg-amber-50 text-amber-800 border-amber-300';
 
     return (
       <span className={`inline-flex items-center gap-1.5 rounded-full border ${bg} ${sizeClasses}`}>
@@ -30,16 +30,17 @@ export const MetricsBadge: React.FC<MetricsBadgeProps> = ({ type, value, size = 
   if (type === 'sobra') {
     const val = typeof value === 'number' ? value : parseFloat(value);
     let bg = 'bg-emerald-50 text-emerald-800 border-emerald-300';
-    let text = `${val} mm (Ideal ≤ 10mm)`;
+    let text = `${val} mm (Ideal 10 a 18 mm)`;
     
-    if (val === 0) {
-      text = '0 mm (Sobra Zero)';
-    } else if (val > 18) {
-      bg = 'bg-red-50 text-red-800 border-red-300';
-      text = `${val} mm (Crítico > 10mm)`;
-    } else if (val > 10) {
+    if (val >= 10 && val <= 18) {
+      bg = 'bg-emerald-50 text-emerald-800 border-emerald-300';
+      text = `${val} mm (Ideal 10 a 18 mm)`;
+    } else if (val < 10) {
       bg = 'bg-amber-50 text-amber-800 border-amber-300';
-      text = `${val} mm (Refilo)`;
+      text = `${val} mm (Refilo < 10 mm)`;
+    } else {
+      bg = 'bg-red-50 text-red-800 border-red-300';
+      text = `${val} mm (Sobra > 18 mm)`;
     }
 
     return (
@@ -65,10 +66,12 @@ export const MetricsBadge: React.FC<MetricsBadgeProps> = ({ type, value, size = 
   // Status
   const statusStr = String(value);
   let statusColor = 'bg-slate-100 text-slate-700 border-slate-300';
-  if (statusStr === 'Disponível' || statusStr === 'Concluída' || statusStr === 'Liberada') {
+  if (statusStr === 'Disponível' || statusStr === 'Concluída' || statusStr === 'Liberada' || statusStr.includes('Ideal')) {
     statusColor = 'bg-emerald-50 text-emerald-800 border-emerald-300';
   } else if (statusStr === 'Em Produção' || statusStr === 'Em Corte' || statusStr === 'Planejada') {
     statusColor = 'bg-blue-50 text-blue-800 border-blue-300';
+  } else if (statusStr.includes('< 10') || statusStr.includes('> 18')) {
+    statusColor = 'bg-amber-50 text-amber-800 border-amber-300';
   } else if (statusStr === 'Consumida' || statusStr === 'Cancelada') {
     statusColor = 'bg-slate-100 text-slate-500 border-slate-200';
   }

@@ -136,10 +136,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="hidden lg:block p-4 rounded-3xl bg-blue-50/90 border border-blue-200 text-xs space-y-2 shadow-sm">
         <div className="flex items-center gap-2 text-blue-900 font-black text-[11px]">
           <Sparkles className="w-4 h-4 text-blue-600" />
-          <span>Regra de Ouro PCP</span>
+          <span>Regra de Ouro do Slitter</span>
         </div>
         <p className="text-[11px] text-slate-700 leading-relaxed font-medium">
-          Combinações automáticas entre tubos e perfis para garantir sobra máxima <strong className="text-emerald-700 font-mono font-black">≤ 10 mm</strong>.
+          Combinações automáticas para atingir refilo padrão entre <strong className="text-emerald-700 font-mono font-black">10 e 18 mm (~1,5%)</strong>.
         </p>
       </div>
     </aside>

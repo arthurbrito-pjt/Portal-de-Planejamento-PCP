@@ -9,7 +9,8 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Vite](https://img.shields.io/badge/Vite-6.0.x-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4.x-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
-[![Firebase](https://img.shields.io/badge/Firebase-Firestore_%7C_Cloud-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com)
+[![Firebase](https://img.shields.io/badge/Firebase-Hosting_%7C_Firestore-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://slitterpcp.web.app)
+[![Web Demo](https://img.shields.io/badge/Web%20App-Live%20Demo-10B981?style=for-the-badge&logo=google-chrome&logoColor=white)](https://slitterpcp.web.app)
 [![SheetJS](https://img.shields.io/badge/Excel_Engine-XLSX_Import_%2F_Export-217346?style=for-the-badge&logo=microsoft-excel&logoColor=white)](https://sheetjs.com)
 [![License](https://img.shields.io/badge/License-Proprietary_%2F_Industrial-blue?style=for-the-badge)](LICENSE)
 
@@ -156,7 +157,7 @@ $$L_i = \frac{P_{\text{fita } i} \times 1000}{\rho_{\text{linear}} \text{ (kg/m)
 | **Gráficos & Visualização** | Recharts 2.15 • Canvas Confetti | Gráficos de barras, rosca e área para KPIs e comemoração de sobra zero |
 | **Planilhas & Dados** | SheetJS (XLSX 0.18+) | Parser e gerador nativo de planilhas Excel `.xlsx` e `.xls` |
 | **Banco de Dados & Nuvem** | Firebase Firestore (`slitterpcp`) | Sincronização em nuvem com arquitetura offline-first resiliente |
-| **Algoritmo de Corte** | Mochila Combinatória / Cutting Stock | Otimizador com priorização estrita de sobra $\le 10\text{ mm}$ |
+| **Algoritmo de Corte** | Mochila Combinatória / Cutting Stock | Otimizador com priorização estrita de refilo padrão entre $10\text{ a }18\text{ mm}$ ($\approx 1,5\%$) |
 
 ---
 

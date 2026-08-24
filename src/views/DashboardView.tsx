@@ -1,14 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer 
-} from 'recharts';
-import { 
   Disc, 
   TrendingUp, 
   Layers, 
@@ -17,14 +8,11 @@ import {
   ArrowRight, 
   ShieldCheck, 
   Percent, 
-  Weight, 
   Sparkles, 
   Zap, 
-  CheckCircle,
-  AlertTriangle,
-  Search,
-  Boxes,
-  Maximize2
+  CheckCircle, 
+  Search, 
+  Boxes 
 } from 'lucide-react';
 import { Coil, Product, SlitterOrder, PCPKPIs } from '../types/pcp';
 import { ReadinessService, SlitterProductionProgram } from '../services/readinessService';
@@ -42,23 +30,19 @@ interface DashboardViewProps {
   onOpenProgramOrder: (program: SlitterProductionProgram) => void;
 }
 
-const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
-
 export const DashboardView: React.FC<DashboardViewProps> = ({
   kpis,
   coils,
   products,
   orders,
   onNavigateToPlanning,
-  onNavigateToOrders,
-  onNavigateToData,
   onOpenProgramSimulation,
   onOpenProgramOrder
 }) => {
   const [activeBoardView, setActiveBoardView] = useState<'slitter_programs' | 'demand_readiness'>('slitter_programs');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [thicknessFilter, setThicknessFilter] = useState<string>('TODOS');
-  const [yieldFilter, setYieldFilter] = useState<'TODOS' | 'PERFEITO' | 'CONFORME'>('TODOS');
+  const [scrapFilter, setScrapFilter] = useState<'TODOS' | 'IDEAL' | 'BAIXO' | 'ALTO'>('TODOS');
 
   // Generate Slitter Cutting Programs (Bobina -> Slitter -> Materiais Destino)
   const slitterPrograms = useMemo(() => {
@@ -88,14 +72,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         );
 
       const matchesThickness = thicknessFilter === 'TODOS' || prog.coil.espessura === Number(thicknessFilter);
-      const matchesYield = 
-        yieldFilter === 'TODOS' ||
-        (yieldFilter === 'PERFEITO' && prog.sobraMm === 0) ||
-        (yieldFilter === 'CONFORME' && prog.sobraMm <= 10);
+      const matchesScrap = 
+        scrapFilter === 'TODOS' ||
+        (scrapFilter === 'IDEAL' && prog.sobraMm >= 10 && prog.sobraMm <= 18) ||
+        (scrapFilter === 'BAIXO' && prog.sobraMm < 10) ||
+        (scrapFilter === 'ALTO' && prog.sobraMm > 18);
 
-      return matchesSearch && matchesThickness && matchesYield;
+      return matchesSearch && matchesThickness && matchesScrap;
     });
-  }, [slitterPrograms, searchQuery, thicknessFilter, yieldFilter]);
+  }, [slitterPrograms, searchQuery, thicknessFilter, scrapFilter]);
 
   return (
     <div className="space-y-6 pb-16 animate-fadeIn w-full">
@@ -104,13 +89,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="space-y-1.5 max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-800 text-xs font-mono font-bold">
             <Zap className="w-3.5 h-3.5 text-blue-600" />
-            PROGRAMAÇÃO DE CORTE SLITTER • PCP METALÚRGICO 2026
+            PROGRAMAÇÃO DE CORTE SLITTER • REFILO PADRÃO 10 A 18 MM (~1,5%)
           </div>
           <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
             Central de Programação de Slitters & Matéria-Prima
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">
-            Acompanhe exatamente <strong className="text-blue-700">qual bobina de aço será cortada</strong>, <strong className="text-emerald-700">a montagem de facas do slitter</strong> e <strong className="text-purple-700">quais tubos e perfis serão produzidos</strong> com cada fita.
+            Acompanhe exatamente <strong className="text-blue-700">qual bobina de aço será cortada</strong>, <strong className="text-emerald-700">a montagem de facas do slitter</strong> e <strong className="text-purple-700">quais tubos e perfis serão produzidos</strong> com refilo de <strong>10 a 18 mm (1,5%)</strong>.
           </p>
         </div>
 
@@ -155,7 +140,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="text-xs text-slate-600 mt-0.5 font-medium flex items-center gap-1">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            Meta PCP: Sobra ≤ 10 mm
+            Refilo Ideal: 10 a 18 mm (1,5%)
           </div>
         </div>
 
@@ -246,14 +231,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="flex rounded-xl bg-slate-100 p-1">
             {[
               { id: 'TODOS', label: 'Todos' },
-              { id: 'PERFEITO', label: '100% (Sobra 0)' },
-              { id: 'CONFORME', label: '≤ 10mm Conforme' }
+              { id: 'IDEAL', label: '✓ Ideal (10 a 18 mm)' },
+              { id: 'BAIXO', label: '< 10 mm' },
+              { id: 'ALTO', label: '> 18 mm' }
             ].map(y => (
               <button
                 key={y.id}
-                onClick={() => setYieldFilter(y.id as any)}
+                onClick={() => setScrapFilter(y.id as any)}
                 className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-                  yieldFilter === y.id
+                  scrapFilter === y.id
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
@@ -270,13 +256,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="space-y-4">
           <div className="flex items-center justify-between text-xs font-mono text-slate-500 px-2 font-bold">
             <span>Exibindo <strong>{filteredPrograms.length}</strong> combinações de corte otimizadas prontas para execução</span>
-            <span className="text-emerald-700">✓ Regra de ouro: Sobra máxima ≤ 10 mm</span>
+            <span className="text-emerald-700">✓ Regra PCP: Refilo padrão de 10 a 18 mm (~1,5%)</span>
           </div>
 
           <div className="space-y-4">
             {filteredPrograms.map((prog, idx) => {
               const coil = prog.coil;
-              const isPerfect = prog.sobraMm === 0;
+              const isIdeal = prog.sobraMm >= 10 && prog.sobraMm <= 18;
 
               return (
                 <div
@@ -312,8 +298,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <div className="flex items-center gap-3">
                       <div className="text-right font-mono pr-2">
                         <div className="text-xs text-slate-400 uppercase font-bold">Aproveitamento</div>
-                        <div className={`text-base font-black ${isPerfect ? 'text-emerald-700' : 'text-emerald-700'}`}>
-                          {prog.aproveitamentoPercent}% ({prog.sobraMm}mm sobra)
+                        <div className={`text-base font-black ${isIdeal ? 'text-emerald-700' : 'text-slate-800'}`}>
+                          {prog.aproveitamentoPercent}% ({prog.sobraMm}mm refilo)
                         </div>
                       </div>
 
@@ -369,15 +355,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       {prog.sobraMm > 0 && (
                         <div
                           style={{ width: `${(prog.sobraMm / coil.largura) * 100}%` }}
-                          className="h-full bg-emerald-100 border border-dashed border-emerald-400 text-emerald-900 text-[11px] font-mono font-black flex items-center justify-center px-1 rounded-lg"
+                          className={`h-full border border-dashed text-[11px] font-mono font-black flex items-center justify-center px-1 rounded-lg ${
+                            isIdeal 
+                              ? 'bg-emerald-100 border-emerald-400 text-emerald-900' 
+                              : prog.sobraMm < 10 
+                              ? 'bg-amber-100 border-amber-400 text-amber-900' 
+                              : 'bg-red-100 border-red-400 text-red-900'
+                          }`}
                         >
-                          {prog.sobraMm}mm
+                          {prog.sobraMm}mm refilo
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Bottom: Destination Materials (PARA QUAIS MATERIAIS ELE VAI SER UTILIZADO) */}
+                  {/* Bottom: Destination Materials */}
                   <div className="space-y-2 pt-2">
                     <div className="text-xs font-black uppercase tracking-wider text-slate-500 font-mono flex items-center gap-2">
                       <Layers className="w-4 h-4 text-purple-600" />

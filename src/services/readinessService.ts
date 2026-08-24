@@ -34,13 +34,13 @@ export interface SlitterProductionProgram {
   sobraMm: number;
   aproveitamentoPercent: number;
   sobraPesoTon: number;
-  status: 'Pronto para Corte' | 'Em Ajuste' | 'Atende Demanda';
+  status: 'Ideal (10 a 18 mm)' | 'Refilo < 10 mm' | 'Sobra > 18 mm';
 }
 
 export class ReadinessService {
   /**
    * Generates the complete Ready Slitter Programs (Bobina -> Slitter -> Materiais Produzidos)
-   * This is what the PCP Planner actually needs to see on the production floor!
+   * Scrap Rule: Minimum 10 mm to Maximum 18 mm (target ~1.5%)
    */
   static generateSlitterPrograms(products: Product[], coils: Coil[]): SlitterProductionProgram[] {
     const availableCoils = coils.filter(c => c.status === 'Disponível');
@@ -57,26 +57,44 @@ export class ReadinessService {
 
       if (matchingCoils.length === 0) continue;
 
-      // Pick the best coil that minimizes scrap for this product
+      // Pick the best coil that achieves 10mm <= scrap <= 18mm
       let bestCoil: Coil | null = null;
       let bestCombination: SlitterCombination | null = null;
 
-      for (const coil of matchingCoils.slice(0, 5)) {
+      for (const coil of matchingCoils.slice(0, 6)) {
         const combList = SlitterOptimizer.optimize({
           mainProduct: prod,
           desiredQuantityTon: prod.demandaT || 10,
           selectedCoil: coil,
           compatibleProducts: products,
-          maxScrapAllowedMm: 10
+          minScrapMm: 10,
+          maxScrapAllowedMm: 18
         });
 
         if (combList.length > 0) {
           const topComb = combList[0];
-          if (!bestCombination || topComb.sobraMm < bestCombination.sobraMm) {
+          const isTopInIdeal = topComb.sobraMm >= 10 && topComb.sobraMm <= 18;
+
+          if (!bestCombination) {
             bestCoil = coil;
             bestCombination = topComb;
-            if (topComb.sobraMm <= 10) break; // Found an optimal match!
+          } else {
+            const isCurrentInIdeal = bestCombination.sobraMm >= 10 && bestCombination.sobraMm <= 18;
+            if (isTopInIdeal && !isCurrentInIdeal) {
+              bestCoil = coil;
+              bestCombination = topComb;
+            } else if (isTopInIdeal && isCurrentInIdeal) {
+              if (Math.abs(topComb.sobraMm - 14) < Math.abs(bestCombination.sobraMm - 14)) {
+                bestCoil = coil;
+                bestCombination = topComb;
+              }
+            } else if (!isTopInIdeal && !isCurrentInIdeal && topComb.sobraMm < bestCombination.sobraMm) {
+              bestCoil = coil;
+              bestCombination = topComb;
+            }
           }
+
+          if (isTopInIdeal) break;
         }
       }
 
@@ -102,6 +120,13 @@ export class ReadinessService {
 
         const totalFitas = bestCombination.fitas.reduce((acc, f) => acc + f.quantidade, 0);
 
+        let progStatus: SlitterProductionProgram['status'] = 'Ideal (10 a 18 mm)';
+        if (bestCombination.sobraMm < 10) {
+          progStatus = 'Refilo < 10 mm';
+        } else if (bestCombination.sobraMm > 18) {
+          progStatus = 'Sobra > 18 mm';
+        }
+
         programs.push({
           id: `PROG_${bestCoil.id}_${prod.id}`,
           coil: bestCoil,
@@ -113,15 +138,18 @@ export class ReadinessService {
           sobraMm: bestCombination.sobraMm,
           aproveitamentoPercent: bestCombination.aproveitamentoPercent,
           sobraPesoTon: bestCombination.pesoSobraTon,
-          status: bestCombination.sobraMm <= 10 ? 'Pronto para Corte' : 'Atende Demanda'
+          status: progStatus
         });
       }
     }
 
-    // Sort programs: Smallest scrap (highest yield) first, then highest coil weight
+    // Sort programs: Ideal (10 a 18 mm) first, then by closest to 14mm, then by coil weight
     programs.sort((a, b) => {
-      if (a.sobraMm !== b.sobraMm) return a.sobraMm - b.sobraMm;
-      return b.coil.peso - a.coil.peso;
+      const aIdeal = a.sobraMm >= 10 && a.sobraMm <= 18 ? 1 : 0;
+      const bIdeal = b.sobraMm >= 10 && b.sobraMm <= 18 ? 1 : 0;
+      if (aIdeal !== bIdeal) return bIdeal - aIdeal;
+
+      return Math.abs(a.sobraMm - 14) - Math.abs(b.sobraMm - 14);
     });
 
     return programs;
@@ -166,13 +194,14 @@ export class ReadinessService {
       let estimatedYieldPercent = 0;
 
       if (matchingCoils.length > 0) {
-        let minScrap = 9999;
+        let bestDistanceToIdeal = 9999;
         matchingCoils.forEach(c => {
           const strips = Math.floor(c.largura / product.larguraFita);
           if (strips > 0) {
             const scrap = c.largura - (strips * product.larguraFita);
-            if (scrap < minScrap) {
-              minScrap = scrap;
+            const dist = Math.abs(scrap - 14);
+            if (dist < bestDistanceToIdeal) {
+              bestDistanceToIdeal = dist;
               bestCoil = c;
               estimatedStrips = strips;
               estimatedScrapMm = scrap;
