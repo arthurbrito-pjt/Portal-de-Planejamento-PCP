@@ -1,5 +1,6 @@
-import { Product, Coil, SlitterCombination } from '../types/pcp';
+import { Product, Coil, SlitterCombination, SlitterDemandItem, ProductFamily } from '../types/pcp';
 import { SlitterOptimizer } from './slitterOptimizer';
+import { SlitterCatalogService } from './slitterCatalogService';
 
 export type ReadinessStatus = 'PRONTO' | 'PARCIAL' | 'BLOQUEADO';
 
@@ -22,6 +23,8 @@ export interface SlitterProductionProgram {
   combination: SlitterCombination;
   materialsProduced: {
     product: Product;
+    codigoSlitter: string;
+    nomeSlitter: string;
     fitaLargura: number;
     quantidadeFitas: number;
     larguraTotal: number;
@@ -39,17 +42,167 @@ export interface SlitterProductionProgram {
 
 export class ReadinessService {
   /**
+   * Aggregates demands by SLITTER (larguraFita x espessura), calculating the total
+   * demand from both Tubos and Perfis.
+   */
+  static analyzeSlitters(products: Product[], coils: Coil[]): SlitterDemandItem[] {
+    const availableCoils = coils.filter(c => c.status === 'Disponível');
+
+    // Group products by unique Slitter dimensions (larguraFita + espessura)
+    const slitterMap = new Map<string, {
+      larguraFita: number;
+      espessura: number;
+      produtos: { product: Product; demandaT: number; familia: ProductFamily }[];
+    }>();
+
+    for (const p of products) {
+      const key = `${p.larguraFita}_${p.espessura}`;
+      if (!slitterMap.has(key)) {
+        slitterMap.set(key, {
+          larguraFita: p.larguraFita,
+          espessura: p.espessura,
+          produtos: []
+        });
+      }
+      slitterMap.get(key)!.produtos.push({
+        product: p,
+        demandaT: p.demandaT || 0,
+        familia: p.familia
+      });
+    }
+
+    const slitterList: SlitterDemandItem[] = [];
+
+    for (const [key, group] of slitterMap.entries()) {
+      const { larguraFita, espessura, produtos } = group;
+      
+      const totalDemandaT = Number(produtos.reduce((acc, item) => acc + item.demandaT, 0).toFixed(2));
+      const demandaTubosT = Number(produtos.filter(i => i.familia === 'TUBO').reduce((acc, i) => acc + i.demandaT, 0).toFixed(2));
+      const demandaPerfisT = Number(produtos.filter(i => i.familia === 'PERFIL').reduce((acc, i) => acc + i.demandaT, 0).toFixed(2));
+      const qtdTubos = produtos.filter(i => i.familia === 'TUBO').length;
+      const qtdPerfis = produtos.filter(i => i.familia === 'PERFIL').length;
+
+      // Find primary product with largest demand in this slitter group
+      const sortedProds = [...produtos].sort((a, b) => b.demandaT - a.demandaT);
+      const mainProduct = sortedProds[0]?.product || produtos[0].product;
+
+      // Match available coils with same thickness
+      const matchingCoils = availableCoils.filter(
+        c => Math.abs(c.espessura - espessura) < 0.001
+      );
+
+      const compatibleLotCount = matchingCoils.length;
+      const totalCompatibleWeightTon = Number(
+        matchingCoils.reduce((acc, c) => acc + c.peso, 0).toFixed(2)
+      );
+
+      let coveragePercent = 0;
+      if (totalDemandaT > 0) {
+        coveragePercent = Math.min(999, Math.round((totalCompatibleWeightTon / totalDemandaT) * 100));
+      } else if (compatibleLotCount > 0) {
+        coveragePercent = 100;
+      }
+
+      let status: ReadinessStatus = 'BLOQUEADO';
+      if (compatibleLotCount > 0) {
+        if (totalDemandaT <= 0 || totalCompatibleWeightTon >= totalDemandaT) {
+          status = 'PRONTO';
+        } else {
+          status = 'PARCIAL';
+        }
+      }
+
+      let bestCoil: Coil | null = null;
+      let estimatedStrips = 0;
+      let estimatedScrapMm = 0;
+      let estimatedYieldPercent = 0;
+
+      if (matchingCoils.length > 0) {
+        let bestDistanceToIdeal = 9999;
+        matchingCoils.forEach(c => {
+          const strips = Math.floor(c.largura / larguraFita);
+          if (strips > 0) {
+            const scrap = c.largura - (strips * larguraFita);
+            const inRange = scrap >= 10 && scrap <= 18;
+            const dist = inRange ? Math.abs(scrap - 14) : Math.abs(scrap - 14) + 100;
+            if (dist < bestDistanceToIdeal) {
+              bestDistanceToIdeal = dist;
+              bestCoil = c;
+              estimatedStrips = strips;
+              estimatedScrapMm = scrap;
+              estimatedYieldPercent = Number((((c.largura - scrap) / c.largura) * 100).toFixed(1));
+            }
+          }
+        });
+
+        if (!bestCoil) {
+          bestCoil = matchingCoils[0];
+          estimatedStrips = Math.floor(bestCoil.largura / larguraFita);
+          estimatedScrapMm = bestCoil.largura - (estimatedStrips * larguraFita);
+          estimatedYieldPercent = Number((((bestCoil.largura - estimatedScrapMm) / bestCoil.largura) * 100).toFixed(1));
+        }
+      }
+
+      const slitterInfo = SlitterCatalogService.getSlitterInfo(larguraFita, espessura, mainProduct);
+
+      slitterList.push({
+        id: `SLT_${larguraFita}_${espessura}`,
+        codigoSlitter: slitterInfo.code,
+        nomeSlitter: slitterInfo.name,
+        larguraFita,
+        espessura,
+        totalDemandaT,
+        demandaTubosT,
+        demandaPerfisT,
+        qtdTubos,
+        qtdPerfis,
+        produtos,
+        mainProduct,
+        status,
+        compatibleLotCount,
+        totalCompatibleWeightTon,
+        coveragePercent,
+        bestCoil,
+        estimatedStrips,
+        estimatedScrapMm,
+        estimatedYieldPercent
+      });
+    }
+
+    return slitterList;
+  }
+
+  static sortSlittersByReadiness(items: SlitterDemandItem[]): SlitterDemandItem[] {
+    const statusWeight: Record<ReadinessStatus, number> = {
+      'PRONTO': 3,
+      'PARCIAL': 2,
+      'BLOQUEADO': 1
+    };
+
+    return [...items].sort((a, b) => {
+      const diffStatus = statusWeight[b.status] - statusWeight[a.status];
+      if (diffStatus !== 0) return diffStatus;
+
+      if (b.totalDemandaT !== a.totalDemandaT) return b.totalDemandaT - a.totalDemandaT;
+
+      return b.totalCompatibleWeightTon - a.totalCompatibleWeightTon;
+    });
+  }
+
+  /**
    * Generates the complete Ready Slitter Programs (Bobina -> Slitter -> Materiais Produzidos).
    * STRICT CRITERIA: Scrap MUST be between 10mm and 18mm (1.5% limit). Programs with < 10mm are discarded!
    */
   static generateSlitterPrograms(products: Product[], coils: Coil[]): SlitterProductionProgram[] {
     const availableCoils = coils.filter(c => c.status === 'Disponível');
-    const productsWithDemand = [...products].sort((a, b) => (b.demandaT || 0) - (a.demandaT || 0));
+    const slittersWithDemand = this.analyzeSlitters(products, coils)
+      .sort((a, b) => b.totalDemandaT - a.totalDemandaT);
 
     const programs: SlitterProductionProgram[] = [];
     const usedCoilIds = new Set<string>();
 
-    for (const prod of productsWithDemand) {
+    for (const slitterItem of slittersWithDemand) {
+      const prod = slitterItem.mainProduct;
       const matchingCoils = availableCoils.filter(
         c => !usedCoilIds.has(c.id) && Math.abs(c.espessura - prod.espessura) < 0.001
       );
@@ -62,7 +215,7 @@ export class ReadinessService {
       for (const coil of matchingCoils.slice(0, 8)) {
         const combList = SlitterOptimizer.optimize({
           mainProduct: prod,
-          desiredQuantityTon: prod.demandaT || 10,
+          desiredQuantityTon: slitterItem.totalDemandaT || 10,
           selectedCoil: coil,
           compatibleProducts: products,
           minScrapMm: 10,
@@ -103,13 +256,16 @@ export class ReadinessService {
         usedCoilIds.add(bestCoil.id);
 
         const materialsProduced = bestCombination.fitas.map(f => {
-          const isMain = f.product.id === prod.id;
+          const isMain = f.product.id === prod.id || (f.product.larguraFita === slitterItem.larguraFita && f.product.espessura === slitterItem.espessura);
           const pesoTon = Number((bestCoil!.peso * (f.larguraTotal / bestCoil!.largura)).toFixed(3));
           const kgPerMeter = f.product.pesoPorMetro || (f.product.larguraFita * f.product.espessura * 7.85 / 1000);
           const metros = kgPerMeter > 0 ? Math.round((pesoTon * 1000) / kgPerMeter) : 0;
+          const sInfo = SlitterCatalogService.getSlitterInfo(f.product.larguraFita, f.product.espessura, f.product);
 
           return {
             product: f.product,
+            codigoSlitter: sInfo.code,
+            nomeSlitter: sInfo.name,
             fitaLargura: f.product.larguraFita,
             quantidadeFitas: f.quantidade,
             larguraTotal: f.larguraTotal,
@@ -193,7 +349,6 @@ export class ReadinessService {
           const strips = Math.floor(c.largura / product.larguraFita);
           if (strips > 0) {
             const scrap = c.largura - (strips * product.larguraFita);
-            // Prefer scraps in 10-18mm
             const inRange = scrap >= 10 && scrap <= 18;
             const dist = inRange ? Math.abs(scrap - 14) : Math.abs(scrap - 14) + 100;
             if (dist < bestDistanceToIdeal) {
@@ -247,3 +402,4 @@ export class ReadinessService {
     });
   }
 }
+

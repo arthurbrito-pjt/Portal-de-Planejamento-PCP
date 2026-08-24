@@ -13,6 +13,33 @@ export interface Product {
   comprimentoPadrao?: number; // em metros, ex: 6m
 }
 
+export interface SlitterDemandItem {
+  id: string; // e.g. SLT_238_1.5
+  codigoSlitter: string; // e.g. SLT11020 ou SLT10238
+  nomeSlitter: string; // e.g. SLITTER 75 x 40 x 1,80MM ou SLITTER 238 x 1,50MM
+  larguraFita: number; // mm
+  espessura: number; // mm
+  totalDemandaT: number; // soma das demandas de perfis e tubos
+  demandaTubosT: number; // total demanda vinda de tubos
+  demandaPerfisT: number; // total demanda vinda de perfis
+  qtdTubos: number;
+  qtdPerfis: number;
+  produtos: {
+    product: Product;
+    demandaT: number;
+    familia: ProductFamily;
+  }[];
+  mainProduct: Product;
+  status: 'PRONTO' | 'PARCIAL' | 'BLOQUEADO';
+  compatibleLotCount: number;
+  totalCompatibleWeightTon: number;
+  coveragePercent: number;
+  bestCoil: Coil | null;
+  estimatedStrips: number;
+  estimatedScrapMm: number;
+  estimatedYieldPercent: number;
+}
+
 export type CoilStatus = 'Disponível' | 'Reservada' | 'Em Produção' | 'Consumida';
 
 export interface Coil {

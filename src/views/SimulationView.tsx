@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Coil, SlitterStrip, Product } from '../types/pcp';
 import { SlitterVisualizer } from '../components/SlitterVisualizer';
+import { SlitterCatalogService } from '../services/slitterCatalogService';
 import { 
   Scissors, 
   Plus, 
@@ -168,8 +169,8 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
             <thead>
               <tr className="border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider font-bold font-mono">
                 <th className="py-3 px-3">Fita Slitter</th>
+                <th className="py-3 px-3">Código Slitter</th>
                 <th className="py-3 px-3">Material de Destino (Produto Final)</th>
-                <th className="py-3 px-3">Código Destino</th>
                 <th className="py-3 px-3">Família</th>
                 <th className="py-3 px-3 text-right">Largura (mm)</th>
                 <th className="py-3 px-3 text-right">Peso do Rolo (t)</th>
@@ -178,37 +179,47 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-mono">
-              {strips.map((strip, idx) => (
-                <tr key={strip.id || idx} className="hover:bg-slate-50 transition-colors">
-                  <td className="py-3.5 px-3 font-black text-slate-900 flex items-center gap-2.5">
-                    <span className="w-3 h-3 rounded-full shadow" style={{ backgroundColor: strip.cor }} />
-                    Fita {String(strip.stripNumber).padStart(2, '0')}
-                  </td>
-                  <td className="py-3.5 px-3 font-sans text-slate-800 font-bold max-w-xs truncate">{strip.productDescription}</td>
-                  <td className="py-3.5 px-3 font-black text-blue-700">{strip.productCode}</td>
-                  <td className="py-3.5 px-3 font-sans">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                      strip.productFamily === 'TUBO' 
-                        ? 'bg-blue-50 text-blue-800 border-blue-200' 
-                        : 'bg-purple-50 text-purple-800 border-purple-200'
-                    }`}>
-                      {strip.productFamily}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-3 text-right font-black text-slate-900">{strip.largura} mm</td>
-                  <td className="py-3.5 px-3 text-right text-emerald-700 font-bold">{strip.pesoTon} t</td>
-                  <td className="py-3.5 px-3 text-right text-blue-700 font-semibold">{strip.metrosLineares} m</td>
-                  <td className="py-3.5 px-3 text-center">
-                    <button
-                      onClick={() => handleRemoveStrip(strip.id)}
-                      title="Remover esta fita"
-                      className="p-2 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {strips.map((strip, idx) => {
+                const sltInfo = SlitterCatalogService.getSlitterInfo(strip.largura, strip.espessura);
+
+                return (
+                  <tr key={strip.id || idx} className="hover:bg-slate-50 transition-colors">
+                    <td className="py-3.5 px-3 font-black text-slate-900 flex items-center gap-2.5">
+                      <span className="w-3 h-3 rounded-full shadow" style={{ backgroundColor: strip.cor }} />
+                      Fita {String(strip.stripNumber).padStart(2, '0')}
+                    </td>
+                    <td className="py-3.5 px-3 font-black text-blue-700">
+                      <div>{sltInfo.code}</div>
+                      <div className="text-[10px] text-slate-500 font-normal">{sltInfo.name}</div>
+                    </td>
+                    <td className="py-3.5 px-3 font-sans text-slate-800 font-bold max-w-xs">
+                      <div className="font-mono text-blue-900 font-bold">{strip.productCode}</div>
+                      <div className="text-slate-600 truncate">{strip.productDescription}</div>
+                    </td>
+                    <td className="py-3.5 px-3 font-sans">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                        strip.productFamily === 'TUBO' 
+                          ? 'bg-blue-50 text-blue-800 border-blue-200' 
+                          : 'bg-purple-50 text-purple-800 border-purple-200'
+                      }`}>
+                        {strip.productFamily}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-3 text-right font-black text-slate-900">{strip.largura} mm</td>
+                    <td className="py-3.5 px-3 text-right text-emerald-700 font-bold">{strip.pesoTon} t</td>
+                    <td className="py-3.5 px-3 text-right text-blue-700 font-semibold">{strip.metrosLineares} m</td>
+                    <td className="py-3.5 px-3 text-center">
+                      <button
+                        onClick={() => handleRemoveStrip(strip.id)}
+                        title="Remover esta fita"
+                        className="p-2 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

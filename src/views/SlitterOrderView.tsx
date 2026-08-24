@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Coil, SlitterStrip, SlitterOrder } from '../types/pcp';
 import { ExcelService } from '../services/excelService';
 import { StorageService } from '../services/storageService';
+import { SlitterCatalogService } from '../services/slitterCatalogService';
 import { 
   ClipboardCheck, 
   FileSpreadsheet, 
@@ -299,8 +300,8 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
               <thead>
                 <tr className="bg-slate-100 print:bg-gray-200 border-b border-slate-200 print:border-black text-slate-700 font-mono text-[11px] font-bold">
                   <th className="py-3 px-3 border-r border-slate-200 print:border-black">Fita Slitter</th>
-                  <th className="py-3 px-3 border-r border-slate-200 print:border-black">Material a ser Produzido com o Slitter</th>
-                  <th className="py-3 px-3 border-r border-slate-200 print:border-black">Código Item</th>
+                  <th className="py-3 px-3 border-r border-slate-200 print:border-black">Código Slitter</th>
+                  <th className="py-3 px-3 border-r border-slate-200 print:border-black">Material de Destino (Produto Final)</th>
                   <th className="py-3 px-3 border-r border-slate-200 print:border-black">Família</th>
                   <th className="py-3 px-3 border-r border-slate-200 print:border-black text-right">Largura da Fita</th>
                   <th className="py-3 px-3 border-r border-slate-200 print:border-black text-right">Peso do Rolo</th>
@@ -308,31 +309,37 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 font-mono">
-                {currentStrips.map((strip, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50">
-                    <td className="py-3 px-3 font-black border-r border-slate-200 text-slate-900">
-                      Fita {String(strip.stripNumber).padStart(2, '0')}
-                    </td>
-                    <td className="py-3 px-3 font-sans text-slate-800 font-bold border-r border-slate-200">
-                      {strip.productDescription}
-                    </td>
-                    <td className="py-3 px-3 text-blue-700 font-black border-r border-slate-200">
-                      {strip.productCode}
-                    </td>
-                    <td className="py-3 px-3 font-sans border-r border-slate-200 font-bold">
-                      {strip.productFamily}
-                    </td>
-                    <td className="py-3 px-3 text-right font-black text-slate-900 border-r border-slate-200">
-                      {strip.largura} mm
-                    </td>
-                    <td className="py-3 px-3 text-right text-emerald-700 font-bold border-r border-slate-200">
-                      {strip.pesoTon} t ({strip.pesoKg} kg)
-                    </td>
-                    <td className="py-3 px-3 text-right text-blue-700 font-bold">
-                      {strip.metrosLineares} m
-                    </td>
-                  </tr>
-                ))}
+                {currentStrips.map((strip, idx) => {
+                  const sltInfo = SlitterCatalogService.getSlitterInfo(strip.largura, strip.espessura);
+
+                  return (
+                    <tr key={idx} className="hover:bg-slate-50">
+                      <td className="py-3 px-3 font-black border-r border-slate-200 text-slate-900">
+                        Fita {String(strip.stripNumber).padStart(2, '0')}
+                      </td>
+                      <td className="py-3 px-3 font-black text-blue-700 border-r border-slate-200">
+                        <div>{sltInfo.code}</div>
+                        <div className="text-[10px] text-slate-500 font-normal">{sltInfo.name}</div>
+                      </td>
+                      <td className="py-3 px-3 font-sans text-slate-800 font-bold border-r border-slate-200">
+                        <div className="font-mono text-blue-900 font-bold">{strip.productCode}</div>
+                        <div className="text-slate-600 truncate">{strip.productDescription}</div>
+                      </td>
+                      <td className="py-3 px-3 font-sans border-r border-slate-200 font-bold">
+                        {strip.productFamily}
+                      </td>
+                      <td className="py-3 px-3 text-right font-black text-slate-900 border-r border-slate-200">
+                        {strip.largura} mm
+                      </td>
+                      <td className="py-3 px-3 text-right text-emerald-700 font-bold border-r border-slate-200">
+                        {strip.pesoTon} t ({strip.pesoKg} kg)
+                      </td>
+                      <td className="py-3 px-3 text-right text-blue-700 font-bold">
+                        {strip.metrosLineares} m
+                      </td>
+                    </tr>
+                  );
+                })}
 
                 {/* Scrap row */}
                 <tr className="bg-slate-50 font-bold">

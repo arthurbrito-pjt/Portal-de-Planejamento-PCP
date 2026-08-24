@@ -9,6 +9,7 @@ import {
   SlitterOptimizer 
 } from '../services/slitterOptimizer';
 import { ReadinessService } from '../services/readinessService';
+import { SlitterCatalogService } from '../services/slitterCatalogService';
 import { CoilCard } from '../components/CoilCard';
 import { MetricsBadge } from '../components/MetricsBadge';
 import { SlitterVisualizer } from '../components/SlitterVisualizer';
@@ -59,25 +60,27 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   // Step 6: Selected Slitter Combination
   const [selectedCombination, setSelectedCombination] = useState<SlitterCombination | null>(null);
 
-  // Analyze readiness
-  const readinessList = useMemo(() => {
-    return ReadinessService.analyze(products, coils);
+  // Analyze slitter readiness
+  const slitterDemands = useMemo(() => {
+    const list = ReadinessService.analyzeSlitters(products, coils);
+    return ReadinessService.sortSlittersByReadiness(list);
   }, [products, coils]);
 
-  const prontoCount = readinessList.filter(r => r.status === 'PRONTO').length;
-  const parcialCount = readinessList.filter(r => r.status === 'PARCIAL').length;
-  const bloqueadoCount = readinessList.filter(r => r.status === 'BLOQUEADO').length;
+  const prontoCount = slitterDemands.filter(r => r.status === 'PRONTO').length;
+  const parcialCount = slitterDemands.filter(r => r.status === 'PARCIAL').length;
+  const bloqueadoCount = slitterDemands.filter(r => r.status === 'BLOQUEADO').length;
 
   useEffect(() => {
     if (preSelectedProductId) {
       const p = products.find(prod => prod.id === preSelectedProductId || prod.codigo === preSelectedProductId);
       if (p) {
         setSelectedProduct(p);
-        setDesiredQtyTon(p.demandaT || 10);
+        const slt = slitterDemands.find(s => s.larguraFita === p.larguraFita && s.espessura === p.espessura);
+        setDesiredQtyTon(slt?.totalDemandaT || p.demandaT || 10);
         setCurrentStep(3);
       }
     }
-  }, [preSelectedProductId, products]);
+  }, [preSelectedProductId, products, slitterDemands]);
 
   const uniqueThicknesses = useMemo(() => {
     const set = new Set<number>();
@@ -85,28 +88,26 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     return Array.from(set).sort((a, b) => a - b);
   }, [products]);
 
-  const filteredProductReadiness = useMemo(() => {
-    let list = readinessList;
+  const filteredSlitterDemands = useMemo(() => {
+    let list = slitterDemands;
 
     if (readinessFilter !== 'TODOS') {
       list = list.filter(r => r.status === readinessFilter);
     }
-    if (familyFilter !== 'TODOS') {
-      list = list.filter(r => r.product.familia === familyFilter);
-    }
     if (thicknessFilter !== 'TODOS') {
-      list = list.filter(r => r.product.espessura === Number(thicknessFilter));
+      list = list.filter(r => r.espessura === Number(thicknessFilter));
     }
     if (productSearch.trim()) {
       const q = productSearch.toLowerCase();
       list = list.filter(r => 
-        r.product.codigo.toLowerCase().includes(q) ||
-        r.product.descricao.toLowerCase().includes(q)
+        r.codigoSlitter.toLowerCase().includes(q) ||
+        r.nomeSlitter.toLowerCase().includes(q) ||
+        `${r.larguraFita}`.includes(q)
       );
     }
 
-    return ReadinessService.sortByReadiness(list);
-  }, [readinessList, readinessFilter, familyFilter, thicknessFilter, productSearch]);
+    return ReadinessService.sortSlittersByReadiness(list);
+  }, [slitterDemands, readinessFilter, thicknessFilter, productSearch]);
 
   const compatibleCoils = useMemo(() => {
     if (!selectedProduct) return [];
@@ -176,7 +177,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   };
 
   const stepsList = [
-    { num: 1, title: 'Produto Final' },
+    { num: 1, title: 'Slitter a Produzir' },
     { num: 2, title: 'Quantidade (t)' },
     { num: 3, title: 'Bobinas Compatíveis' },
     { num: 4, title: 'Selecionar Lote' },
@@ -221,7 +222,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         </div>
       </div>
 
-      {/* STEP 1: Select Product */}
+      {/* STEP 1: Select Slitter */}
       {currentStep === 1 && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -230,10 +231,10 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                 <span className="p-2 bg-blue-600 text-white rounded-xl text-xs">
                   1
                 </span>
-                Passo 1: Selecionar o Produto Final a Produzir
+                Passo 1: Selecionar o Slitter a Produzir
               </h3>
               <p className="text-xs text-slate-500 mt-1">
-                Listando primeiro os materiais que possuem matéria-prima em estoque para corte imediato.
+                Selecione o Slitter a ser cortado. A demanda é a soma total das necessidades de tubos e perfis.
               </p>
             </div>
 
@@ -253,7 +254,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             {[
               { id: 'PRONTO', label: '🔥 Prontos para Produzir (100% Viáveis)', count: prontoCount },
               { id: 'PARCIAL', label: '⚠️ Atendimento Parcial', count: parcialCount },
-              { id: 'TODOS', label: 'Todos os Produtos', count: products.length },
+              { id: 'TODOS', label: 'Todos os Slitters', count: slitterDemands.length },
               { id: 'BLOQUEADO', label: '✕ Sem Bobina no Estoque', count: bloqueadoCount }
             ].map((f) => (
               <button
@@ -276,33 +277,16 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
           </div>
 
           {/* Search and Filters */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="relative">
               <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
               <input
                 type="text"
-                placeholder="Buscar por código ou descrição..."
+                placeholder="Buscar por código ou descrição do slitter..."
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-sm"
               />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500 font-bold uppercase text-[10px]">Família:</span>
-              <div className="flex rounded-2xl bg-white border border-slate-200 p-1 flex-1 shadow-sm">
-                {(['TODOS', 'TUBO', 'PERFIL'] as const).map(fam => (
-                  <button
-                    key={fam}
-                    onClick={() => setFamilyFilter(fam)}
-                    className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all ${
-                      familyFilter === fam ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    {fam}
-                  </button>
-                ))}
-              </div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -320,56 +304,43 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             </div>
           </div>
 
-          {/* Product Cards Grid */}
+          {/* Slitter Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[520px] overflow-y-auto pr-1">
-            {filteredProductReadiness.map((r) => {
-              const p = r.product;
-              const isSelected = selectedProduct?.id === p.id;
-              const isReady = r.status === 'PRONTO';
-              const isPartial = r.status === 'PARCIAL';
+            {filteredSlitterDemands.map((s) => {
+              const p = s.mainProduct;
+              const isSelected = selectedProduct?.larguraFita === s.larguraFita && selectedProduct?.espessura === s.espessura;
+              const isReady = s.status === 'PRONTO';
+              const isPartial = s.status === 'PARCIAL';
 
               return (
                 <div
-                  key={p.id}
+                  key={s.id}
                   onClick={() => {
                     setSelectedProduct(p);
-                    setDesiredQtyTon(p.demandaT || 10);
+                    setDesiredQtyTon(s.totalDemandaT || 10);
                   }}
-                  className={`p-4 rounded-3xl border transition-all cursor-pointer group bg-white shadow-sm ${
+                  className={`p-4 rounded-3xl border transition-all cursor-pointer group bg-white shadow-sm space-y-2.5 ${
                     isSelected
                       ? 'bg-blue-50/80 border-blue-500 ring-2 ring-blue-400/40 -translate-y-1'
                       : 'border-slate-200 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5'
                   }`}
                 >
-                  {/* Slitter Specific Definition */}
-                  <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-2.5 mb-2.5">
+                  {/* Slitter Header */}
+                  <div className="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-xs">
                     <span className="text-[9px] font-mono font-black text-slate-500 uppercase block tracking-wider">
                       ✂️ SLITTER A PRODUZIR:
                     </span>
-                    <div className="flex items-center justify-between mt-0.5">
-                      <span className="text-xs font-black font-mono text-blue-700">
-                        Fita {p.larguraFita} x {p.espessura} mm
-                      </span>
-                      <MetricsBadge type="familia" value={p.familia} size="sm" />
-                    </div>
-                  </div>
-
-                  {/* Target Material Details */}
-                  <div>
-                    <span className="text-[9px] font-mono font-black text-slate-500 uppercase block tracking-wider">
-                      🏭 MATERIAL DE DESTINO:
-                    </span>
                     <div className="flex items-center justify-between gap-2 mt-0.5">
-                      <span className="text-xs font-mono font-black text-slate-900">{p.codigo}</span>
+                      <span className="text-sm font-mono font-black text-blue-900">{s.codigoSlitter}</span>
                       {isReady ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 text-[10px] font-bold font-mono">
                           <CheckCircle className="w-2.5 h-2.5 text-emerald-600" />
-                          Pronto ({r.compatibleLotCount} lotes)
+                          Pronto ({s.compatibleLotCount} lotes)
                         </span>
                       ) : isPartial ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300 text-[10px] font-bold font-mono">
                           <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
-                          Parcial ({r.coveragePercent}%)
+                          Parcial ({s.coveragePercent}%)
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-800 border border-red-300 text-[10px] font-bold font-mono">
@@ -379,31 +350,45 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                       )}
                     </div>
 
-                    <h4 className="text-xs text-slate-700 line-clamp-1 font-semibold mt-1">
-                      {p.descricao}
+                    <h4 className="text-xs text-slate-800 line-clamp-1 font-bold mt-1">
+                      {s.nomeSlitter}
                     </h4>
                   </div>
 
-                  {r.bestCoil && (
-                    <div className="mt-2.5 p-2 rounded-xl bg-slate-50 border border-slate-200 text-[10px] font-mono text-slate-600 flex items-center justify-between">
-                      <span>Bobina Matriz: <strong className="text-blue-700">{r.bestCoil.lote}</strong> ({r.bestCoil.largura}mm)</span>
-                      <span className="text-emerald-700 font-bold">Aprov: {r.estimatedYieldPercent}%</span>
+                  {/* Destination Material */}
+                  <div className="bg-slate-50/90 p-2.5 rounded-2xl border border-slate-200/70">
+                    <span className="text-[9px] font-mono font-black text-slate-500 uppercase block tracking-wider">
+                      🏭 MATERIAL DE DESTINO:
+                    </span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-xs font-mono font-black text-slate-900">{p.codigo}</span>
+                      <MetricsBadge type="familia" value={p.familia} size="sm" />
+                    </div>
+                    <p className="text-xs text-slate-600 line-clamp-1 mt-0.5">
+                      {p.descricao}
+                    </p>
+                  </div>
+
+                  {s.bestCoil && (
+                    <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 text-[10px] font-mono text-slate-600 flex items-center justify-between">
+                      <span>Bobina: <strong className="text-blue-700">{s.bestCoil.lote}</strong> ({s.bestCoil.largura}mm)</span>
+                      <span className="text-emerald-700 font-bold">Aprov: {s.estimatedYieldPercent}%</span>
                     </div>
                   )}
 
-                  <div className="grid grid-cols-3 gap-2 mt-3 pt-2.5 border-t border-slate-100 text-[11px] font-mono">
+                  <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100 text-[11px] font-mono">
                     <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 text-center">
                       <span className="text-slate-400 block text-[9px] font-bold uppercase">Largura Fita</span>
-                      <strong className="text-blue-700 font-black text-xs">{p.larguraFita} mm</strong>
+                      <strong className="text-blue-700 font-black text-xs">{s.larguraFita} mm</strong>
                     </div>
                     <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 text-center">
                       <span className="text-slate-400 block text-[9px] font-bold uppercase">Espessura</span>
-                      <strong className="text-purple-800 font-black text-xs">{p.espessura} mm</strong>
+                      <strong className="text-purple-800 font-black text-xs">{s.espessura} mm</strong>
                     </div>
                     <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 text-center">
-                      <span className="text-slate-400 block text-[9px] font-bold uppercase">Estoque Disp.</span>
-                      <strong className={`font-black text-xs ${r.totalCompatibleWeightTon > 0 ? 'text-emerald-700' : 'text-slate-400'}`}>
-                        {r.totalCompatibleWeightTon} t
+                      <span className="text-slate-400 block text-[9px] font-bold uppercase">Demanda Total</span>
+                      <strong className="text-amber-700 font-black text-xs">
+                        {s.totalDemandaT} t
                       </strong>
                     </div>
                   </div>
@@ -422,31 +407,32 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
               <span className="p-2 bg-blue-600 text-white rounded-xl text-xs">
                 2
               </span>
-              Passo 2: Informar a Quantidade Desejada
+              Passo 2: Informar a Quantidade de Slitter a Produzir
             </h3>
             <p className="text-xs text-slate-500 mt-1">
-              Informe a quantidade de <strong>{selectedProduct.codigo}</strong> que você deseja produzir no Slitter.
+              Informe a quantidade de toneladas do Slitter a ser programada para corte.
             </p>
           </div>
 
           <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-black text-slate-900 font-mono">{selectedProduct.codigo}</span>
-                <MetricsBadge type="familia" value={selectedProduct.familia} size="sm" />
+                <span className="text-sm font-black text-blue-900 font-mono">
+                  {SlitterCatalogService.getSlitterInfo(selectedProduct.larguraFita, selectedProduct.espessura, selectedProduct).code}
+                </span>
+                <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-mono font-bold">
+                  {selectedProduct.larguraFita} x {selectedProduct.espessura} mm
+                </span>
               </div>
-              <p className="text-xs text-slate-700 mt-1 font-semibold">{selectedProduct.descricao}</p>
-              <div className="flex items-center gap-3 text-xs font-mono text-slate-600 mt-2 font-medium">
-                <span>Largura Fita: <strong className="text-blue-700">{selectedProduct.larguraFita} mm</strong></span>
-                <span>•</span>
-                <span>Espessura: <strong className="text-purple-700">{selectedProduct.espessura} mm</strong></span>
-              </div>
+              <p className="text-xs text-slate-800 mt-1 font-bold">
+                {SlitterCatalogService.getSlitterInfo(selectedProduct.larguraFita, selectedProduct.espessura, selectedProduct).name}
+              </p>
             </div>
             <button
               onClick={() => setCurrentStep(1)}
               className="text-xs text-blue-700 hover:text-blue-800 font-black underline"
             >
-              Trocar Produto
+              Trocar Slitter
             </button>
           </div>
 

@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { Coil, Product, SlitterOrder } from '../types/pcp';
+import { SlitterCatalogService } from './slitterCatalogService';
 
 export class ExcelService {
   /**
@@ -123,21 +124,26 @@ export class ExcelService {
       ['Aproveitamento (%):', `${order.aproveitamentoPercent}%`, 'Perda (%):', `${order.perdaPercent}%`, 'Peso Refilo (t):', order.sobraPesoTon],
       [''],
       ['PROGRAMAÇÃO DE FITAS DE SLITTER & DESTINAÇÃO DE USO'],
-      ['Fita Slitter', 'Material a Produzir com o Slitter', 'Código Item', 'Família', 'Largura Fita (mm)', 'Espessura (mm)', 'Peso Alocado (t)', 'Peso (kg)', 'Metros Lineares (m)']
+      ['Fita Slitter', 'Código Slitter', 'Nome do Slitter', 'Material de Destino (Produto Final)', 'Código Destino', 'Família', 'Largura Fita (mm)', 'Espessura (mm)', 'Peso Alocado (t)', 'Peso (kg)', 'Metros Lineares (m)']
     ];
 
     // 2. Strips Data
-    const stripsRows = order.fitas.map(f => [
-      `Fita ${String(f.stripNumber).padStart(2, '0')}`,
-      f.productDescription,
-      f.productCode,
-      f.productFamily,
-      f.largura,
-      f.espessura,
-      f.pesoTon,
-      f.pesoKg,
-      f.metrosLineares
-    ]);
+    const stripsRows = order.fitas.map(f => {
+      const slt = SlitterCatalogService.getSlitterInfo(f.largura, f.espessura);
+      return [
+        `Fita ${String(f.stripNumber).padStart(2, '0')}`,
+        slt.code,
+        slt.name,
+        f.productDescription,
+        f.productCode,
+        f.productFamily,
+        f.largura,
+        f.espessura,
+        f.pesoTon,
+        f.pesoKg,
+        f.metrosLineares
+      ];
+    });
 
     const finalSheetData = [...headerData, ...stripsRows];
     const ws = XLSX.utils.aoa_to_sheet(finalSheetData);
@@ -145,6 +151,8 @@ export class ExcelService {
     // Set column widths
     ws['!cols'] = [
       { wch: 15 },
+      { wch: 18 },
+      { wch: 32 },
       { wch: 45 },
       { wch: 18 },
       { wch: 12 },

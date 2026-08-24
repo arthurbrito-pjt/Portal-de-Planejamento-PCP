@@ -3,7 +3,7 @@
 # ⚙️ Portal de Planejamento PCP — Otimização de Slitter de Bobinas
 ### *Sistema Integrado de Engenharia de Produção, Corte Longitudinal & Gestão de Aço*
 
-**A plataforma definitiva para Planejamento e Controle da Produção (PCP) na indústria de tubos e perfis de aço, focada na maximização do aproveitamento de bobinas no Slitter com garantia da regra de sobra máxima de 10 mm.**
+**A plataforma definitiva para Planejamento e Controle da Produção (PCP) na indústria de tubos e perfis de aço, focada na maximização do aproveitamento de bobinas no Slitter com garantia da regra de refilo técnico ideal entre 10 e 18 mm (~1,5%).**
 
 [![React](https://img.shields.io/badge/React-18.3.x-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
@@ -22,7 +22,7 @@
 
 O **Portal de Planejamento PCP** foi projetado para transformar o processo de corte e fatiamento de bobinas de aço (**Slitter**) em uma operação matemática precisa, inteligente e visual. Ele atende ao fluxo fabril de transformação:
 
-$$\text{Bobina de Matéria-Prima} \xrightarrow{\text{Slitter}} \text{Fitas Cortadas (Tiras/Blanks)} \xrightarrow{\text{Conformação/Solda}} \text{Tubos e Perfis U}$$
+$$\text{Bobina de Matéria-Prima} \xrightarrow{\text{Slitter}} \text{Fitas de Slitter Produzidas} \xrightarrow{\text{Conformação/Solda}} \text{Tubos e Perfis U de Destino}$$
 
 ```
                           ┌──────────────────────────┐
@@ -38,9 +38,9 @@ $$\text{Bobina de Matéria-Prima} \xrightarrow{\text{Slitter}} \text{Fitas Corta
     │  Otimização & Regras  │                     │   Painéis & Estúdio   │
     ├───────────────────────┤                     ├───────────────────────┤
     │ • Algoritmo Mochila   │                     │ • TELA 1: Dashboard   │
-    │ • Tolerância ≤ 10 mm  │                     │ • TELA 2: Wizard 6-P  │
+    │ • Refilo 10 a 18 mm   │                     │ • TELA 2: Wizard 6-P  │
     │ • Balanceamento Pesos │                     │ • TELA 3: Simulação   │
-    │ • Rendimento Linear   │                     │ • TELA 4: Ordem OS    │
+    │ • Rendimento Linear   │                     │ • TELA 4: Ordem OP    │
     │ • Multi-Produtos      │                     │ • TELA 5: Relatórios  │
     │ • Sincronização Cloud │                     │ • TELA 6: Gestor Base │
     └───────────────────────┘                     └───────────────────────┘
@@ -241,6 +241,6 @@ Portal-de-Planejamento-PCP/
 <div align="center">
 
 **Portal de Planejamento PCP — Slitter de Bobinas**  
-Desenvolvido para **Arthur Brito / Novare Systems** • 2026
+Desenvolvido para **Setor Projetos - Logística** • 2026
 
 </div>
