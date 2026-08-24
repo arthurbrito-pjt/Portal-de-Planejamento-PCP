@@ -8,6 +8,7 @@ import {
 import { 
   SlitterOptimizer 
 } from '../services/slitterOptimizer';
+import { ReadinessService, ProductReadiness } from '../services/readinessService';
 import { CoilCard } from '../components/CoilCard';
 import { MetricsBadge } from '../components/MetricsBadge';
 import { SlitterVisualizer } from '../components/SlitterVisualizer';
@@ -28,7 +29,12 @@ import {
   Info,
   Maximize2,
   Gauge,
-  Zap
+  Zap,
+  CheckCircle,
+  AlertTriangle,
+  XCircle,
+  Boxes,
+  Sliders
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -50,9 +56,10 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   // Wizard Step (1 to 6)
   const [currentStep, setCurrentStep] = useState<number>(1);
 
-  // Step 1: Selected Product
+  // Step 1: Selected Product & Filters
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [productSearch, setProductSearch] = useState<string>('');
+  const [readinessFilter, setReadinessFilter] = useState<'PRONTO' | 'PARCIAL' | 'TODOS' | 'BLOQUEADO'>('PRONTO');
   const [familyFilter, setFamilyFilter] = useState<'TODOS' | 'TUBO' | 'PERFIL'>('TODOS');
   const [thicknessFilter, setThicknessFilter] = useState<string>('TODOS');
 
@@ -64,6 +71,15 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
 
   // Step 6: Selected Slitter Combination
   const [selectedCombination, setSelectedCombination] = useState<SlitterCombination | null>(null);
+
+  // Analyze readiness for all products against stock
+  const readinessList = useMemo(() => {
+    return ReadinessService.analyze(products, coils);
+  }, [products, coils]);
+
+  const prontoCount = readinessList.filter(r => r.status === 'PRONTO').length;
+  const parcialCount = readinessList.filter(r => r.status === 'PARCIAL').length;
+  const bloqueadoCount = readinessList.filter(r => r.status === 'BLOQUEADO').length;
 
   // Auto-select product if preSelectedProductId is given
   useEffect(() => {
@@ -77,26 +93,36 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     }
   }, [preSelectedProductId, products]);
 
-  // Unique thicknesses for filter
+  // Unique thicknesses
   const uniqueThicknesses = useMemo(() => {
     const set = new Set<number>();
     products.forEach(p => set.add(p.espessura));
     return Array.from(set).sort((a, b) => a - b);
   }, [products]);
 
-  // Filtered products list
-  const filteredProducts = useMemo(() => {
-    return products.filter(p => {
-      const matchesSearch = 
-        p.codigo.toLowerCase().includes(productSearch.toLowerCase()) ||
-        p.descricao.toLowerCase().includes(productSearch.toLowerCase());
-      
-      const matchesFamily = familyFilter === 'TODOS' || p.familia === familyFilter;
-      const matchesThickness = thicknessFilter === 'TODOS' || p.espessura === Number(thicknessFilter);
+  // Filtered & Sorted Product Readiness
+  const filteredProductReadiness = useMemo(() => {
+    let list = readinessList;
 
-      return matchesSearch && matchesFamily && matchesThickness;
-    });
-  }, [products, productSearch, familyFilter, thicknessFilter]);
+    if (readinessFilter !== 'TODOS') {
+      list = list.filter(r => r.status === readinessFilter);
+    }
+    if (familyFilter !== 'TODOS') {
+      list = list.filter(r => r.product.familia === familyFilter);
+    }
+    if (thicknessFilter !== 'TODOS') {
+      list = list.filter(r => r.product.espessura === Number(thicknessFilter));
+    }
+    if (productSearch.trim()) {
+      const q = productSearch.toLowerCase();
+      list = list.filter(r => 
+        r.product.codigo.toLowerCase().includes(q) ||
+        r.product.descricao.toLowerCase().includes(q)
+      );
+    }
+
+    return ReadinessService.sortByReadiness(list);
+  }, [readinessList, readinessFilter, familyFilter, thicknessFilter, productSearch]);
 
   // Step 3: Compatible Coils in Stock (matching thickness)
   const compatibleCoils = useMemo(() => {
@@ -106,6 +132,13 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
       Math.abs(c.espessura - selectedProduct.espessura) < 0.001
     ).sort((a, b) => b.largura - a.largura);
   }, [coils, selectedProduct]);
+
+  // Auto-select best matching coil when entering Step 3
+  useEffect(() => {
+    if (compatibleCoils.length > 0 && (!selectedCoil || selectedCoil.espessura !== selectedProduct?.espessura)) {
+      setSelectedCoil(compatibleCoils[0]);
+    }
+  }, [compatibleCoils, selectedProduct]);
 
   // Step 5 & 6: Compute optimal combinations when coil is selected
   const combinations = useMemo(() => {
@@ -168,9 +201,9 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   };
 
   const stepsList = [
-    { num: 1, title: 'Produto Final' },
+    { num: 1, title: 'Produto & Matéria-Prima' },
     { num: 2, title: 'Quantidade' },
-    { num: 3, title: 'Localizar Bobinas' },
+    { num: 3, title: 'Bobinas Compatíveis' },
     { num: 4, title: 'Selecionar Lote' },
     { num: 5, title: 'Cálculo de Fitas' },
     { num: 6, title: 'Otimização Slitter' }
@@ -213,9 +246,9 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         </div>
       </div>
 
-      {/* STEP 1: Select Product */}
+      {/* STEP 1: Select Product (FEASIBILITY FIRST!) */}
       {currentStep === 1 && (
-        <div className="space-y-4">
+        <div className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h3 className="text-lg font-black text-white flex items-center gap-2.5 tracking-tight">
@@ -225,7 +258,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                 Passo 1: Selecionar o Produto Final a Produzir
               </h3>
               <p className="text-xs text-slate-400 mt-1">
-                Escolha o tubo ou perfil desejado. O sistema buscará as larguras de fita (blanks) e espessuras correspondentes.
+                Listando primeiro os produtos que <strong>possuem matéria-prima pronta em estoque</strong> para programar.
               </p>
             </div>
 
@@ -240,7 +273,34 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             )}
           </div>
 
-          {/* Search & Filters */}
+          {/* Quick Feasibility Filter Tabs */}
+          <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3">
+            {[
+              { id: 'PRONTO', label: '🔥 Prontos para Produzir (100% Viáveis)', count: prontoCount, color: 'text-emerald-400' },
+              { id: 'PARCIAL', label: '⚠️ Atendimento Parcial', count: parcialCount, color: 'text-amber-400' },
+              { id: 'TODOS', label: 'Todos os Produtos', count: products.length, color: 'text-blue-400' },
+              { id: 'BLOQUEADO', label: '✕ Sem Bobina no Estoque', count: bloqueadoCount, color: 'text-red-400' }
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setReadinessFilter(f.id as any)}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-2xl text-xs font-extrabold transition-all ${
+                  readinessFilter === f.id
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-1 ring-white/20'
+                    : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800'
+                }`}
+              >
+                <span>{f.label}</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                  readinessFilter === f.id ? 'bg-white/20 text-white' : 'bg-slate-950 text-slate-400'
+                }`}>
+                  {f.count}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Search and Bitola Filters */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="relative">
               <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
@@ -249,7 +309,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                 placeholder="Buscar por código ou descrição..."
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-900/90 border border-slate-700/80 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-inner"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-900/90 border border-slate-700/80 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 shadow-inner"
               />
             </div>
 
@@ -275,7 +335,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
               <select
                 value={thicknessFilter}
                 onChange={(e) => setThicknessFilter(e.target.value)}
-                className="flex-1 py-2.5 px-3.5 bg-slate-900/90 border border-slate-700/80 rounded-2xl text-xs text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-inner"
+                className="flex-1 py-2.5 px-3.5 bg-slate-900/90 border border-slate-700/80 rounded-2xl text-xs text-white focus:outline-none focus:border-blue-500 shadow-inner"
               >
                 <option value="TODOS">Todas as Espessuras</option>
                 {uniqueThicknesses.map(th => (
@@ -285,10 +345,14 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             </div>
           </div>
 
-          {/* Product Cards Grid */}
+          {/* Product Cards Grid with Feasibility Badges */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[520px] overflow-y-auto pr-1">
-            {filteredProducts.map((p) => {
+            {filteredProductReadiness.map((r) => {
+              const p = r.product;
               const isSelected = selectedProduct?.id === p.id;
+              const isReady = r.status === 'PRONTO';
+              const isPartial = r.status === 'PARCIAL';
+
               return (
                 <div
                   key={p.id}
@@ -296,30 +360,50 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                     setSelectedProduct(p);
                     setDesiredQtyTon(p.demandaT || 10);
                   }}
-                  className={`glass-card p-4 rounded-3xl border transition-all cursor-pointer group ${
+                  className={`glass-card p-4 rounded-3xl border transition-all cursor-pointer group relative overflow-hidden ${
                     isSelected
                       ? 'bg-blue-950/70 border-blue-500 ring-2 ring-blue-500/50 shadow-2xl -translate-y-1'
                       : 'border-slate-800/80 hover:border-blue-500/40 hover:bg-slate-900/90 hover:-translate-y-1'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono font-black text-white">{p.codigo}</span>
-                        <MetricsBadge type="familia" value={p.familia} size="sm" />
-                      </div>
-                      <h4 className="text-xs text-slate-300 line-clamp-2 font-medium">
-                        {p.descricao}
-                      </h4>
+                  {/* Status header badge */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-black text-white">{p.codigo}</span>
+                      <MetricsBadge type="familia" value={p.familia} size="sm" />
                     </div>
-                    {isSelected && (
-                      <div className="p-1.5 bg-blue-600 text-white rounded-full shadow-lg">
-                        <Check className="w-3.5 h-3.5" />
-                      </div>
+
+                    {isReady ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-bold font-mono">
+                        <CheckCircle className="w-2.5 h-2.5 text-emerald-400" />
+                        Pronto ({r.compatibleLotCount} lotes)
+                      </span>
+                    ) : isPartial ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold font-mono">
+                        <AlertTriangle className="w-2.5 h-2.5 text-amber-400" />
+                        Parcial ({r.coveragePercent}%)
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/40 text-[9px] font-bold font-mono">
+                        <XCircle className="w-2.5 h-2.5 text-red-400" />
+                        Sem Bobina
+                      </span>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 mt-3.5 pt-3 border-t border-slate-800/80 text-[11px] font-mono">
+                  <h4 className="text-xs text-slate-300 line-clamp-2 font-medium mt-2">
+                    {p.descricao}
+                  </h4>
+
+                  {/* Stock Match Highlight */}
+                  {r.bestCoil && (
+                    <div className="mt-2.5 p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-[10px] font-mono text-slate-400 flex items-center justify-between">
+                      <span>Melhor Bobina: <strong className="text-blue-400">{r.bestCoil.lote}</strong> ({r.bestCoil.largura}mm)</span>
+                      <span className="text-emerald-400 font-bold">Aprov: {r.estimatedYieldPercent}%</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-3 gap-2 mt-3 pt-2.5 border-t border-slate-800/80 text-[11px] font-mono">
                     <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800 text-center">
                       <span className="text-slate-400 block text-[9px] font-bold uppercase">Fita Requerida</span>
                       <strong className="text-blue-400 font-extrabold text-xs">{p.larguraFita} mm</strong>
@@ -329,8 +413,10 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                       <strong className="text-purple-400 font-extrabold text-xs">{p.espessura} mm</strong>
                     </div>
                     <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800 text-center">
-                      <span className="text-slate-400 block text-[9px] font-bold uppercase">Demanda</span>
-                      <strong className="text-amber-400 font-extrabold text-xs">{p.demandaT || 0} t</strong>
+                      <span className="text-slate-400 block text-[9px] font-bold uppercase">Estoque Disp.</span>
+                      <strong className={`font-extrabold text-xs ${r.totalCompatibleWeightTon > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
+                        {r.totalCompatibleWeightTon} t
+                      </strong>
                     </div>
                   </div>
                 </div>
@@ -355,7 +441,6 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             </p>
           </div>
 
-          {/* Selected Product Summary Box */}
           <div className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
@@ -377,7 +462,6 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             </button>
           </div>
 
-          {/* Quick Presets for Quantity */}
           <div className="space-y-3">
             <label className="block text-xs font-extrabold text-slate-300 uppercase tracking-wider">
               Quantidade Planejada (Toneladas):
@@ -389,12 +473,11 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                 step="0.5"
                 value={desiredQtyTon}
                 onChange={(e) => setDesiredQtyTon(parseFloat(e.target.value) || 0)}
-                className="flex-1 px-5 py-3.5 bg-slate-950 border-2 border-slate-700/80 rounded-2xl text-2xl font-mono font-black text-emerald-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-inner"
+                className="flex-1 px-5 py-3.5 bg-slate-950 border-2 border-slate-700/80 rounded-2xl text-2xl font-mono font-black text-emerald-400 focus:outline-none focus:border-blue-500 shadow-inner"
               />
               <span className="text-base font-black text-slate-400 font-mono">TONELADAS</span>
             </div>
 
-            {/* Quick buttons */}
             <div className="flex items-center gap-2 pt-1">
               {[5, 10, 15, 25, 50].map((t) => (
                 <button
@@ -413,7 +496,6 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex items-center justify-between pt-4 border-t border-slate-800">
             <button
               onClick={() => setCurrentStep(1)}
@@ -511,7 +593,6 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             </button>
           </div>
 
-          {/* Primary Calculation Summary Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800">
               <span className="text-xs text-slate-400 block font-semibold uppercase text-[10px]">Largura da Bobina</span>
@@ -552,7 +633,6 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             </div>
           </div>
 
-          {/* Decision Box based on scrap */}
           {step5Calculation.isSobraPermitida ? (
             <div className="p-5 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 flex items-start gap-3.5 shadow-lg">
               <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
@@ -561,7 +641,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                   Excelente Aproveitamento Inicial!
                 </h4>
                 <p className="text-xs text-emerald-300/90 mt-0.5 leading-relaxed">
-                  A sobra de <strong>{step5Calculation.sobraMm} mm</strong> já respeita a regra de ouro do PCP de corte com sobra máxima de 10 mm. Você pode avançar para o Passo 6 para conferir combinações com sobra zero ou prosseguir para a simulação.
+                  A sobra de <strong>{step5Calculation.sobraMm} mm</strong> já respeita a regra de ouro do PCP de corte com sobra máxima de 10 mm.
                 </p>
               </div>
             </div>
@@ -573,13 +653,12 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                   Sobra de {step5Calculation.sobraMm} mm é superior ao limite máximo de 10 mm!
                 </h4>
                 <p className="text-xs text-amber-300/90 mt-0.5 leading-relaxed">
-                  Conforme a regra de negócio do PCP, o motor de otimização combinatória irá sugerir no <strong>Passo 6</strong> produtos complementares compatíveis de mesma espessura para preencher essa sobra e garantir até 100% de aproveitamento.
+                  O motor de otimização combinatória irá sugerir no <strong>Passo 6</strong> produtos complementares de mesma espessura para preencher essa sobra e garantir até 100% de aproveitamento.
                 </p>
               </div>
             </div>
           )}
 
-          {/* Action to proceed to Step 6 */}
           <div className="flex items-center justify-between pt-4 border-t border-slate-800">
             <button
               onClick={() => setCurrentStep(4)}
@@ -615,7 +694,6 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
               </p>
             </div>
 
-            {/* Finish Buttons */}
             <div className="flex items-center gap-3">
               <button
                 onClick={() => handleFinishPlanning('simulation')}
@@ -635,7 +713,6 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             </div>
           </div>
 
-          {/* Live Preview of Selected Combination */}
           {selectedCombination && (
             <div className="space-y-3">
               <div className="text-xs font-extrabold text-slate-300 uppercase tracking-wider flex items-center gap-2">
@@ -650,7 +727,6 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             </div>
           )}
 
-          {/* Combinations List */}
           <div className="space-y-3">
             <h4 className="text-sm font-extrabold text-white flex items-center gap-2">
               <span>Opções de Combinações Ranqueadas</span>
@@ -699,7 +775,6 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                             )}
                           </div>
 
-                          {/* Strips summary pills */}
                           <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
                             {comb.fitas.map((f, fIdx) => (
                               <span
@@ -713,7 +788,6 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                         </div>
                       </div>
 
-                      {/* Right Metrics */}
                       <div className="flex items-center gap-5 text-xs font-mono">
                         <div className="text-right">
                           <div className="text-slate-400 text-[10px] uppercase font-bold">Largura Útil</div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   BarChart, 
   Bar, 
@@ -20,17 +20,23 @@ import {
   AlertOctagon, 
   Scissors, 
   CheckCircle2, 
-  PlusCircle, 
-  ArrowRight,
-  ShieldCheck,
-  Percent,
-  Weight,
-  Sparkles,
-  Zap,
-  Clock,
-  ArrowUpRight
+  ArrowRight, 
+  ShieldCheck, 
+  Percent, 
+  Weight, 
+  Sparkles, 
+  Zap, 
+  CheckCircle,
+  AlertTriangle,
+  XCircle,
+  Filter,
+  Search,
+  ArrowUpRight,
+  Sliders,
+  Boxes
 } from 'lucide-react';
 import { Coil, Product, SlitterOrder, PCPKPIs } from '../types/pcp';
+import { ReadinessService, ProductReadiness } from '../services/readinessService';
 import { MetricsBadge } from '../components/MetricsBadge';
 
 interface DashboardViewProps {
@@ -54,7 +60,36 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onNavigateToOrders,
   onNavigateToData
 }) => {
-  // Compute chart data: Coils by Thickness
+  const [readinessFilter, setReadinessFilter] = useState<'TODOS' | 'PRONTO' | 'PARCIAL' | 'BLOQUEADO'>('PRONTO');
+  const [tableSearch, setTableSearch] = useState<string>('');
+
+  // Analyze readiness for all products against available coils
+  const readinessList = useMemo(() => {
+    return ReadinessService.analyze(products, coils);
+  }, [products, coils]);
+
+  // Counts by readiness status
+  const prontoCount = readinessList.filter(r => r.status === 'PRONTO').length;
+  const parcialCount = readinessList.filter(r => r.status === 'PARCIAL').length;
+  const bloqueadoCount = readinessList.filter(r => r.status === 'BLOQUEADO').length;
+
+  // Filtered and sorted readiness items for the prioritization table
+  const filteredReadiness = useMemo(() => {
+    let list = readinessList;
+    if (readinessFilter !== 'TODOS') {
+      list = list.filter(r => r.status === readinessFilter);
+    }
+    if (tableSearch.trim()) {
+      const q = tableSearch.toLowerCase();
+      list = list.filter(r => 
+        r.product.codigo.toLowerCase().includes(q) ||
+        r.product.descricao.toLowerCase().includes(q)
+      );
+    }
+    return ReadinessService.sortByReadiness(list);
+  }, [readinessList, readinessFilter, tableSearch]);
+
+  // Coils by Thickness chart data
   const thicknessMap: Record<string, { thickness: number; weight: number; count: number }> = {};
   coils.filter(c => c.status === 'Disponível').forEach(c => {
     const key = `${c.espessura} mm`;
@@ -74,7 +109,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }))
     .sort((a, b) => a.espessura - b.espessura);
 
-  // Compute Demand by Family (Tubos vs Perfis)
+  // Demand by Family chart
   const tuboDemand = products.filter(p => p.familia === 'TUBO').reduce((a, b) => a + (b.demandaT || 0), 0);
   const perfilDemand = products.filter(p => p.familia === 'PERFIL').reduce((a, b) => a + (b.demandaT || 0), 0);
   
@@ -83,8 +118,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     { name: 'Perfis U Estruturais', value: Math.round(perfilDemand), color: '#8b5cf6' }
   ];
 
-  // Slitter Utilization distribution (orders or simulated plans)
-  const utilizationData = orders.length > 0 ? orders.slice(0, 10).map((o, idx) => ({
+  // Slitter utilization trend
+  const utilizationData = orders.length > 0 ? orders.slice(0, 10).map(o => ({
     name: o.numeroOS,
     aproveitamento: o.aproveitamentoPercent,
     sobra: o.sobraMm
@@ -98,164 +133,375 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     { name: 'ESP-4.75', aproveitamento: 99.33, sobra: 10 }
   ];
 
-  // Missing thickness warnings
-  const demandThicknesses = Array.from(new Set(products.map(p => p.espessura)));
-  const stockThicknesses = Array.from(new Set(coils.filter(c => c.status === 'Disponível').map(c => c.espessura)));
-  const missingThicknesses = demandThicknesses.filter(t => !stockThicknesses.includes(t));
-
   return (
     <div className="space-y-7 pb-16 animate-fadeIn">
-      {/* Premium Hero Banner */}
-      <div className="relative overflow-hidden p-7 rounded-3xl bg-gradient-to-r from-slate-900 via-blue-950/40 to-slate-900 border border-blue-500/30 shadow-2xl">
-        {/* Glow ambient lights */}
+      {/* Top Cockpit: Production Feasibility Overview */}
+      <div className="relative overflow-hidden p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-slate-900 via-blue-950/40 to-slate-900 border border-blue-500/30 shadow-2xl">
         <div className="absolute top-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-
         <div className="relative z-10 flex flex-wrap items-center justify-between gap-6">
-          <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-300 text-xs font-bold font-mono">
+          <div className="space-y-1.5">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-300 text-xs font-mono font-bold">
               <Zap className="w-3.5 h-3.5 text-blue-400" />
-              SISTEMA DE OTIMIZAÇÃO INDUSTRIAL • METALÚRGICA 2026
+              PAINEL DE PRONTIDÃO & CONTROLE DE PRODUÇÃO PCP
             </div>
             <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              Portal de Planejamento & Controle PCP
+              Matriz de Viabilidade de Produção
             </h2>
-            <p className="text-sm text-slate-300 leading-relaxed">
-              Otimização de corte de bobinas de aço com controle de refilo, motor combinatório para sobra máxima de <strong className="text-emerald-400 font-mono">10 mm</strong> e emissão de ordens de produção.
+            <p className="text-xs sm:text-sm text-slate-300">
+              Identifique instantaneamente quais produtos <strong className="text-emerald-400">possuem bobinas disponíveis em estoque</strong> para corte imediato no Slitter.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => onNavigateToPlanning()}
-              className="flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-sm font-extrabold shadow-xl shadow-blue-500/30 transition-all hover:scale-105 active:scale-95 glow-blue"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>Novo Planejamento (6 Passos)</span>
-              <ArrowRight className="w-4 h-4 ml-1" />
-            </button>
+          <button
+            onClick={() => onNavigateToPlanning()}
+            className="flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-black shadow-xl shadow-blue-500/30 transition-all hover:scale-105 active:scale-95 glow-blue"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Iniciar Planejamento (6 Passos)</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* 3 Feasibility Cockpit Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mt-6 pt-5 border-t border-slate-800/80">
+          {/* Pronto */}
+          <div 
+            onClick={() => setReadinessFilter('PRONTO')}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+              readinessFilter === 'PRONTO'
+                ? 'bg-emerald-950/60 border-emerald-500 ring-2 ring-emerald-500/40 shadow-lg shadow-emerald-500/20'
+                : 'bg-slate-950/70 border-slate-800 hover:border-emerald-500/50'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 font-mono">
+                <CheckCircle className="w-4 h-4 text-emerald-400" />
+                Prontos para Produzir
+              </span>
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            </div>
+            <div className="text-2xl font-black text-white font-mono mt-2">
+              {prontoCount} <span className="text-xs font-sans text-emerald-300 font-medium">produtos 100% viáveis</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Possuem bobinas com espessura e peso suficientes em estoque.
+            </p>
+          </div>
+
+          {/* Parcial */}
+          <div 
+            onClick={() => setReadinessFilter('PARCIAL')}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+              readinessFilter === 'PARCIAL'
+                ? 'bg-amber-950/60 border-amber-500 ring-2 ring-amber-500/40 shadow-lg shadow-amber-500/20'
+                : 'bg-slate-950/70 border-slate-800 hover:border-amber-500/50'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-400 flex items-center gap-1.5 font-mono">
+                <AlertTriangle className="w-4 h-4 text-amber-400" />
+                Atendimento Parcial
+              </span>
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+            </div>
+            <div className="text-2xl font-black text-white font-mono mt-2">
+              {parcialCount} <span className="text-xs font-sans text-amber-300 font-medium">produtos parciais</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Há bobinas disponíveis, mas quantidade menor que a demanda total.
+            </p>
+          </div>
+
+          {/* Bloqueado */}
+          <div 
+            onClick={() => setReadinessFilter('BLOQUEADO')}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+              readinessFilter === 'BLOQUEADO'
+                ? 'bg-red-950/60 border-red-500 ring-2 ring-red-500/40 shadow-lg shadow-red-500/20'
+                : 'bg-slate-950/70 border-slate-800 hover:border-red-500/50'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-red-400 flex items-center gap-1.5 font-mono">
+                <XCircle className="w-4 h-4 text-red-400" />
+                Sem Matéria-Prima
+              </span>
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
+            </div>
+            <div className="text-2xl font-black text-white font-mono mt-2">
+              {bloqueadoCount} <span className="text-xs font-sans text-red-300 font-medium">produtos bloqueados</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Nenhuma bobina com espessura compatível disponível no estoque.
+            </p>
           </div>
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
+      {/* PRIORITIZATION TABLE: Products Ready to Produce First */}
+      <div className="glass-card p-6 rounded-3xl border border-slate-800 bg-slate-900/90 shadow-2xl space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-2xl">
+              <Boxes className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-extrabold text-white tracking-tight">
+                Fila de Priorização de Produção no Slitter
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Exibindo primeiro os materiais com matéria-prima pronta para programar corte
+              </p>
+            </div>
+          </div>
+
+          {/* Quick Search & Filter Chips */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Filtrar por código ou descrição..."
+                value={tableSearch}
+                onChange={(e) => setTableSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div className="flex rounded-xl bg-slate-950 border border-slate-800 p-1">
+              {[
+                { id: 'TODOS', label: 'Todos' },
+                { id: 'PRONTO', label: '✓ Prontos' },
+                { id: 'PARCIAL', label: '⚠ Parciais' },
+                { id: 'BLOQUEADO', label: '✕ Bloqueados' }
+              ].map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setReadinessFilter(f.id as any)}
+                  className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                    readinessFilter === f.id
+                      ? 'bg-blue-600 text-white shadow'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* The Table */}
+        <div className="overflow-x-auto max-h-[460px]">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px] tracking-wider font-mono sticky top-0 bg-slate-900 z-10">
+                <th className="py-3 px-3">Status de Produção</th>
+                <th className="py-3 px-3">Produto Final</th>
+                <th className="py-3 px-3">Família</th>
+                <th className="py-3 px-3 text-right">Espessura</th>
+                <th className="py-3 px-3 text-right">Largura Fita</th>
+                <th className="py-3 px-3 text-right">Demanda (t)</th>
+                <th className="py-3 px-3 text-right">Estoque Bobinas</th>
+                <th className="py-3 px-3 text-center">Melhor Bobina Lote</th>
+                <th className="py-3 px-3 text-right">Aprov. Teórico</th>
+                <th className="py-3 px-3 text-center">Ação PCP</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60 font-mono">
+              {filteredReadiness.slice(0, 15).map((r) => {
+                const prod = r.product;
+                const isReady = r.status === 'PRONTO';
+                const isPartial = r.status === 'PARCIAL';
+
+                return (
+                  <tr key={prod.id} className="hover:bg-slate-800/40 transition-colors group">
+                    {/* Status Pill */}
+                    <td className="py-3.5 px-3">
+                      {isReady ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
+                          <CheckCircle className="w-3 h-3 text-emerald-400" />
+                          Pronto ({r.compatibleLotCount} lotes)
+                        </span>
+                      ) : isPartial ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold">
+                          <AlertTriangle className="w-3 h-3 text-amber-400" />
+                          Parcial ({r.coveragePercent}%)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-red-500/15 text-red-300 border border-red-500/30 text-[10px] font-bold">
+                          <XCircle className="w-3 h-3 text-red-400" />
+                          Sem Bobina
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Product Code & Description */}
+                    <td className="py-3.5 px-3">
+                      <div className="font-black text-white group-hover:text-blue-400 transition-colors">{prod.codigo}</div>
+                      <div className="text-[11px] font-sans text-slate-400 truncate max-w-xs">{prod.descricao}</div>
+                    </td>
+
+                    {/* Family */}
+                    <td className="py-3.5 px-3 font-sans">
+                      <MetricsBadge type="familia" value={prod.familia} size="sm" />
+                    </td>
+
+                    {/* Thickness */}
+                    <td className="py-3.5 px-3 text-right text-purple-400 font-bold">
+                      {prod.espessura} mm
+                    </td>
+
+                    {/* Strip Width */}
+                    <td className="py-3.5 px-3 text-right font-black text-white">
+                      {prod.larguraFita} mm
+                    </td>
+
+                    {/* Planned Demand */}
+                    <td className="py-3.5 px-3 text-right text-amber-400 font-bold">
+                      {prod.demandaT || 0} t
+                    </td>
+
+                    {/* Compatible Stock */}
+                    <td className="py-3.5 px-3 text-right">
+                      <div className={`font-black ${r.totalCompatibleWeightTon > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>
+                        {r.totalCompatibleWeightTon} t
+                      </div>
+                      <div className="text-[10px] text-slate-500">
+                        {r.compatibleLotCount} lotes disp.
+                      </div>
+                    </td>
+
+                    {/* Best Matching Coil Lot */}
+                    <td className="py-3.5 px-3 text-center">
+                      {r.bestCoil ? (
+                        <div>
+                          <span className="text-blue-400 font-black">{r.bestCoil.lote}</span>
+                          <span className="text-[10px] text-slate-400 block">({r.bestCoil.largura}mm • {r.bestCoil.peso}t)</span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-600">-</span>
+                      )}
+                    </td>
+
+                    {/* Theoretical Yield */}
+                    <td className="py-3.5 px-3 text-right">
+                      {r.estimatedYieldPercent > 0 ? (
+                        <div>
+                          <span className={`font-black ${r.estimatedYieldPercent >= 99 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            {r.estimatedYieldPercent}%
+                          </span>
+                          <span className="text-[10px] text-slate-400 block font-sans">
+                            Sobra: {r.estimatedScrapMm}mm
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-600">-</span>
+                      )}
+                    </td>
+
+                    {/* Action */}
+                    <td className="py-3.5 px-3 text-center">
+                      <button
+                        onClick={() => onNavigateToPlanning(prod.id)}
+                        disabled={r.compatibleLotCount === 0}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
+                          r.compatibleLotCount > 0
+                            ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-500/20 hover:scale-105'
+                            : 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-50'
+                        }`}
+                      >
+                        <span>Planejar</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Summary KPI Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Estoque Bobinas */}
-        <div className="glass-card glass-card-hover p-5 rounded-3xl border border-slate-800 bg-slate-900/80 shadow-xl relative overflow-hidden group">
+        {/* Total Bobinas */}
+        <div className="glass-card p-5 rounded-3xl border border-slate-800 bg-slate-900/80 shadow-xl relative overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Estoque Disponível</span>
-            <div className="p-3 rounded-2xl bg-blue-500/15 text-blue-400 border border-blue-500/30 group-hover:scale-110 transition-transform">
+            <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Estoque de Bobinas</span>
+            <div className="p-3 rounded-2xl bg-blue-500/15 text-blue-400 border border-blue-500/30">
               <Disc className="w-5 h-5" />
             </div>
           </div>
-          <div className="mt-4">
-            <div className="text-3xl font-black text-white font-mono tracking-tight">
-              {kpis.totalBobinasDisponiveis} <span className="text-sm font-medium text-slate-400 font-sans">lotes</span>
+          <div className="mt-3">
+            <div className="text-2xl font-black text-white font-mono">
+              {kpis.totalBobinasDisponiveis} <span className="text-xs font-sans text-slate-400">lotes</span>
             </div>
-            <div className="text-xs text-blue-400 font-mono mt-1 font-bold flex items-center gap-1.5">
-              <Weight className="w-3.5 h-3.5" />
-              {kpis.pesoTotalEstoqueTon.toLocaleString('pt-BR')} t em bobinas
+            <div className="text-xs text-blue-400 font-mono mt-0.5 font-bold">
+              {kpis.pesoTotalEstoqueTon.toLocaleString('pt-BR')} t disponíveis
             </div>
-          </div>
-          <div className="w-full bg-slate-800/80 h-2 rounded-full mt-4 overflow-hidden p-0.5 border border-slate-700/50">
-            <div className="bg-gradient-to-r from-blue-600 to-cyan-500 h-full rounded-full" style={{ width: '85%' }}></div>
           </div>
         </div>
 
-        {/* Card 2: Aproveitamento Médio */}
-        <div className="glass-card glass-card-hover p-5 rounded-3xl border border-slate-800 bg-slate-900/80 shadow-xl relative overflow-hidden group">
+        {/* Aproveitamento Médio */}
+        <div className="glass-card p-5 rounded-3xl border border-slate-800 bg-slate-900/80 shadow-xl relative overflow-hidden">
           <div className="flex items-center justify-between">
             <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Aproveitamento Médio</span>
-            <div className="p-3 rounded-2xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 group-hover:scale-110 transition-transform">
+            <div className="p-3 rounded-2xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
               <TrendingUp className="w-5 h-5" />
             </div>
           </div>
-          <div className="mt-4">
-            <div className="text-3xl font-black text-emerald-400 font-mono tracking-tight">
+          <div className="mt-3">
+            <div className="text-2xl font-black text-emerald-400 font-mono">
               {kpis.aproveitamentoMedioPercent}%
             </div>
-            <div className="text-xs text-slate-300 mt-1 flex items-center gap-1.5 font-medium">
+            <div className="text-xs text-slate-300 mt-0.5 flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              Meta PCP: ≥ 99.0% (Sobra ≤ 10mm)
+              Meta PCP: Sobra ≤ 10mm
             </div>
-          </div>
-          <div className="w-full bg-slate-800/80 h-2 rounded-full mt-4 overflow-hidden p-0.5 border border-slate-700/50">
-            <div 
-              className="bg-gradient-to-r from-emerald-600 to-teal-400 h-full rounded-full" 
-              style={{ width: `${Math.min(100, kpis.aproveitamentoMedioPercent)}%` }}
-            ></div>
           </div>
         </div>
 
-        {/* Card 3: Ordens de Slitter */}
-        <div className="glass-card glass-card-hover p-5 rounded-3xl border border-slate-800 bg-slate-900/80 shadow-xl relative overflow-hidden group">
+        {/* Ordens de Slitter */}
+        <div className="glass-card p-5 rounded-3xl border border-slate-800 bg-slate-900/80 shadow-xl relative overflow-hidden">
           <div className="flex items-center justify-between">
             <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Ordens de Slitter</span>
-            <div className="p-3 rounded-2xl bg-purple-500/15 text-purple-400 border border-purple-500/30 group-hover:scale-110 transition-transform">
+            <div className="p-3 rounded-2xl bg-purple-500/15 text-purple-400 border border-purple-500/30">
               <Scissors className="w-5 h-5" />
             </div>
           </div>
-          <div className="mt-4">
-            <div className="text-3xl font-black text-white font-mono tracking-tight">
-              {orders.length} <span className="text-sm font-medium text-slate-400 font-sans">OS geradas</span>
+          <div className="mt-3">
+            <div className="text-2xl font-black text-white font-mono">
+              {orders.length} <span className="text-xs font-sans text-slate-400">OS</span>
             </div>
-            <div className="text-xs text-purple-400 mt-1 font-bold">
-              {kpis.totalOrdensAtivas} ordens em andamento
+            <div className="text-xs text-purple-400 mt-0.5 font-bold">
+              {kpis.totalOrdensAtivas} ordens ativas
             </div>
-          </div>
-          <div className="w-full bg-slate-800/80 h-2 rounded-full mt-4 overflow-hidden p-0.5 border border-slate-700/50">
-            <div className="bg-gradient-to-r from-purple-600 to-pink-500 h-full rounded-full" style={{ width: '65%' }}></div>
           </div>
         </div>
 
-        {/* Card 4: Demanda Planejada */}
-        <div className="glass-card glass-card-hover p-5 rounded-3xl border border-slate-800 bg-slate-900/80 shadow-xl relative overflow-hidden group">
+        {/* Demanda Total */}
+        <div className="glass-card p-5 rounded-3xl border border-slate-800 bg-slate-900/80 shadow-xl relative overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Demanda Planejada</span>
-            <div className="p-3 rounded-2xl bg-amber-500/15 text-amber-400 border border-amber-500/30 group-hover:scale-110 transition-transform">
+            <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400">Demanda Cadastrada</span>
+            <div className="p-3 rounded-2xl bg-amber-500/15 text-amber-400 border border-amber-500/30">
               <Percent className="w-5 h-5" />
             </div>
           </div>
-          <div className="mt-4">
-            <div className="text-3xl font-black text-amber-400 font-mono tracking-tight">
-              {kpis.demandaTotalTon.toLocaleString('pt-BR')} <span className="text-sm font-medium text-slate-400 font-sans">t</span>
+          <div className="mt-3">
+            <div className="text-2xl font-black text-amber-400 font-mono">
+              {kpis.demandaTotalTon.toLocaleString('pt-BR')} t
             </div>
-            <div className="text-xs text-slate-300 mt-1 font-medium flex items-center gap-1.5">
-              <span>{products.length} itens cadastrados</span>
+            <div className="text-xs text-slate-300 mt-0.5">
+              {products.length} produtos cadastrados
             </div>
-          </div>
-          <div className="w-full bg-slate-800/80 h-2 rounded-full mt-4 overflow-hidden p-0.5 border border-slate-700/50">
-            <div 
-              className="bg-gradient-to-r from-amber-500 to-orange-400 h-full rounded-full" 
-              style={{ width: `${Math.min(100, kpis.taxaAtendimentoPercent)}%` }}
-            ></div>
           </div>
         </div>
       </div>
 
-      {/* Missing Thickness Warning Alert */}
-      {missingThicknesses.length > 0 && (
-        <div className="p-5 rounded-3xl bg-amber-950/40 border border-amber-500/40 text-amber-300 flex items-start gap-4 shadow-lg">
-          <div className="p-2 bg-amber-500/20 rounded-xl text-amber-400">
-            <AlertOctagon className="w-5 h-5 shrink-0" />
-          </div>
-          <div className="space-y-1 text-xs flex-1">
-            <h4 className="font-extrabold text-sm text-amber-200">
-              Alerta de PCP: Demanda Cadastrada sem Bobinas Compatíveis em Estoque
-            </h4>
-            <p className="text-amber-300/90 leading-relaxed">
-              Existem itens com demanda planejada para as seguintes espessuras que não possuem lotes disponíveis de bobina no estoque:
-              <strong className="text-amber-100 font-mono ml-1.5 font-bold">
-                {missingThicknesses.map(t => `${t} mm`).join(', ')}
-              </strong>.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Main Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Chart 1: Coils by Thickness (Bar Chart) */}
+        {/* Coils by Thickness */}
         <div className="lg:col-span-2 glass-card p-6 rounded-3xl border border-slate-800 bg-slate-900/80 shadow-xl space-y-4">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3.5">
             <div>
@@ -263,26 +509,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <Disc className="w-4 h-4 text-blue-400" />
                 Estoque de Bobinas por Espessura (Toneladas)
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">Distribuição do peso total disponível por bitola de aço</p>
+              <p className="text-xs text-slate-400 mt-0.5">Volume de aço disponível em cada bitola de matéria-prima</p>
             </div>
             <button
               onClick={onNavigateToData}
               className="text-xs text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1"
             >
-              <span>Ver Tabela</span>
+              <span>Ver Bobinas</span>
               <ArrowUpRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          <div className="h-72 w-full">
+          <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={coilsByThickness} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.6} />
                 <XAxis dataKey="name" stroke="#64748b" fontSize={11} />
                 <YAxis stroke="#64748b" fontSize={11} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '16px', color: '#fff', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}
-                  formatter={(val: any) => [`${val} t`, 'Peso Disponível']}
+                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '16px', color: '#fff' }}
+                  formatter={(val: any) => [`${val} t`, 'Estoque Disponível']}
                 />
                 <Bar dataKey="peso" fill="#3b82f6" radius={[8, 8, 0, 0]}>
                   {coilsByThickness.map((entry, index) => (
@@ -294,25 +540,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Chart 2: Demand breakdown (Pie Chart) */}
+        {/* Demand breakdown */}
         <div className="glass-card p-6 rounded-3xl border border-slate-800 bg-slate-900/80 shadow-xl space-y-4">
           <div className="border-b border-slate-800 pb-3.5">
             <h3 className="text-sm font-extrabold text-white flex items-center gap-2 tracking-tight">
               <Layers className="w-4 h-4 text-purple-400" />
-              Demanda por Família de Produtos
+              Demanda por Família
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">Proporção planejada: Tubos vs Perfis U</p>
+            <p className="text-xs text-slate-400 mt-0.5">Proporção: Tubos vs Perfis U</p>
           </div>
 
-          <div className="h-56 w-full flex items-center justify-center">
+          <div className="h-48 w-full flex items-center justify-center">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={familyChartData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={60}
-                  outerRadius={85}
+                  innerRadius={50}
+                  outerRadius={75}
                   paddingAngle={6}
                   dataKey="value"
                 >
@@ -330,112 +576,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           <div className="grid grid-cols-2 gap-2 text-xs">
             {familyChartData.map((item, idx) => (
-              <div key={idx} className="p-3 rounded-2xl bg-slate-950/60 border border-slate-800/80 flex items-center gap-2.5">
-                <span className="w-3.5 h-3.5 rounded-full shadow" style={{ backgroundColor: item.color }} />
+              <div key={idx} className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full shadow" style={{ backgroundColor: item.color }} />
                 <div>
-                  <div className="text-slate-400 text-[10px] uppercase font-bold">{item.name}</div>
-                  <div className="font-black text-white font-mono text-sm">{item.value} t</div>
+                  <div className="text-slate-400 text-[10px] font-bold uppercase">{item.name}</div>
+                  <div className="font-black text-white font-mono text-xs">{item.value} t</div>
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Slitter Utilization Rate and Active Slitters */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Slitter Efficiency Trend */}
-        <div className="glass-card p-6 rounded-3xl border border-slate-800 bg-slate-900/80 shadow-xl space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3.5">
-            <div>
-              <h3 className="text-sm font-extrabold text-white flex items-center gap-2 tracking-tight">
-                <TrendingUp className="w-4 h-4 text-emerald-400" />
-                Histórico de Aproveitamento das Bobinas (%)
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">Rendimento de corte por plano programado no Slitter</p>
-            </div>
-            <span className="text-xs font-mono font-extrabold text-emerald-400 bg-emerald-500/15 px-3 py-1 rounded-xl border border-emerald-500/30 shadow-sm">
-              Meta ≥ 99.0%
-            </span>
-          </div>
-
-          <div className="h-60 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={utilizationData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorAprov" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.45}/>
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.6} />
-                <XAxis dataKey="name" stroke="#64748b" fontSize={11} />
-                <YAxis domain={[95, 100]} stroke="#64748b" fontSize={11} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '16px', color: '#fff' }}
-                  formatter={(val: any) => [`${val}%`, 'Aproveitamento']}
-                />
-                <Area type="monotone" dataKey="aproveitamento" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorAprov)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Priority Demands to Plan */}
-        <div className="glass-card p-6 rounded-3xl border border-slate-800 bg-slate-900/80 shadow-xl space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3.5">
-            <div>
-              <h3 className="text-sm font-extrabold text-white flex items-center gap-2 tracking-tight">
-                <Layers className="w-4 h-4 text-blue-400" />
-                Demandas Prioritárias para Corte
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">Produtos com maior volume para planejar no Slitter</p>
-            </div>
-            <button
-              onClick={() => onNavigateToPlanning()}
-              className="text-xs text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1"
-            >
-              <span>Planejar Todos</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          <div className="space-y-2.5 overflow-y-auto max-h-60 pr-1">
-            {products
-              .filter(p => (p.demandaT || 0) > 0)
-              .sort((a, b) => (b.demandaT || 0) - (a.demandaT || 0))
-              .slice(0, 5)
-              .map((prod) => (
-                <div
-                  key={prod.id}
-                  className="p-3.5 rounded-2xl bg-slate-950/70 hover:bg-slate-900 border border-slate-800/90 hover:border-blue-500/40 transition-all flex items-center justify-between gap-3 group"
-                >
-                  <div className="space-y-1 overflow-hidden">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-black text-white font-mono">{prod.codigo}</span>
-                      <MetricsBadge type="familia" value={prod.familia} size="sm" />
-                      <span className="text-[11px] text-slate-400 font-mono">Fita: {prod.larguraFita}mm</span>
-                    </div>
-                    <div className="text-xs text-slate-300 truncate max-w-sm">
-                      {prod.descricao}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right">
-                      <div className="text-xs font-black text-amber-400 font-mono">{prod.demandaT} t</div>
-                      <div className="text-[10px] text-slate-500 font-mono">Esp. {prod.espessura}mm</div>
-                    </div>
-                    <button
-                      onClick={() => onNavigateToPlanning(prod.id)}
-                      title="Planejar este produto"
-                      className="p-2 rounded-xl bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-500/30 transition-all shadow-md group-hover:scale-105"
-                    >
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
           </div>
         </div>
       </div>
