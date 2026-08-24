@@ -25,7 +25,10 @@ import {
   Check,
   ChevronRight,
   Filter,
-  Info
+  Info,
+  Maximize2,
+  Gauge,
+  Zap
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -101,10 +104,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     return coils.filter(c => 
       c.status === 'Disponível' && 
       Math.abs(c.espessura - selectedProduct.espessura) < 0.001
-    ).sort((a, b) => {
-      // Sort by wider coils first, then lot code
-      return b.largura - a.largura;
-    });
+    ).sort((a, b) => b.largura - a.largura);
   }, [coils, selectedProduct]);
 
   // Step 5 & 6: Compute optimal combinations when coil is selected
@@ -122,7 +122,6 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   // Auto-select best combination on calculation
   useEffect(() => {
     if (combinations.length > 0) {
-      // Pick the first one (already sorted by best scrap <= 10mm)
       setSelectedCombination(combinations[0]);
     }
   }, [combinations]);
@@ -151,18 +150,14 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     if (selectedCombination) {
       return SlitterOptimizer.generateStripsFromCombination(selectedCombination, selectedCoil);
     }
-    if (selectedProduct && step5Calculation) {
-      // basic fallback
-      return [];
-    }
     return [];
-  }, [selectedCombination, selectedCoil, selectedProduct, step5Calculation]);
+  }, [selectedCombination, selectedCoil]);
 
   const handleFinishPlanning = (action: 'simulation' | 'order') => {
     if (!selectedCoil || currentStrips.length === 0) return;
 
     if (selectedCombination?.sobraMm === 0) {
-      confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
+      confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
     }
 
     if (action === 'simulation') {
@@ -183,9 +178,9 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
 
   return (
     <div className="space-y-6 pb-16 animate-fadeIn">
-      {/* Wizard Progress Bar */}
-      <div className="glass-panel p-4 rounded-2xl border border-slate-800 bg-slate-900/80 shadow-lg">
-        <div className="flex items-center justify-between overflow-x-auto gap-2 pb-1">
+      {/* Wizard Progress Header Bar */}
+      <div className="glass-card p-4 rounded-3xl border border-slate-800 bg-slate-900/90 shadow-2xl">
+        <div className="flex items-center justify-between overflow-x-auto gap-2.5 pb-1">
           {stepsList.map((st) => {
             const isCompleted = currentStep > st.num;
             const isCurrent = currentStep === st.num;
@@ -198,16 +193,16 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                     setCurrentStep(st.num);
                   }
                 }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl text-xs font-extrabold whitespace-nowrap transition-all ${
                   isCurrent
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl shadow-blue-500/30 ring-2 ring-blue-400/50 scale-[1.02]'
                     : isCompleted
-                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
-                    : 'bg-slate-800/60 text-slate-400 border border-slate-700/40 opacity-60 cursor-not-allowed'
+                    ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25'
+                    : 'bg-slate-950/60 text-slate-500 border border-slate-800/80 opacity-60 cursor-not-allowed'
                 }`}
               >
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
-                  isCompleted ? 'bg-emerald-500 text-slate-950 font-black' : isCurrent ? 'bg-white text-blue-700' : 'bg-slate-700 text-slate-300'
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
+                  isCompleted ? 'bg-emerald-500 text-slate-950 font-black' : isCurrent ? 'bg-white text-blue-700' : 'bg-slate-800 text-slate-400'
                 }`}>
                   {isCompleted ? '✓' : st.num}
                 </div>
@@ -223,11 +218,13 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <span className="p-2 bg-blue-600/20 text-blue-400 rounded-xl">1</span>
+              <h3 className="text-lg font-black text-white flex items-center gap-2.5 tracking-tight">
+                <span className="p-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-2xl shadow-md">
+                  1
+                </span>
                 Passo 1: Selecionar o Produto Final a Produzir
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-400 mt-1">
                 Escolha o tubo ou perfil desejado. O sistema buscará as larguras de fita (blanks) e espessuras correspondentes.
               </p>
             </div>
@@ -235,9 +232,9 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             {selectedProduct && (
               <button
                 onClick={() => setCurrentStep(2)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-lg transition-all"
+                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-extrabold rounded-2xl shadow-xl shadow-blue-500/25 transition-all hover:scale-105"
               >
-                <span>Avançar para Passo 2</span>
+                <span>Avançar para Passo 2 (Quantidade)</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             )}
@@ -246,25 +243,25 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
           {/* Search & Filters */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="relative">
-              <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+              <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
               <input
                 type="text"
                 placeholder="Buscar por código ou descrição..."
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-900/90 border border-slate-700/80 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-inner"
               />
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400">Família:</span>
-              <div className="flex rounded-xl bg-slate-900 border border-slate-700 p-1 flex-1">
+              <span className="text-xs text-slate-400 font-bold uppercase text-[10px]">Família:</span>
+              <div className="flex rounded-2xl bg-slate-900/90 border border-slate-700/80 p-1 flex-1 shadow-inner">
                 {(['TODOS', 'TUBO', 'PERFIL'] as const).map(fam => (
                   <button
                     key={fam}
                     onClick={() => setFamilyFilter(fam)}
-                    className={`flex-1 py-1 text-xs font-semibold rounded-lg transition-all ${
-                      familyFilter === fam ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                      familyFilter === fam ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                     }`}
                   >
                     {fam}
@@ -274,11 +271,11 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400">Espessura:</span>
+              <span className="text-xs text-slate-400 font-bold uppercase text-[10px]">Espessura:</span>
               <select
                 value={thicknessFilter}
                 onChange={(e) => setThicknessFilter(e.target.value)}
-                className="flex-1 py-2 px-3 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+                className="flex-1 py-2.5 px-3.5 bg-slate-900/90 border border-slate-700/80 rounded-2xl text-xs text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-inner"
               >
                 <option value="TODOS">Todas as Espessuras</option>
                 {uniqueThicknesses.map(th => (
@@ -289,7 +286,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
           </div>
 
           {/* Product Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[500px] overflow-y-auto pr-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 max-h-[520px] overflow-y-auto pr-1">
             {filteredProducts.map((p) => {
               const isSelected = selectedProduct?.id === p.id;
               return (
@@ -299,16 +296,16 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                     setSelectedProduct(p);
                     setDesiredQtyTon(p.demandaT || 10);
                   }}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                  className={`glass-card p-4 rounded-3xl border transition-all cursor-pointer group ${
                     isSelected
-                      ? 'bg-blue-950/60 border-blue-500 ring-2 ring-blue-500/50 shadow-lg shadow-blue-500/20'
-                      : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
+                      ? 'bg-blue-950/70 border-blue-500 ring-2 ring-blue-500/50 shadow-2xl -translate-y-1'
+                      : 'border-slate-800/80 hover:border-blue-500/40 hover:bg-slate-900/90 hover:-translate-y-1'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono font-bold text-white">{p.codigo}</span>
+                        <span className="text-xs font-mono font-black text-white">{p.codigo}</span>
                         <MetricsBadge type="familia" value={p.familia} size="sm" />
                       </div>
                       <h4 className="text-xs text-slate-300 line-clamp-2 font-medium">
@@ -316,24 +313,24 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                       </h4>
                     </div>
                     {isSelected && (
-                      <div className="p-1 bg-blue-600 text-white rounded-full">
+                      <div className="p-1.5 bg-blue-600 text-white rounded-full shadow-lg">
                         <Check className="w-3.5 h-3.5" />
                       </div>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-800 text-[11px] font-mono">
-                    <div className="p-1.5 rounded-lg bg-slate-950/60 border border-slate-800 text-center">
-                      <span className="text-slate-400 block text-[9px]">FITA NECESSÁRIA</span>
-                      <strong className="text-blue-400 font-bold">{p.larguraFita} mm</strong>
+                  <div className="grid grid-cols-3 gap-2 mt-3.5 pt-3 border-t border-slate-800/80 text-[11px] font-mono">
+                    <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800 text-center">
+                      <span className="text-slate-400 block text-[9px] font-bold uppercase">Fita Requerida</span>
+                      <strong className="text-blue-400 font-extrabold text-xs">{p.larguraFita} mm</strong>
                     </div>
-                    <div className="p-1.5 rounded-lg bg-slate-950/60 border border-slate-800 text-center">
-                      <span className="text-slate-400 block text-[9px]">ESPESSURA</span>
-                      <strong className="text-purple-400 font-bold">{p.espessura} mm</strong>
+                    <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800 text-center">
+                      <span className="text-slate-400 block text-[9px] font-bold uppercase">Espessura</span>
+                      <strong className="text-purple-400 font-extrabold text-xs">{p.espessura} mm</strong>
                     </div>
-                    <div className="p-1.5 rounded-lg bg-slate-950/60 border border-slate-800 text-center">
-                      <span className="text-slate-400 block text-[9px]">DEMANDA</span>
-                      <strong className="text-amber-400 font-bold">{p.demandaT || 0} t</strong>
+                    <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800 text-center">
+                      <span className="text-slate-400 block text-[9px] font-bold uppercase">Demanda</span>
+                      <strong className="text-amber-400 font-extrabold text-xs">{p.demandaT || 0} t</strong>
                     </div>
                   </div>
                 </div>
@@ -345,41 +342,44 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
 
       {/* STEP 2: Enter Desired Quantity */}
       {currentStep === 2 && selectedProduct && (
-        <div className="glass-panel p-6 rounded-2xl border border-slate-800 bg-slate-900/90 shadow-xl space-y-6 max-w-2xl mx-auto">
+        <div className="glass-card p-8 rounded-3xl border border-slate-800 bg-slate-900/90 shadow-2xl space-y-6 max-w-2xl mx-auto">
           <div>
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <span className="p-2 bg-blue-600/20 text-blue-400 rounded-xl">2</span>
+            <h3 className="text-lg font-black text-white flex items-center gap-2.5 tracking-tight">
+              <span className="p-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-2xl shadow-md">
+                2
+              </span>
               Passo 2: Informar a Quantidade Desejada
             </h3>
             <p className="text-xs text-slate-400 mt-1">
-              Informe a quantidade de <strong>{selectedProduct.codigo}</strong> que você deseja programar.
+              Informe a quantidade de <strong>{selectedProduct.codigo}</strong> que você deseja programar no Slitter.
             </p>
           </div>
 
           {/* Selected Product Summary Box */}
-          <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700 flex items-center justify-between gap-4">
+          <div className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-white font-mono">{selectedProduct.codigo}</span>
+                <span className="text-sm font-black text-white font-mono">{selectedProduct.codigo}</span>
                 <MetricsBadge type="familia" value={selectedProduct.familia} size="sm" />
               </div>
               <p className="text-xs text-slate-300 mt-1">{selectedProduct.descricao}</p>
               <div className="flex items-center gap-3 text-xs font-mono text-slate-400 mt-2">
-                <span>Fita: <strong className="text-blue-400">{selectedProduct.larguraFita} mm</strong></span>
+                <span>Largura Fita: <strong className="text-blue-400">{selectedProduct.larguraFita} mm</strong></span>
+                <span>•</span>
                 <span>Espessura: <strong className="text-purple-400">{selectedProduct.espessura} mm</strong></span>
               </div>
             </div>
             <button
               onClick={() => setCurrentStep(1)}
-              className="text-xs text-blue-400 hover:text-blue-300 font-semibold underline"
+              className="text-xs text-blue-400 hover:text-blue-300 font-bold underline"
             >
-              Trocar
+              Trocar Produto
             </button>
           </div>
 
-          {/* Quantity Input */}
-          <div className="space-y-2">
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
+          {/* Quick Presets for Quantity */}
+          <div className="space-y-3">
+            <label className="block text-xs font-extrabold text-slate-300 uppercase tracking-wider">
               Quantidade Planejada (Toneladas):
             </label>
             <div className="flex items-center gap-3">
@@ -389,9 +389,27 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                 step="0.5"
                 value={desiredQtyTon}
                 onChange={(e) => setDesiredQtyTon(parseFloat(e.target.value) || 0)}
-                className="flex-1 px-4 py-3 bg-slate-950 border-2 border-slate-700 rounded-xl text-lg font-mono font-bold text-emerald-400 focus:outline-none focus:border-blue-500"
+                className="flex-1 px-5 py-3.5 bg-slate-950 border-2 border-slate-700/80 rounded-2xl text-2xl font-mono font-black text-emerald-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-inner"
               />
-              <span className="text-sm font-bold text-slate-400">toneladas</span>
+              <span className="text-base font-black text-slate-400 font-mono">TONELADAS</span>
+            </div>
+
+            {/* Quick buttons */}
+            <div className="flex items-center gap-2 pt-1">
+              {[5, 10, 15, 25, 50].map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setDesiredQtyTon(t)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all ${
+                    desiredQtyTon === t
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'bg-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {t} t
+                </button>
+              ))}
             </div>
           </div>
 
@@ -399,13 +417,13 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
           <div className="flex items-center justify-between pt-4 border-t border-slate-800">
             <button
               onClick={() => setCurrentStep(1)}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl"
+              className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-2xl"
             >
               ← Voltar ao Passo 1
             </button>
             <button
               onClick={() => setCurrentStep(3)}
-              className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-600/30"
+              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-extrabold rounded-2xl shadow-xl shadow-blue-500/25"
             >
               <span>Localizar Bobinas Compatíveis</span>
               <ArrowRight className="w-4 h-4" />
@@ -419,19 +437,21 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         <div className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <span className="p-2 bg-blue-600/20 text-blue-400 rounded-xl">{currentStep}</span>
+              <h3 className="text-lg font-black text-white flex items-center gap-2.5 tracking-tight">
+                <span className="p-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-2xl shadow-md">
+                  {currentStep}
+                </span>
                 Passo {currentStep === 3 ? '3: Bobinas Compatíveis Localizadas' : '4: Selecionar o Lote da Bobina'}
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Localizamos <strong>{compatibleCoils.length} lotes disponíveis</strong> no estoque com espessura compatível de <strong className="text-purple-400">{selectedProduct.espessura} mm</strong>.
+              <p className="text-xs text-slate-400 mt-1">
+                Localizamos <strong>{compatibleCoils.length} lotes disponíveis</strong> no estoque com espessura compatível de <strong className="text-purple-400 font-mono">{selectedProduct.espessura} mm</strong>.
               </p>
             </div>
 
             {selectedCoil && (
               <button
                 onClick={() => setCurrentStep(5)}
-                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-lg transition-all"
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-extrabold rounded-2xl shadow-xl shadow-blue-500/25 transition-all hover:scale-105"
               >
                 <span>Avançar para Passo 5 (Calcular Fitas)</span>
                 <ArrowRight className="w-4 h-4" />
@@ -440,8 +460,8 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
           </div>
 
           {compatibleCoils.length === 0 ? (
-            <div className="glass-panel p-8 rounded-2xl border border-red-500/30 bg-red-950/20 text-center space-y-3">
-              <AlertCircle className="w-10 h-10 text-red-400 mx-auto" />
+            <div className="glass-card p-10 rounded-3xl border border-red-500/30 bg-red-950/20 text-center space-y-3">
+              <AlertCircle className="w-12 h-12 text-red-400 mx-auto" />
               <h4 className="text-base font-bold text-red-300">
                 Nenhuma bobina disponível no estoque para espessura de {selectedProduct.espessura} mm!
               </h4>
@@ -469,11 +489,13 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
 
       {/* STEP 5: Initial Strip Calculation & Scrap Check */}
       {currentStep === 5 && selectedProduct && selectedCoil && step5Calculation && (
-        <div className="glass-panel p-6 rounded-2xl border border-slate-800 bg-slate-900/90 shadow-xl space-y-6">
+        <div className="glass-card p-8 rounded-3xl border border-slate-800 bg-slate-900/90 shadow-2xl space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
             <div>
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <span className="p-2 bg-blue-600/20 text-blue-400 rounded-xl">5</span>
+              <h3 className="text-lg font-black text-white flex items-center gap-2.5 tracking-tight">
+                <span className="p-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-2xl shadow-md">
+                  5
+                </span>
                 Passo 5: Resultado do Corte Exclusivo na Bobina
               </h3>
               <p className="text-xs text-slate-400 mt-1">
@@ -481,28 +503,26 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setCurrentStep(4)}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl"
-              >
-                Trocar Lote
-              </button>
-            </div>
+            <button
+              onClick={() => setCurrentStep(4)}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl"
+            >
+              Trocar Lote
+            </button>
           </div>
 
           {/* Primary Calculation Summary Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800">
-              <span className="text-xs text-slate-400 block">Largura da Bobina</span>
-              <span className="text-xl font-bold font-mono text-white mt-1 block">
+            <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800">
+              <span className="text-xs text-slate-400 block font-semibold uppercase text-[10px]">Largura da Bobina</span>
+              <span className="text-2xl font-black font-mono text-white mt-1 block">
                 {selectedCoil.largura} mm
               </span>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800">
-              <span className="text-xs text-slate-400 block">Fitas do Produto Principal</span>
-              <span className="text-xl font-bold font-mono text-blue-400 mt-1 block">
+            <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800">
+              <span className="text-xs text-slate-400 block font-semibold uppercase text-[10px]">Fitas do Produto Principal</span>
+              <span className="text-2xl font-black font-mono text-blue-400 mt-1 block">
                 {step5Calculation.fitasPossiveis} fitas ({selectedProduct.larguraFita} mm cada)
               </span>
               <span className="text-[11px] text-slate-500 font-mono">
@@ -510,21 +530,21 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
               </span>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800">
-              <span className="text-xs text-slate-400 block">Sobra Resultante</span>
-              <span className={`text-xl font-bold font-mono mt-1 block ${
+            <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800">
+              <span className="text-xs text-slate-400 block font-semibold uppercase text-[10px]">Sobra Resultante</span>
+              <span className={`text-2xl font-black font-mono mt-1 block ${
                 step5Calculation.isSobraPermitida ? 'text-emerald-400' : 'text-amber-400'
               }`}>
                 {step5Calculation.sobraMm} mm
               </span>
-              <span className="text-[11px] text-slate-500">
+              <span className="text-[11px] text-slate-500 font-semibold">
                 {step5Calculation.isSobraPermitida ? '✓ Dentro do limite (≤ 10mm)' : '⚠ Superior a 10 mm'}
               </span>
             </div>
 
-            <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800">
-              <span className="text-xs text-slate-400 block">Aproveitamento</span>
-              <span className={`text-xl font-bold font-mono mt-1 block ${
+            <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800">
+              <span className="text-xs text-slate-400 block font-semibold uppercase text-[10px]">Aproveitamento</span>
+              <span className={`text-2xl font-black font-mono mt-1 block ${
                 step5Calculation.aproveitamento >= 99 ? 'text-emerald-400' : 'text-amber-400'
               }`}>
                 {step5Calculation.aproveitamento}%
@@ -534,26 +554,26 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
 
           {/* Decision Box based on scrap */}
           {step5Calculation.isSobraPermitida ? (
-            <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 flex items-start gap-3">
+            <div className="p-5 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 flex items-start gap-3.5 shadow-lg">
               <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
               <div>
-                <h4 className="font-bold text-sm text-emerald-200">
+                <h4 className="font-extrabold text-sm text-emerald-200">
                   Excelente Aproveitamento Inicial!
                 </h4>
-                <p className="text-xs text-emerald-300/90 mt-0.5">
-                  A sobra de <strong>{step5Calculation.sobraMm} mm</strong> já respeita o limite máximo de 10 mm. Você pode prosseguir diretamente ou verificar combinações complementares no Passo 6.
+                <p className="text-xs text-emerald-300/90 mt-0.5 leading-relaxed">
+                  A sobra de <strong>{step5Calculation.sobraMm} mm</strong> já respeita a regra de ouro do PCP de corte com sobra máxima de 10 mm. Você pode avançar para o Passo 6 para conferir combinações com sobra zero ou prosseguir para a simulação.
                 </p>
               </div>
             </div>
           ) : (
-            <div className="p-4 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-300 flex items-start gap-3">
+            <div className="p-5 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-300 flex items-start gap-3.5 shadow-lg">
               <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
               <div>
-                <h4 className="font-bold text-sm text-amber-200">
+                <h4 className="font-extrabold text-sm text-amber-200">
                   Sobra de {step5Calculation.sobraMm} mm é superior ao limite máximo de 10 mm!
                 </h4>
-                <p className="text-xs text-amber-300/90 mt-0.5">
-                  Conforme a regra de negócio do PCP, o sistema irá sugerir no <strong>Passo 6</strong> produtos complementares compatíveis de mesma espessura para preencher essa sobra e garantir o melhor aproveitamento possível.
+                <p className="text-xs text-amber-300/90 mt-0.5 leading-relaxed">
+                  Conforme a regra de negócio do PCP, o motor de otimização combinatória irá sugerir no <strong>Passo 6</strong> produtos complementares compatíveis de mesma espessura para preencher essa sobra e garantir até 100% de aproveitamento.
                 </p>
               </div>
             </div>
@@ -563,13 +583,13 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
           <div className="flex items-center justify-between pt-4 border-t border-slate-800">
             <button
               onClick={() => setCurrentStep(4)}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl"
+              className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-2xl"
             >
               ← Voltar à Seleção de Lote
             </button>
             <button
               onClick={() => setCurrentStep(6)}
-              className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-600/30"
+              className="flex items-center gap-2 px-7 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-black rounded-2xl shadow-xl shadow-blue-500/30 hover:scale-105 transition-all"
             >
               <Sparkles className="w-4 h-4" />
               <span>Ver Sugestões de Otimização (Passo 6)</span>
@@ -584,8 +604,8 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         <div className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <span className="p-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl shadow-md">
+              <h3 className="text-lg font-black text-white flex items-center gap-2.5 tracking-tight">
+                <span className="p-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-2xl shadow-md">
                   <Sparkles className="w-4 h-4" />
                 </span>
                 Passo 6: Sugestões de Combinação & Otimização do Slitter
@@ -599,15 +619,15 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             <div className="flex items-center gap-3">
               <button
                 onClick={() => handleFinishPlanning('simulation')}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700"
+                className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-2xl border border-slate-700"
               >
                 <Scissors className="w-4 h-4 text-blue-400" />
-                <span>Simular no Visualizador Studio</span>
+                <span>Simular no Visualizador</span>
               </button>
 
               <button
                 onClick={() => handleFinishPlanning('order')}
-                className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/30 transition-all hover:scale-105"
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black rounded-2xl shadow-xl shadow-emerald-500/30 transition-all hover:scale-105 glow-emerald"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Gerar Ordem de Slitter (OS)</span>
@@ -618,7 +638,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
           {/* Live Preview of Selected Combination */}
           {selectedCombination && (
             <div className="space-y-3">
-              <div className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+              <div className="text-xs font-extrabold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                 <Scissors className="w-3.5 h-3.5 text-blue-400" />
                 Visualização Gráfica do Corte Selecionado:
               </div>
@@ -632,14 +652,14 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
 
           {/* Combinations List */}
           <div className="space-y-3">
-            <h4 className="text-sm font-bold text-white flex items-center gap-2">
+            <h4 className="text-sm font-extrabold text-white flex items-center gap-2">
               <span>Opções de Combinações Ranqueadas</span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono">
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono">
                 {combinations.length} combinações encontradas
               </span>
             </h4>
 
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               {combinations.map((comb, idx) => {
                 const isSelected = selectedCombination?.id === comb.id;
 
@@ -647,25 +667,25 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                   <div
                     key={comb.id || idx}
                     onClick={() => setSelectedCombination(comb)}
-                    className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                    className={`glass-card p-5 rounded-3xl border transition-all cursor-pointer group ${
                       isSelected
-                        ? 'bg-blue-950/70 border-blue-500 ring-2 ring-blue-500/50 shadow-xl'
-                        : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
+                        ? 'bg-blue-950/70 border-blue-500 ring-2 ring-blue-500/50 shadow-2xl -translate-y-1'
+                        : 'border-slate-800/80 hover:border-blue-500/40 hover:bg-slate-900/90 hover:-translate-y-0.5'
                     }`}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ${
-                          isSelected ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'
+                      <div className="flex items-center gap-3.5">
+                        <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-black text-xs font-mono shadow-md ${
+                          isSelected ? 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white' : 'bg-slate-800 text-slate-300'
                         }`}>
                           #{idx + 1}
                         </div>
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-xs font-bold text-white">{comb.descricao}</span>
-                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${
+                            <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full border ${
                               comb.classificacao === 'PERFEITO'
-                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                                 : comb.classificacao === 'EXCELENTE'
                                 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
                                 : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
@@ -673,20 +693,20 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                               {comb.badgeTexto}
                             </span>
                             {comb.prioridadeDemanda && (
-                              <span className="text-[10px] bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full">
+                              <span className="text-[10px] bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-semibold">
                                 ★ Atende Demanda
                               </span>
                             )}
                           </div>
 
                           {/* Strips summary pills */}
-                          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                          <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
                             {comb.fitas.map((f, fIdx) => (
                               <span
                                 key={fIdx}
-                                className="text-[11px] px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-slate-300 font-mono"
+                                className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-mono font-medium"
                               >
-                                <strong>{f.quantidade}x</strong> {f.product.codigo} ({f.product.larguraFita}mm)
+                                <strong className="text-white">{f.quantidade}x</strong> {f.product.codigo} ({f.product.larguraFita}mm)
                               </span>
                             ))}
                           </div>
@@ -694,32 +714,32 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                       </div>
 
                       {/* Right Metrics */}
-                      <div className="flex items-center gap-4 text-xs font-mono">
+                      <div className="flex items-center gap-5 text-xs font-mono">
                         <div className="text-right">
-                          <div className="text-slate-400 text-[10px]">LARGURA USADA</div>
-                          <div className="font-bold text-white">{comb.totalLarguraUsada} mm</div>
+                          <div className="text-slate-400 text-[10px] uppercase font-bold">Largura Útil</div>
+                          <div className="font-black text-white text-sm">{comb.totalLarguraUsada} mm</div>
                         </div>
 
                         <div className="text-right">
-                          <div className="text-slate-400 text-[10px]">SOBRA</div>
-                          <div className={`font-bold ${comb.sobraMm <= 10 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                          <div className="text-slate-400 text-[10px] uppercase font-bold">Sobra</div>
+                          <div className={`font-black text-sm ${comb.sobraMm <= 10 ? 'text-emerald-400' : 'text-amber-400'}`}>
                             {comb.sobraMm} mm
                           </div>
                         </div>
 
                         <div className="text-right">
-                          <div className="text-slate-400 text-[10px]">APROVEITAMENTO</div>
-                          <div className="font-bold text-emerald-400 text-sm">
+                          <div className="text-slate-400 text-[10px] uppercase font-bold">Aproveitamento</div>
+                          <div className="font-black text-emerald-400 text-base">
                             {comb.aproveitamentoPercent}%
                           </div>
                         </div>
 
                         <button
                           type="button"
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                          className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all ${
                             isSelected
-                              ? 'bg-blue-600 text-white shadow'
-                              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                              ? 'bg-blue-600 text-white shadow-md'
+                              : 'bg-slate-800 text-slate-300 hover:bg-blue-600 hover:text-white'
                           }`}
                         >
                           {isSelected ? '✓ Selecionada' : 'Selecionar'}

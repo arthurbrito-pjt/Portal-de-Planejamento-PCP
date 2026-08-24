@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
-import { Sidebar } from './components/Sidebar';
+import { Sidebar, TabType } from './components/Sidebar';
 import { DashboardView } from './views/DashboardView';
 import { PlanningView } from './views/PlanningView';
 import { SimulationView } from './views/SimulationView';
@@ -11,7 +11,7 @@ import { StorageService } from './services/storageService';
 import { Product, Coil, SlitterStrip, SlitterOrder, SlitterCombination } from './types/pcp';
 import { 
   LayoutDashboard, 
-  CalendarClock, 
+  Sliders, 
   Scissors, 
   ClipboardCheck, 
   BarChart3, 
@@ -19,7 +19,9 @@ import {
 } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const [currentTab, setCurrentTab] = useState<string>('dashboard');
+  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [firebaseOnline, setFirebaseOnline] = useState<boolean>(true);
   
   // Data state
   const [products, setProducts] = useState<Product[]>([]);
@@ -42,10 +44,22 @@ export const App: React.FC = () => {
     setKpis(StorageService.getKPIs());
   };
 
+  const handleSyncFirebase = async () => {
+    setIsSyncing(true);
+    try {
+      await StorageService.syncWithFirestore();
+      setFirebaseOnline(true);
+      loadData();
+    } catch {
+      setFirebaseOnline(false);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   useEffect(() => {
     loadData();
-    // Try background sync with Firebase on initial mount
-    StorageService.syncWithFirestore().catch(() => {});
+    handleSyncFirebase().catch(() => {});
   }, []);
 
   // Handlers for cross-view navigation
@@ -55,21 +69,21 @@ export const App: React.FC = () => {
     } else {
       setPreSelectedProductId(null);
     }
-    setCurrentTab('planejamento');
+    setActiveTab('planning');
   };
 
   const handleProceedToSimulation = (coil: Coil, strips: SlitterStrip[], combination?: SlitterCombination) => {
     setActiveCoil(coil);
     setActiveStrips(strips);
     setActiveOrder(null);
-    setCurrentTab('simulacao');
+    setActiveTab('simulation');
   };
 
   const handleProceedToOrder = (coil: Coil, strips: SlitterStrip[], combination?: SlitterCombination) => {
     setActiveCoil(coil);
     setActiveStrips(strips);
     setActiveOrder(null);
-    setCurrentTab('ordem-slitter');
+    setActiveTab('order');
   };
 
   const handleViewOrderDetails = (order: SlitterOrder) => {
@@ -85,7 +99,7 @@ export const App: React.FC = () => {
       status: 'Consumida'
     });
     setActiveStrips(order.fitas);
-    setCurrentTab('ordem-slitter');
+    setActiveTab('order');
   };
 
   const handleOrderSaved = (savedOrder: SlitterOrder) => {
@@ -94,106 +108,106 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-blue-600 selection:text-white">
-      {/* Top Navigation */}
+      {/* Top Navbar */}
       <Navbar
-        currentTab={currentTab}
-        onSelectTab={setCurrentTab}
-        onRefreshData={loadData}
+        firebaseOnline={firebaseOnline}
+        onSync={handleSyncFirebase}
+        isSyncing={isSyncing}
       />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar (Desktop) */}
+      {/* Main Container with Sidebar + Content */}
+      <div className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col lg:flex-row gap-6">
+        {/* Desktop Sidebar */}
         <Sidebar
-          currentTab={currentTab}
-          onSelectTab={setCurrentTab}
+          activeTab={activeTab}
+          onSelectTab={setActiveTab}
+          ordersCount={orders.length}
+          coilsCount={coils.filter(c => c.status === 'Disponível').length}
         />
 
-        {/* View Router Container */}
-        <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="max-w-7xl mx-auto">
-            {currentTab === 'dashboard' && (
-              <DashboardView
-                kpis={kpis}
-                coils={coils}
-                products={products}
-                orders={orders}
-                onNavigateToPlanning={handleNavigateToPlanning}
-                onNavigateToOrders={() => setCurrentTab('relatorios')}
-                onNavigateToData={() => setCurrentTab('dados')}
-              />
-            )}
+        {/* Dynamic View Panel */}
+        <main className="flex-1 min-w-0">
+          {activeTab === 'dashboard' && (
+            <DashboardView
+              kpis={kpis}
+              coils={coils}
+              products={products}
+              orders={orders}
+              onNavigateToPlanning={handleNavigateToPlanning}
+              onNavigateToOrders={() => setActiveTab('reports')}
+              onNavigateToData={() => setActiveTab('data')}
+            />
+          )}
 
-            {currentTab === 'planejamento' && (
-              <PlanningView
-                products={products}
-                coils={coils}
-                preSelectedProductId={preSelectedProductId}
-                onProceedToSimulation={handleProceedToSimulation}
-                onProceedToOrder={handleProceedToOrder}
-              />
-            )}
+          {activeTab === 'planning' && (
+            <PlanningView
+              products={products}
+              coils={coils}
+              preSelectedProductId={preSelectedProductId}
+              onProceedToSimulation={handleProceedToSimulation}
+              onProceedToOrder={handleProceedToOrder}
+            />
+          )}
 
-            {currentTab === 'simulacao' && (
-              <SimulationView
-                coil={activeCoil}
-                strips={activeStrips}
-                products={products}
-                onUpdateStrips={setActiveStrips}
-                onProceedToOrder={handleProceedToOrder}
-                onNavigateToPlanning={() => setCurrentTab('planejamento')}
-              />
-            )}
+          {activeTab === 'simulation' && (
+            <SimulationView
+              coil={activeCoil}
+              strips={activeStrips}
+              products={products}
+              onUpdateStrips={setActiveStrips}
+              onProceedToOrder={handleProceedToOrder}
+              onNavigateToPlanning={() => setActiveTab('planning')}
+            />
+          )}
 
-            {currentTab === 'ordem-slitter' && (
-              <SlitterOrderView
-                order={activeOrder}
-                coil={activeCoil}
-                strips={activeStrips}
-                onOrderSaved={handleOrderSaved}
-                onNavigateToPlanning={() => setCurrentTab('planejamento')}
-              />
-            )}
+          {activeTab === 'order' && (
+            <SlitterOrderView
+              order={activeOrder}
+              coil={activeCoil}
+              strips={activeStrips}
+              onOrderSaved={handleOrderSaved}
+              onNavigateToPlanning={() => setActiveTab('planning')}
+            />
+          )}
 
-            {currentTab === 'relatorios' && (
-              <ReportsView
-                orders={orders}
-                coils={coils}
-                products={products}
-                history={history}
-                onViewOrderDetails={handleViewOrderDetails}
-              />
-            )}
+          {activeTab === 'reports' && (
+            <ReportsView
+              orders={orders}
+              coils={coils}
+              products={products}
+              history={history}
+              onViewOrderDetails={handleViewOrderDetails}
+            />
+          )}
 
-            {currentTab === 'dados' && (
-              <DataManagementView
-                coils={coils}
-                products={products}
-                onDataUpdated={loadData}
-              />
-            )}
-          </div>
+          {activeTab === 'data' && (
+            <DataManagementView
+              coils={coils}
+              products={products}
+              onDataUpdated={loadData}
+            />
+          )}
         </main>
       </div>
 
       {/* Mobile Bottom Navigation Bar */}
-      <div className="md:hidden sticky bottom-0 z-40 w-full border-t border-slate-800 bg-slate-900/95 backdrop-blur px-2 py-1.5 flex items-center justify-around">
+      <div className="lg:hidden sticky bottom-0 z-40 w-full border-t border-slate-800 bg-slate-950/95 backdrop-blur-xl px-2 py-1.5 flex items-center justify-around">
         {[
-          { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-          { id: 'planejamento', label: 'Planejar', icon: CalendarClock },
-          { id: 'simulacao', label: 'Slitter', icon: Scissors },
-          { id: 'ordem-slitter', label: 'OS', icon: ClipboardCheck },
-          { id: 'relatorios', label: 'Relatórios', icon: BarChart3 },
-          { id: 'dados', label: 'Dados', icon: Database }
+          { id: 'dashboard' as TabType, label: 'Dashboard', icon: LayoutDashboard },
+          { id: 'planning' as TabType, label: 'Planejar', icon: Sliders },
+          { id: 'simulation' as TabType, label: 'Slitter', icon: Scissors },
+          { id: 'order' as TabType, label: 'OS', icon: ClipboardCheck },
+          { id: 'reports' as TabType, label: 'Relatórios', icon: BarChart3 },
+          { id: 'data' as TabType, label: 'Dados', icon: Database }
         ].map(item => {
           const Icon = item.icon;
-          const isActive = currentTab === item.id;
+          const isActive = activeTab === item.id;
           return (
             <button
               key={item.id}
-              onClick={() => setCurrentTab(item.id)}
-              className={`flex flex-col items-center gap-1 p-1.5 rounded-lg text-[10px] font-semibold transition-all ${
-                isActive ? 'text-blue-400 font-bold' : 'text-slate-400 hover:text-white'
+              onClick={() => setActiveTab(item.id)}
+              className={`flex flex-col items-center gap-1 p-2 rounded-xl text-[10px] font-bold transition-all ${
+                isActive ? 'text-blue-400 bg-blue-500/10' : 'text-slate-400 hover:text-white'
               }`}
             >
               <Icon className="w-4 h-4" />
