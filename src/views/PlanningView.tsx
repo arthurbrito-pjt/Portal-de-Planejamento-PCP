@@ -54,8 +54,14 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   // Step 2: Desired Quantity
   const [desiredQtyTon, setDesiredQtyTon] = useState<number>(10);
 
-  // Step 4: Selected Coil Lot
-  const [selectedCoil, setSelectedCoil] = useState<Coil | null>(null);
+  // Step 4: Selected Coil Lots (Multi-Coil selection)
+  const [selectedCoils, setSelectedCoils] = useState<Coil[]>([]);
+
+  const selectedCoil = useMemo(() => selectedCoils[0] || null, [selectedCoils]);
+
+  const totalSelectedCoilsWeightTon = useMemo(() => {
+    return Number(selectedCoils.reduce((acc, c) => acc + c.peso, 0).toFixed(3));
+  }, [selectedCoils]);
 
   // Step 6: Selected Slitter Combination
   const [selectedCombination, setSelectedCombination] = useState<SlitterCombination | null>(null);
@@ -118,10 +124,35 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   }, [coils, selectedProduct]);
 
   useEffect(() => {
-    if (compatibleCoils.length > 0 && (!selectedCoil || selectedCoil.espessura !== selectedProduct?.espessura)) {
-      setSelectedCoil(compatibleCoils[0]);
+    if (compatibleCoils.length > 0) {
+      const isMismatch = selectedCoils.length === 0 || selectedCoils.some(sc => Math.abs(sc.espessura - (selectedProduct?.espessura || 0)) > 0.001);
+      if (isMismatch) {
+        setSelectedCoils([compatibleCoils[0]]);
+      }
+    } else {
+      setSelectedCoils([]);
     }
   }, [compatibleCoils, selectedProduct]);
+
+  const handleToggleCoil = (coil: Coil) => {
+    if (selectedCoils.some(c => c.id === coil.id)) {
+      if (selectedCoils.length > 1) {
+        setSelectedCoils(selectedCoils.filter(c => c.id !== coil.id));
+      }
+    } else {
+      setSelectedCoils([...selectedCoils, coil]);
+    }
+  };
+
+  const handleSelectAllCoils = () => {
+    setSelectedCoils(compatibleCoils);
+  };
+
+  const handleClearCoilSelection = () => {
+    if (compatibleCoils.length > 0) {
+      setSelectedCoils([compatibleCoils[0]]);
+    }
+  };
 
   const combinations = useMemo(() => {
     if (!selectedProduct || !selectedCoil) return [];
@@ -160,19 +191,34 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
 
   const currentStrips = useMemo(() => {
     if (!selectedCoil) return [];
+    
+    // Create effective coil for strip weight calculation considering total multi-coil tonnage
+    const effectiveCoil: Coil = selectedCoils.length > 1 ? {
+      ...selectedCoil,
+      peso: totalSelectedCoilsWeightTon,
+      lote: selectedCoils.map(c => c.lote).join(' + ')
+    } : selectedCoil;
+
     if (selectedCombination) {
-      return SlitterOptimizer.generateStripsFromCombination(selectedCombination, selectedCoil);
+      return SlitterOptimizer.generateStripsFromCombination(selectedCombination, effectiveCoil);
     }
     return [];
-  }, [selectedCombination, selectedCoil]);
+  }, [selectedCombination, selectedCoil, selectedCoils, totalSelectedCoilsWeightTon]);
 
   const handleFinishPlanning = (action: 'simulation' | 'order') => {
     if (!selectedCoil || currentStrips.length === 0) return;
 
+    const targetCoil: Coil = selectedCoils.length > 1 ? {
+      ...selectedCoil,
+      lote: selectedCoils.map(c => c.lote).join(' + '),
+      peso: totalSelectedCoilsWeightTon,
+      quantidade: selectedCoils.length
+    } : selectedCoil;
+
     if (action === 'simulation') {
-      onProceedToSimulation(selectedCoil, currentStrips, selectedCombination || undefined);
+      onProceedToSimulation(targetCoil, currentStrips, selectedCombination || undefined);
     } else {
-      onProceedToOrder(selectedCoil, currentStrips, selectedCombination || undefined);
+      onProceedToOrder(targetCoil, currentStrips, selectedCombination || undefined);
     }
   };
 
@@ -488,7 +534,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         </div>
       )}
 
-      {/* STEP 3 & 4: Compatible Coils */}
+      {/* STEP 3 & 4: Compatible Coils (Multi-Coil Selection) */}
       {(currentStep === 3 || currentStep === 4) && selectedProduct && (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -497,23 +543,56 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                 <span className="p-2 bg-blue-600 text-white rounded-xl text-xs">
                   {currentStep}
                 </span>
-                Passo {currentStep === 3 ? '3: Bobinas Compatíveis Localizadas' : '4: Selecionar o Lote da Bobina'}
+                Passo {currentStep === 3 ? '3: Bobinas Compatíveis Localizadas' : '4: Selecionar Lote(s) de Bobina'}
               </h3>
               <p className="text-xs text-slate-500 mt-1">
-                Localizamos <strong>{compatibleCoils.length} lotes disponíveis</strong> no estoque com espessura compatível de <strong className="text-purple-700 font-mono">{selectedProduct.espessura} mm</strong>.
+                Localizamos <strong>{compatibleCoils.length} lotes disponíveis</strong> no estoque com espessura de <strong className="text-purple-700 font-mono">{selectedProduct.espessura} mm</strong>. Você pode selecionar mais de uma bobina.
               </p>
             </div>
 
-            {selectedCoil && (
+            {selectedCoils.length > 0 && (
               <button
                 onClick={() => setCurrentStep(5)}
                 className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-2xl shadow-md shadow-blue-500/20 transition-all hover:scale-105"
               >
-                <span>Avançar para Passo 5 (Calcular Fitas)</span>
+                <span>Avançar para Passo 5 ({selectedCoils.length} Lote{selectedCoils.length > 1 ? 's' : ''})</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             )}
           </div>
+
+          {compatibleCoils.length > 0 && (
+            <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="px-3.5 py-2 bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl font-mono text-xs font-black flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-blue-600" />
+                  <span>{selectedCoils.length} de {compatibleCoils.length} Bobina(s) Selecionada(s)</span>
+                </div>
+                <div className="text-xs text-slate-700 font-mono font-bold">
+                  Peso Total da Matéria-Prima: <span className="text-emerald-700 font-black text-sm">{totalSelectedCoilsWeightTon} t</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSelectAllCoils}
+                  className="px-3.5 py-2 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 text-xs font-bold rounded-2xl border border-slate-200 transition-all"
+                >
+                  ✓ Selecionar Todas ({compatibleCoils.length})
+                </button>
+                {selectedCoils.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={handleClearCoilSelection}
+                    className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-2xl border border-slate-200 transition-all"
+                  >
+                    Manter Apenas 1
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {compatibleCoils.length === 0 ? (
             <div className="bg-red-50 p-10 rounded-3xl border border-red-200 text-center space-y-3">
@@ -528,9 +607,9 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                 <CoilCard
                   key={c.id}
                   coil={c}
-                  isSelected={selectedCoil?.id === c.id}
+                  isSelected={selectedCoils.some(sc => sc.id === c.id)}
                   onSelect={() => {
-                    setSelectedCoil(c);
+                    handleToggleCoil(c);
                     setCurrentStep(4);
                   }}
                 />
@@ -552,7 +631,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                 Passo 5: Resultado do Corte Exclusivo na Bobina
               </h3>
               <p className="text-xs text-slate-500 mt-1">
-                Lote: <strong className="text-blue-700 font-mono">{selectedCoil.lote}</strong> | Largura: <strong className="text-slate-900 font-mono">{selectedCoil.largura} mm</strong>
+                Lote(s): <strong className="text-blue-700 font-mono">{selectedCoils.map(c => c.lote).join(', ')}</strong> | Largura Base: <strong className="text-slate-900 font-mono">{selectedCoil.largura} mm</strong> | Peso Total: <strong className="text-emerald-700 font-mono">{totalSelectedCoilsWeightTon} t</strong>
               </p>
             </div>
 
@@ -560,7 +639,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
               onClick={() => setCurrentStep(4)}
               className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl"
             >
-              Trocar Lote
+              Trocar / Ajustar Lotes
             </button>
           </div>
 
@@ -639,7 +718,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                 Passo 6: Sugestões de Combinação & Otimização do Slitter
               </h3>
               <p className="text-xs text-slate-500 mt-1">
-                Motor de otimização combinatória buscando soluções com <strong>refilo ideal entre 10 e 18 mm (~1,5%)</strong> para a bobina de <strong className="text-slate-900 font-mono">{selectedCoil.largura} mm</strong>.
+                Motor de otimização combinatória buscando soluções com <strong>refilo ideal entre 10 e 18 mm (~1,5%)</strong> para {selectedCoils.length > 1 ? `${selectedCoils.length} bobinas (${totalSelectedCoilsWeightTon} t)` : `a bobina de ${selectedCoil.largura} mm`}.
               </p>
             </div>
 
@@ -665,7 +744,11 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
           {selectedCombination && (
             <div className="space-y-3">
               <SlitterVisualizer
-                coil={selectedCoil}
+                coil={{
+                  ...selectedCoil,
+                  lote: selectedCoils.map(c => c.lote).join(' + '),
+                  peso: totalSelectedCoilsWeightTon
+                }}
                 strips={currentStrips}
                 interactive={false}
               />
@@ -714,16 +797,20 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                           </div>
 
                           <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                            {comb.fitas.map((f, fIdx) => (
-                              <span
-                                key={fIdx}
-                                className="text-xs px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-mono font-medium flex items-center gap-1.5"
-                              >
-                                <strong className="text-blue-700 font-black">{f.quantidade}x Fita {f.product.larguraFita}mm</strong>
-                                <span className="text-slate-400">→</span>
-                                <span className="text-slate-900 font-bold">p/ {f.product.codigo}</span>
-                              </span>
-                            ))}
+                            {comb.fitas.map((f, fIdx) => {
+                              const slt = SlitterCatalogService.getSlitterInfo(f.product.larguraFita, f.product.espessura, f.product);
+
+                              return (
+                                <span
+                                  key={fIdx}
+                                  className="text-xs px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-mono font-medium flex items-center gap-1.5"
+                                >
+                                  <strong className="text-blue-700 font-black">{f.quantidade}x {slt.code} ({f.product.larguraFita}mm)</strong>
+                                  <span className="text-slate-400">→</span>
+                                  <span className="text-slate-900 font-bold">p/ {f.product.codigo}</span>
+                                </span>
+                              );
+                            })}
                           </div>
                         </div>
                       </div>

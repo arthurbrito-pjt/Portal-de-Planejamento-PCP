@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { SlitterStrip, Coil } from '../types/pcp';
+import { SlitterCatalogService } from '../services/slitterCatalogService';
 import { 
   Scissors, 
   AlertTriangle, 
@@ -158,12 +159,12 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
                   )}
                 </div>
 
-                <div className="text-center my-auto overflow-hidden">
+                <div className="text-center my-auto overflow-hidden px-0.5">
                   <div className="text-sm sm:text-base font-black text-white font-mono drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                     {strip.largura} mm
                   </div>
-                  <div className="text-[10px] font-bold text-white/95 truncate drop-shadow">
-                    {strip.productCode}
+                  <div className="text-[10px] font-black text-white uppercase truncate drop-shadow tracking-tight">
+                    {SlitterCatalogService.getSlitterInfo(strip.largura, strip.espessura).code}
                   </div>
                 </div>
 
@@ -225,43 +226,51 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
       </div>
 
       {/* Floating Strip Inspection Card on Hover */}
-      {hoveredStrip && (
-        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4 text-xs animate-fadeIn">
-          <div className="flex items-center gap-3">
-            <span
-              className="w-4 h-4 rounded-full shadow ring-2 ring-white"
-              style={{ backgroundColor: hoveredStrip.cor }}
-            />
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-black text-slate-900 font-mono">Fita #{hoveredStrip.stripNumber}</span>
-                <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-mono font-black border border-blue-200">
-                  {hoveredStrip.productCode}
-                </span>
-                <span className="text-[10px] px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold border border-purple-200">
-                  {hoveredStrip.productFamily}
-                </span>
+      {hoveredStrip && (() => {
+        const sltInfo = SlitterCatalogService.getSlitterInfo(hoveredStrip.largura, hoveredStrip.espessura);
+        return (
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4 text-xs animate-fadeIn">
+            <div className="flex items-center gap-3">
+              <span
+                className="w-4 h-4 rounded-full shadow ring-2 ring-white"
+                style={{ backgroundColor: hoveredStrip.cor }}
+              />
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-slate-900 font-mono">Fita #{hoveredStrip.stripNumber}</span>
+                  <span className="text-xs px-2.5 py-0.5 rounded bg-blue-600 text-white font-mono font-black border border-blue-700 shadow-xs">
+                    ✂️ {sltInfo.code}
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold border border-purple-200">
+                    {hoveredStrip.productFamily}
+                  </span>
+                </div>
+                <div className="text-xs font-bold text-slate-800 mt-1">
+                  Slitter: {sltInfo.name}
+                </div>
+                <p className="text-slate-500 text-[11px] mt-0.5 font-medium">
+                  Material de Destino: <strong className="text-slate-900 font-mono">{hoveredStrip.productCode}</strong> ({hoveredStrip.productDescription})
+                </p>
               </div>
-              <p className="text-slate-600 text-xs mt-0.5 font-medium">{hoveredStrip.productDescription}</p>
             </div>
-          </div>
 
-          <div className="flex items-center gap-4 text-slate-700 font-mono">
-            <div className="p-2 rounded-xl bg-white border border-slate-200 text-center">
-              <span className="text-[10px] text-slate-400 block font-bold">LARGURA</span>
-              <strong className="text-slate-900 text-sm font-black">{hoveredStrip.largura} mm</strong>
-            </div>
-            <div className="p-2 rounded-xl bg-white border border-slate-200 text-center">
-              <span className="text-[10px] text-slate-400 block font-bold">PESO ALOCADO</span>
-              <strong className="text-emerald-700 text-sm font-black">{hoveredStrip.pesoTon} t ({hoveredStrip.pesoKg} kg)</strong>
-            </div>
-            <div className="p-2 rounded-xl bg-white border border-slate-200 text-center">
-              <span className="text-[10px] text-slate-400 block font-bold">METROS LINEARES</span>
-              <strong className="text-blue-700 text-sm font-black">{hoveredStrip.metrosLineares} m</strong>
+            <div className="flex items-center gap-4 text-slate-700 font-mono">
+              <div className="p-2 rounded-xl bg-white border border-slate-200 text-center">
+                <span className="text-[10px] text-slate-400 block font-bold">LARGURA</span>
+                <strong className="text-slate-900 text-sm font-black">{hoveredStrip.largura} mm</strong>
+              </div>
+              <div className="p-2 rounded-xl bg-white border border-slate-200 text-center">
+                <span className="text-[10px] text-slate-400 block font-bold">PESO ALOCADO</span>
+                <strong className="text-emerald-700 text-sm font-black">{hoveredStrip.pesoTon} t ({hoveredStrip.pesoKg} kg)</strong>
+              </div>
+              <div className="p-2 rounded-xl bg-white border border-slate-200 text-center">
+                <span className="text-[10px] text-slate-400 block font-bold">METROS LINEARES</span>
+                <strong className="text-blue-700 text-sm font-black">{hoveredStrip.metrosLineares} m</strong>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* KPI Cards Summary Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
