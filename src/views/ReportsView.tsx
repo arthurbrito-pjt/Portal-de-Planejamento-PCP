@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
 import { Coil, Product, SlitterOrder, CutHistoryItem } from '../types/pcp';
 import { ExcelService } from '../services/excelService';
-import { 
-  BarChart3, 
-  FileSpreadsheet, 
-  Search, 
-  Disc, 
-  Layers, 
-  Scissors, 
-  TrendingUp, 
-  Eye
+import { OpSummaryView } from '../components/OpSummaryView';
+import {
+  BarChart3,
+  FileSpreadsheet,
+  Search,
+  Disc,
+  Layers,
+  Scissors,
+  TrendingUp,
+  Eye,
+  FileText,
+  ArrowLeft
 } from 'lucide-react';
 import { MetricsBadge } from '../components/MetricsBadge';
 
@@ -18,21 +21,60 @@ interface ReportsViewProps {
   coils: Coil[];
   products: Product[];
   history: CutHistoryItem[];
-  onViewOrderDetails: (order: SlitterOrder) => void;
+  selectedOpIdSummary?: string | null;
+  onSelectOpSummary?: (opId: string | null) => void;
+  onViewOrderDetails?: (order: SlitterOrder) => void;
+  onNavigateToDashboard?: () => void;
 }
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
   orders,
   coils,
   products,
-  onViewOrderDetails
+  selectedOpIdSummary,
+  onSelectOpSummary,
+  onViewOrderDetails,
+  onNavigateToDashboard
 }) => {
   const [activeReportTab, setActiveReportTab] = useState<'slitters' | 'bobinas' | 'produtos' | 'perdas'>('slitters');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [localSelectedOrderSummary, setLocalSelectedOrderSummary] = useState<SlitterOrder | null>(null);
 
   const handleExportAll = () => {
     ExcelService.exportReportsToExcel(coils, products, orders);
   };
+
+  // Find active OP summary by prop or local state
+  const activeOpSummaryOrder = selectedOpIdSummary 
+    ? orders.find(o => o.id === selectedOpIdSummary || o.numeroOP === selectedOpIdSummary || o.numeroOS === selectedOpIdSummary) || localSelectedOrderSummary
+    : localSelectedOrderSummary;
+
+  const handleSelectOp = (order: SlitterOrder) => {
+    const opId = order.numeroOP || order.numeroOS || order.id;
+    if (onSelectOpSummary) {
+      onSelectOpSummary(opId);
+    } else {
+      setLocalSelectedOrderSummary(order);
+    }
+  };
+
+  const handleBackFromSummary = () => {
+    if (onSelectOpSummary) {
+      onSelectOpSummary(null);
+    } else {
+      setLocalSelectedOrderSummary(null);
+    }
+  };
+
+  // If viewing an OP summary, render the summary as a native full page view
+  if (activeOpSummaryOrder) {
+    return (
+      <OpSummaryView
+        order={activeOpSummaryOrder}
+        onBack={handleBackFromSummary}
+      />
+    );
+  }
 
   const filteredOrders = orders.filter(o => 
     (o.numeroOP || o.numeroOS || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -50,19 +92,30 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     <div className="space-y-6 pb-16 animate-fadeIn">
       {/* Top Banner */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-black text-slate-900 flex items-center gap-2.5 tracking-tight">
-            <BarChart3 className="w-5 h-5 text-blue-600" />
-            TELA 5 – Relatórios Gerenciais & Histórico de Cortes
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            Consulte o histórico de slitters programados, aproveitamento das bobinas e balanço de matéria-prima.
-          </p>
+        <div className="flex items-center gap-3">
+          {onNavigateToDashboard && (
+            <button
+              onClick={onNavigateToDashboard}
+              className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-xs flex items-center gap-1.5 text-xs font-bold"
+            >
+              <ArrowLeft className="w-4 h-4 text-blue-600" />
+              <span>Voltar ao Painel</span>
+            </button>
+          )}
+          <div>
+            <h2 className="text-xl font-black text-slate-900 flex items-center gap-2.5 tracking-tight">
+              <BarChart3 className="w-5 h-5 text-blue-600" />
+              Relatórios Gerenciais & Histórico de Cortes
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Consulte o histórico de slitters programados, aproveitamento das bobinas e balanço de matéria-prima.
+            </p>
+          </div>
         </div>
 
         <button
           onClick={handleExportAll}
-          className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-2xl shadow-md shadow-emerald-600/20 transition-all hover:scale-105"
+          className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all"
         >
           <FileSpreadsheet className="w-4 h-4" />
           <span>Exportar Relatórios em Excel (.xlsx)</span>
@@ -84,9 +137,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <button
               key={tab.id}
               onClick={() => setActiveReportTab(tab.id as any)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black whitespace-nowrap transition-all ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                 isActive
-                  ? 'bg-blue-600 text-white shadow-sm'
+                  ? 'bg-blue-600 text-white shadow-xs'
                   : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200'
               }`}
             >
@@ -112,13 +165,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           placeholder="Pesquisar por OP, lote, código..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-sm"
+          className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-xs"
         />
       </div>
 
       {/* TAB 1: Slitter Orders */}
       {activeReportTab === 'slitters' && (
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
             <h3 className="text-sm font-black text-slate-900 tracking-tight">
               Ordens de Produção (OP) de Slitter Registradas ({filteredOrders.length})
@@ -165,13 +218,24 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         <MetricsBadge type="status" value={o.status} size="sm" />
                       </td>
                       <td className="py-3.5 px-3 text-center">
-                        <button
-                          onClick={() => onViewOrderDetails(o)}
-                          className="p-2 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white border border-blue-200 transition-all shadow-sm"
-                          title="Visualizar OP"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => handleSelectOp(o)}
+                            className="p-2 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white border border-blue-200 transition-all shadow-xs flex items-center justify-center"
+                            title="Visualizar Resumo da OP"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          {onViewOrderDetails && (
+                            <button
+                              onClick={() => onViewOrderDetails(o)}
+                              className="p-2 rounded-xl bg-slate-50 hover:bg-slate-800 text-slate-600 hover:text-white border border-slate-200 transition-all shadow-xs flex items-center justify-center"
+                              title="Abrir OP Completa"
+                            >
+                              <FileText className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -184,7 +248,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
       {/* TAB 2: Coils */}
       {activeReportTab === 'bobinas' && (
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
             <h3 className="text-sm font-black text-slate-900 tracking-tight">
               Estoque e Consumo de Bobinas ({coils.length} lotes)
@@ -226,7 +290,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
       {/* TAB 3: Products */}
       {activeReportTab === 'produtos' && (
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
             <h3 className="text-sm font-black text-slate-900 tracking-tight">
               Catálogo de Produtos e Blanks de Fita ({products.length} itens)
@@ -270,28 +334,28 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {activeReportTab === 'perdas' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
               <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Bobinas Processadas</span>
               <span className="text-2xl font-black font-mono text-slate-900 mt-1.5 block">
                 {totalCoilsCut} bobinas
               </span>
             </div>
 
-            <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
               <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Peso Processado</span>
               <span className="text-2xl font-black font-mono text-blue-700 mt-1.5 block">
                 {totalWeightProcessed} t
               </span>
             </div>
 
-            <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
               <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Refilo Médio</span>
               <span className="text-2xl font-black font-mono text-emerald-700 mt-1.5 block">
                 {avgScrapMm} mm (Faixa 10 a 18 mm)
               </span>
             </div>
 
-            <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
               <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Refilo Gerado</span>
               <span className="text-2xl font-black font-mono text-amber-700 mt-1.5 block">
                 {totalScrapTon} t

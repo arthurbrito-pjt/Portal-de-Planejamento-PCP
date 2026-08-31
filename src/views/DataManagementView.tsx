@@ -11,19 +11,22 @@ import {
   Disc, 
   Layers, 
   RotateCcw,
-  Cloud
+  Cloud,
+  ArrowLeft
 } from 'lucide-react';
 
 interface DataManagementViewProps {
   coils: Coil[];
   products: Product[];
   onDataUpdated: () => void;
+  onNavigateToDashboard?: () => void;
 }
 
 export const DataManagementView: React.FC<DataManagementViewProps> = ({
   coils,
   products,
-  onDataUpdated
+  onDataUpdated,
+  onNavigateToDashboard
 }) => {
   const [activeTab, setActiveTab] = useState<'import' | 'coils' | 'products' | 'firebase'>('import');
   const [importStatus, setImportStatus] = useState<string>('');
@@ -156,14 +159,25 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
     <div className="space-y-6 pb-16 animate-fadeIn">
       {/* Top Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
-            <Database className="w-5 h-5 text-blue-600" />
-            TELA 6 – Gestão de Dados & Importador de Planilhas Excel
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            Importe arquivos Excel, gerencie o catálogo de produtos e bobinas ou sincronize com o Firebase Firestore.
-          </p>
+        <div className="flex items-center gap-3">
+          {onNavigateToDashboard && (
+            <button
+              onClick={onNavigateToDashboard}
+              className="px-3.5 py-2 rounded-2xl bg-white hover:bg-slate-100 text-slate-700 transition-colors border border-slate-200 shadow-sm flex items-center gap-1.5 text-xs font-black"
+            >
+              <ArrowLeft className="w-4 h-4 text-blue-600" />
+              <span>Voltar ao Painel</span>
+            </button>
+          )}
+          <div>
+            <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+              <Database className="w-5 h-5 text-blue-600" />
+              Gestão de Dados & Importador de Planilhas Excel
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Importe arquivos Excel, gerencie o catálogo de produtos e bobinas ou sincronize com o Firebase Firestore.
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">

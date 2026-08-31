@@ -84,3 +84,73 @@
 .animate-fadeIn {
   animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* ------------------------------------------------------------- */
+/* Industrial Tag & Document Media Print Specification          */
+/* ------------------------------------------------------------- */
+@media screen {
+  #print-mount {
+    display: none !important;
+  }
+}
+
+@media print {
+  /* Force exact background colors & color-adjust for thermal/label printers */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* When printing portal-mounted content (Slitter Tags): */
+  body.printing-portal #root {
+    display: none !important;
+  }
+
+  body.printing-portal #print-mount {
+    display: block !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* When printing normal OP document inside root: */
+  body:not(.printing-portal) #print-mount {
+    display: none !important;
+  }
+
+  body:not(.printing-portal) aside,
+  body:not(.printing-portal) header,
+  body:not(.printing-portal) nav,
+  body:not(.printing-portal) .print\:hidden,
+  body:not(.printing-portal) button,
+  body:not(.printing-portal) .no-print {
+    display: none !important;
+  }
+
+  /* Reset document background & overflow */
+  body, html {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Page margin setup */
+  @page {
+    size: auto;
+    margin: 5mm;
+  }
+
+  /* Tag cards page break control */
+  .print-tag-card {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    margin-bottom: 12px !important;
+  }
+}

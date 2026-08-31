@@ -102,140 +102,138 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   }, [slitterDemands, searchQuery, thicknessFilter]);
 
   return (
-    <div className="space-y-6 pb-16 animate-fadeIn w-full">
+    <div className="space-y-5 pb-16 animate-fadeIn w-full">
       {/* Top Cockpit Header Banner */}
-      <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-6">
-        <div className="space-y-1.5 max-w-3xl">
-          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+      <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-4">
+        <div className="space-y-1 max-w-3xl">
+          <h2 className="text-xl font-black text-slate-900 tracking-tight">
             Central de Programação de Slitters & Matéria-Prima
           </h2>
-          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-medium">
-            Programação e controle de produção de <strong>Slitters</strong> a partir de bobinas de aço matrizes, com demanda calculada pela soma das necessidades de perfis e tubos (refilo padrão de 10 a 18 mm).
+          <p className="text-xs text-slate-600 font-medium">
+            Programação e controle de produção de <strong>Slitters</strong> a partir de bobinas matrizes (refilo padrão de 10 a 18 mm).
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={() => onNavigateToPlanning()}
-            className="flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black shadow-md shadow-blue-500/20 transition-all hover:scale-105 active:scale-95"
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>Novo Planejamento de Slitter (6 Passos)</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
+        <button
+          onClick={() => onNavigateToPlanning()}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-all"
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>Novo Planejamento de Slitter (3 Etapas)</span>
+          <ArrowRight className="w-4 h-4" />
+        </button>
       </div>
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-400">Estoque de Bobinas</span>
-            <div className="p-2.5 rounded-2xl bg-blue-50 text-blue-600">
-              <Disc className="w-5 h-5" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Estoque de Bobinas</span>
+            <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+              <Disc className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-slate-900 font-mono mt-2">
-            {kpis.totalBobinasDisponiveis} <span className="text-xs font-sans text-slate-500 font-normal">lotes disponíveis</span>
+          <div className="text-xl font-black text-slate-900 font-mono mt-1.5">
+            {kpis.totalBobinasDisponiveis} <span className="text-xs font-sans text-slate-500 font-medium">lotes</span>
           </div>
-          <div className="text-xs text-blue-700 font-mono mt-0.5 font-bold">
+          <div className="text-[11px] text-blue-700 font-mono mt-0.5 font-bold">
             {kpis.pesoTotalEstoqueTon.toLocaleString('pt-BR')} t em estoque
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-400">Aproveitamento Médio</span>
-            <div className="p-2.5 rounded-2xl bg-emerald-50 text-emerald-600">
-              <TrendingUp className="w-5 h-5" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Aproveitamento Médio</span>
+            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+              <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-emerald-700 font-mono mt-2">
+          <div className="text-xl font-black text-emerald-700 font-mono mt-1.5">
             {kpis.aproveitamentoMedioPercent}%
           </div>
-          <div className="text-xs text-slate-600 mt-0.5 font-medium flex items-center gap-1">
+          <div className="text-[11px] text-slate-600 mt-0.5 font-medium flex items-center gap-1">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            Refilo Padrão: 10 a 18 mm (1,5%)
+            Refilo: 10 a 18 mm (~1,5%)
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-400">Ordens de Produção (OP)</span>
-            <div className="p-2.5 rounded-2xl bg-purple-50 text-purple-600">
-              <Scissors className="w-5 h-5" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Ordens de Produção (OP)</span>
+            <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+              <Scissors className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-slate-900 font-mono mt-2">
-            {orders.length} <span className="text-xs font-sans text-slate-500 font-normal">OP geradas</span>
+          <div className="text-xl font-black text-slate-900 font-mono mt-1.5">
+            {orders.length} <span className="text-xs font-sans text-slate-500 font-medium">OP geradas</span>
           </div>
-          <div className="text-xs text-purple-700 mt-0.5 font-bold">
+          <div className="text-[11px] text-purple-700 mt-0.5 font-bold">
             {kpis.totalOrdensAtivas} em andamento
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-400">Demanda Total de Slitters</span>
-            <div className="p-2.5 rounded-2xl bg-amber-50 text-amber-600">
-              <Percent className="w-5 h-5" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">Demanda Total Slitters</span>
+            <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
+              <Percent className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-amber-700 font-mono mt-2">
+          <div className="text-xl font-black text-amber-700 font-mono mt-1.5">
             {totalSlitterDemandTon.toLocaleString('pt-BR')} t
           </div>
-          <div className="text-xs text-slate-600 mt-0.5 font-medium">
-            {slitterDemands.length} tipos de slitters cadastrados
+          <div className="text-[11px] text-slate-600 mt-0.5 font-medium">
+            {slitterDemands.length} tipos cadastrados
           </div>
         </div>
       </div>
 
       {/* Main Mode Tabs & Filter Controls */}
-      <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
         {/* Sub-view switcher */}
-        <div className="flex rounded-2xl bg-slate-100 p-1.5">
+        <div className="flex rounded-xl bg-slate-100 p-1">
           <button
             onClick={() => setActiveBoardView('slitter_programs')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
               activeBoardView === 'slitter_programs'
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-blue-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Scissors className="w-4 h-4" />
-            <span>Slitters Prontos para Corte ({slitterPrograms.length} programas)</span>
+            <span>Slitters Prontos para Corte ({slitterPrograms.length})</span>
           </button>
 
           <button
             onClick={() => setActiveBoardView('demand_readiness')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
               activeBoardView === 'demand_readiness'
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-blue-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Boxes className="w-4 h-4" />
-            <span>Fila de Slitters a Produzir ({slitterDemands.length} slitters)</span>
+            <span>Fila de Slitters a Produzir ({slitterDemands.length})</span>
           </button>
         </div>
 
         {/* Search & Bitola Filters */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative w-64">
-            <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-400" />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-56">
+            <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
             <input
               type="text"
-              placeholder="Buscar por código ou nome do slitter..."
+              placeholder="Buscar por código ou slitter..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-medium"
+              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-medium"
             />
           </div>
 
           <select
             value={thicknessFilter}
             onChange={(e) => setThicknessFilter(e.target.value)}
-            className="py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-mono font-bold"
+            className="py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-mono font-bold"
           >
             <option value="TODOS">Todas as Bitolas</option>
             {uniqueThicknesses.map(t => (
@@ -243,18 +241,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             ))}
           </select>
 
-          <div className="flex rounded-xl bg-slate-100 p-1">
+          <div className="flex rounded-lg bg-slate-100 p-1">
             {[
-              { id: 'TODOS', label: 'Todos os Slitters' },
-              { id: 'IDEAL', label: '✓ Conforme (10 a 18 mm)' },
-              { id: 'ALTO', label: 'Sobra > 18 mm' }
+              { id: 'TODOS', label: 'Todos' },
+              { id: 'IDEAL', label: '✓ Conforme (10-18mm)' },
+              { id: 'ALTO', label: 'Sobra > 18mm' }
             ].map(y => (
               <button
                 key={y.id}
                 onClick={() => setScrapFilter(y.id as any)}
-                className={`px-3.5 py-1 text-xs font-bold rounded-lg transition-all ${
+                className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all ${
                   scrapFilter === y.id
-                    ? 'bg-blue-600 text-white shadow-sm'
+                    ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >

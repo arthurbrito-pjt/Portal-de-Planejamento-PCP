@@ -3,6 +3,7 @@ import { Coil, SlitterStrip, SlitterOrder } from '../types/pcp';
 import { ExcelService } from '../services/excelService';
 import { StorageService } from '../services/storageService';
 import { SlitterCatalogService } from '../services/slitterCatalogService';
+import { PrintTagsPortal } from '../components/PrintTagsPortal';
 import { 
   ClipboardCheck, 
   FileSpreadsheet, 
@@ -11,7 +12,9 @@ import {
   Check, 
   Calendar, 
   ArrowLeft, 
-  Scissors 
+  Scissors,
+  Tag,
+  CheckCircle2
 } from 'lucide-react';
 
 interface SlitterOrderViewProps {
@@ -19,7 +22,10 @@ interface SlitterOrderViewProps {
   coil: Coil | null;
   strips: SlitterStrip[];
   onOrderSaved?: (savedOrder: SlitterOrder) => void;
+  onFinishOrder?: () => void;
   onNavigateToPlanning: () => void;
+  onNavigateToSimulation?: () => void;
+  onNavigateToDashboard?: () => void;
 }
 
 export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
@@ -27,9 +33,13 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
   coil,
   strips,
   onOrderSaved,
-  onNavigateToPlanning
+  onFinishOrder,
+  onNavigateToPlanning,
+  onNavigateToSimulation,
+  onNavigateToDashboard
 }) => {
   const [isSaved, setIsSaved] = useState<boolean>(false);
+  const [isPrintingTagsPortal, setIsPrintingTagsPortal] = useState<boolean>(false);
   const [operador, setOperador] = useState<string>('Operador PCP - Linha 01');
   const [maquina, setMaquina] = useState<string>('Slitter Principal SLT-01');
   const [observacoes, setObservacoes] = useState<string>('Plano de corte otimizado pelo Portal PCP com aproveitamento máximo da bobina e tolerância conforme de refilo (10 a 18 mm).');
@@ -107,6 +117,15 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
     if (onOrderSaved) onOrderSaved(newOrder);
   };
 
+  const handleFinalizeAndClear = () => {
+    if (!isSaved) {
+      handleSaveOrder();
+    }
+    if (onFinishOrder) {
+      onFinishOrder();
+    }
+  };
+
   const handleExportExcel = () => {
     const orderObj: SlitterOrder = {
       id: order ? order.id : `ORD_${Date.now()}`,
@@ -135,25 +154,67 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
     ExcelService.exportSlitterOrderToExcel(orderObj);
   };
 
-  const handlePrint = () => {
+  const handlePrintOp = () => {
+    document.body.classList.remove('printing-portal');
     window.print();
+  };
+
+  const handlePrintTagsOnly = () => {
+    setIsPrintingTagsPortal(true);
+    document.body.classList.add('printing-portal');
+    const cleanup = () => {
+      document.body.classList.remove('printing-portal');
+      setIsPrintingTagsPortal(false);
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    setTimeout(() => window.print(), 150);
   };
 
   return (
     <div className="space-y-6 pb-16 animate-fadeIn">
+      {/* Portal Container for Tag Printing */}
+      {isPrintingTagsPortal && (
+        <PrintTagsPortal
+          strips={currentStrips}
+          coil={{ lote: currentCoil.lote, codigo: currentCoil.codigo }}
+          orderNumber={orderNumber}
+        />
+      )}
+
       {/* Top Action Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 print:hidden">
-        <div className="flex items-center gap-3.5">
+        <div className="flex items-center gap-2.5">
           <button
             onClick={onNavigateToPlanning}
-            className="p-3 rounded-2xl bg-white hover:bg-slate-100 text-slate-700 transition-colors border border-slate-200 shadow-sm"
+            className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-xs flex items-center gap-1.5 text-xs font-bold"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4 text-blue-600" />
+            <span>Voltar ao Planejamento</span>
           </button>
+
+          {onNavigateToSimulation && (
+            <button
+              onClick={onNavigateToSimulation}
+              className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-xs flex items-center gap-1.5 text-xs font-bold"
+            >
+              <span>Voltar ao Estúdio</span>
+            </button>
+          )}
+
+          {onNavigateToDashboard && (
+            <button
+              onClick={onNavigateToDashboard}
+              className="px-3 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 shadow-xs text-xs font-bold"
+            >
+              Voltar ao Painel
+            </button>
+          )}
+
           <div>
             <h2 className="text-xl font-black text-slate-900 flex items-center gap-2.5 tracking-tight">
               <ClipboardCheck className="w-5 h-5 text-emerald-600" />
-              TELA 4 – Ordem de Produção (OP) do Slitter
+              Ordem de Produção (OP) do Slitter
             </h2>
             <p className="text-xs text-slate-500 mt-0.5 font-medium">
               Documento oficial de programação de corte de fitas para a linha de produção do Slitter.
@@ -163,16 +224,25 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
 
         <div className="flex items-center gap-3">
           <button
+            onClick={handlePrintTagsOnly}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all"
+            title="Imprime apenas as etiquetas industriais dos slitters"
+          >
+            <Tag className="w-4 h-4" />
+            <span>Imprimir Etiquetas dos Slitters</span>
+          </button>
+
+          <button
             onClick={handleExportExcel}
-            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-black rounded-2xl transition-all shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold rounded-xl shadow-xs transition-all"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
             <span>Exportar OP (.xlsx)</span>
           </button>
 
           <button
-            onClick={handlePrint}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 text-xs font-black rounded-2xl transition-all shadow-sm"
+            onClick={handlePrintOp}
+            className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 text-xs font-bold rounded-xl shadow-xs transition-all"
           >
             <Printer className="w-4 h-4 text-slate-600" />
             <span>Imprimir OP</span>
@@ -181,33 +251,41 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
           <button
             onClick={handleSaveOrder}
             disabled={isSaved}
-            className={`flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-2xl shadow-md transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl shadow-xs transition-all ${
               isSaved
-                ? 'bg-emerald-600 text-white cursor-default'
-                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20 hover:scale-105 active:scale-95'
+                ? 'bg-slate-100 text-slate-500 border border-slate-300 cursor-default'
+                : 'bg-blue-600 hover:bg-blue-700 text-white'
             }`}
           >
             {isSaved ? (
               <>
-                <Check className="w-4 h-4" />
-                <span>OP Salva & Liberada!</span>
+                <Check className="w-4 h-4 text-emerald-600" />
+                <span>OP Salva & Liberada</span>
               </>
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                <span>Aprovar & Liberar OP</span>
+                <span>Salvar OP</span>
               </>
             )}
+          </button>
+
+          <button
+            onClick={handleFinalizeAndClear}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            <span>Finalizar OP & Concluir</span>
           </button>
         </div>
       </div>
 
-      {/* Printable Sheet Container */}
-      <div className="bg-white p-8 sm:p-10 rounded-3xl border border-slate-200 shadow-sm space-y-7 print:bg-white print:text-black print:p-0 print:border-none print:shadow-none">
+      {/* Printable OP Sheet Container */}
+      <div className="print-op-document bg-white p-8 sm:p-10 rounded-2xl border border-slate-200 shadow-xs space-y-7 print:bg-white print:text-black print:p-0 print:border-none print:shadow-none">
         {/* Document Header */}
         <div className="border-b-2 border-slate-200 print:border-black pb-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="p-3.5 bg-blue-600 text-white rounded-2xl font-black text-xl shadow-md">
+            <div className="p-3 bg-blue-600 text-white rounded-xl font-black text-xl shadow-xs">
               PCP
             </div>
             <div>
@@ -215,7 +293,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
                 <h1 className="text-xl sm:text-2xl font-black text-slate-900 print:text-black tracking-tight">
                   ORDEM DE PRODUÇÃO — CORTE SLITTER (OP)
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 text-xs font-mono font-black">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 text-xs font-mono font-bold">
                   LIBERADA PARA CORTE
                 </span>
               </div>
@@ -238,8 +316,8 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
 
         {/* Coil Summary Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-            <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
               Código Bobina Matriz
             </div>
             <div className="text-base font-black text-slate-900 font-mono mt-1">
@@ -247,8 +325,8 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-            <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
               Lote da Matéria-Prima
             </div>
             <div className="text-base font-black text-blue-700 font-mono mt-1">
@@ -256,8 +334,8 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-            <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
               Largura & Espessura
             </div>
             <div className="text-base font-black text-slate-900 font-mono mt-1">
@@ -265,8 +343,8 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-            <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
               Peso da Bobina
             </div>
             <div className="text-base font-black text-emerald-700 font-mono mt-1">
@@ -274,8 +352,8 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
             </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-            <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
               Aproveitamento Slitter
             </div>
             <div className="text-base font-black text-emerald-700 font-mono mt-1">

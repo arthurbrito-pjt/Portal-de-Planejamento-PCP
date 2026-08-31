@@ -2,13 +2,16 @@ import React, { useState } from 'react';
 import { Coil, SlitterStrip, Product } from '../types/pcp';
 import { SlitterVisualizer } from '../components/SlitterVisualizer';
 import { SlitterCatalogService } from '../services/slitterCatalogService';
+import { SlitterTagModal } from '../components/SlitterTagModal';
 import { 
   Scissors, 
   Plus, 
   Trash2, 
   CheckCircle2, 
   Layers, 
-  Sliders
+  Sliders,
+  ArrowLeft,
+  Tag
 } from 'lucide-react';
 
 interface SimulationViewProps {
@@ -18,6 +21,7 @@ interface SimulationViewProps {
   onUpdateStrips: (newStrips: SlitterStrip[]) => void;
   onProceedToOrder: (coil: Coil, strips: SlitterStrip[]) => void;
   onNavigateToPlanning: () => void;
+  onNavigateToDashboard?: () => void;
 }
 
 export const SimulationView: React.FC<SimulationViewProps> = ({
@@ -26,9 +30,11 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   products,
   onUpdateStrips,
   onProceedToOrder,
-  onNavigateToPlanning
+  onNavigateToPlanning,
+  onNavigateToDashboard
 }) => {
   const [selectedCompanionProduct, setSelectedCompanionProduct] = useState<string>('');
+  const [isTagModalOpen, setIsTagModalOpen] = useState<boolean>(false);
 
   if (!coil || strips.length === 0) {
     return (
@@ -94,17 +100,44 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
     <div className="space-y-6 pb-16 animate-fadeIn">
       {/* Top Banner */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-black text-slate-900 flex items-center gap-2.5 tracking-tight">
-            <Scissors className="w-5 h-5 text-blue-600" />
-            TELA 3 – Estúdio de Simulação de Corte Slitter
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            Visualização milimétrica do corte transversal da bobina com ajuste fino interativo das facas e destinação dos rolos de fita.
-          </p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onNavigateToPlanning}
+            className="px-3.5 py-2 rounded-2xl bg-white hover:bg-slate-100 text-slate-700 transition-colors border border-slate-200 shadow-sm flex items-center gap-1.5 text-xs font-black"
+          >
+            <ArrowLeft className="w-4 h-4 text-blue-600" />
+            <span>Voltar ao Planejamento</span>
+          </button>
+
+          {onNavigateToDashboard && (
+            <button
+              onClick={onNavigateToDashboard}
+              className="px-3 py-2 rounded-2xl bg-white hover:bg-slate-100 text-slate-600 transition-colors border border-slate-200 shadow-sm text-xs font-bold"
+            >
+              Voltar ao Painel
+            </button>
+          )}
+
+          <div>
+            <h2 className="text-xl font-black text-slate-900 flex items-center gap-2.5 tracking-tight">
+              <Scissors className="w-5 h-5 text-blue-600" />
+              Estúdio de Simulação de Corte Slitter
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Visualização milimétrica do corte transversal da bobina com ajuste fino interativo das facas e destinação dos rolos de fita.
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsTagModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-3 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 text-xs font-black rounded-2xl transition-all shadow-sm"
+          >
+            <Tag className="w-4 h-4 text-blue-600" />
+            <span>Imprimir Etiquetas</span>
+          </button>
+
           <button
             onClick={() => onProceedToOrder(coil, strips)}
             className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-2xl shadow-md shadow-emerald-600/20 transition-all hover:scale-105"
@@ -224,6 +257,14 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Modal for Printing Slitter Tags */}
+      <SlitterTagModal
+        isOpen={isTagModalOpen}
+        onClose={() => setIsTagModalOpen(false)}
+        coil={coil}
+        strips={strips}
+      />
     </div>
   );
 };

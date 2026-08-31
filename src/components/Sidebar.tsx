@@ -6,7 +6,7 @@ import {
   ClipboardCheck, 
   BarChart3, 
   Database,
-  Sparkles
+  Layers
 } from 'lucide-react';
 
 export type TabType = 'dashboard' | 'planning' | 'simulation' | 'order' | 'reports' | 'data';
@@ -27,109 +27,106 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const menuItems = [
     {
       id: 'dashboard' as TabType,
-      num: '01',
-      title: 'Programação de Slitters',
-      subtitle: 'Painel Geral & Combinações',
+      title: 'Painel Geral',
       icon: LayoutDashboard,
       badge: null
     },
     {
       id: 'planning' as TabType,
-      num: '02',
-      title: 'Planejamento em 6 Passos',
-      subtitle: 'Assistente de Corte & Otimização',
+      title: 'Planejamento Slitter',
       icon: Sliders,
       badge: 'Motor'
     },
     {
       id: 'simulation' as TabType,
-      num: '03',
-      title: 'Estúdio do Slitter',
-      subtitle: 'Ajuste de Facas & Simulação',
+      title: 'Estúdio de Corte',
       icon: Scissors,
       badge: null
     },
     {
       id: 'order' as TabType,
-      num: '04',
       title: 'Ordem de Produção (OP)',
-      subtitle: 'Folha de Produção & Liberação',
       icon: ClipboardCheck,
-      badge: ordersCount > 0 ? `${ordersCount} OP` : null
+      badge: ordersCount > 0 ? `${ordersCount}` : null
     },
     {
       id: 'reports' as TabType,
-      num: '05',
       title: 'Relatórios & Histórico',
-      subtitle: 'Métricas de Perdas & Produção',
       icon: BarChart3,
       badge: null
     },
     {
       id: 'data' as TabType,
-      num: '06',
-      title: 'Gestão & Importador Excel',
-      subtitle: 'Bobinas, Produtos e Nuvem',
+      title: 'Gestão de Estoque',
       icon: Database,
-      badge: coilsCount > 0 ? `${coilsCount} bobinas` : null
+      badge: coilsCount > 0 ? `${coilsCount}` : null
     }
   ];
 
   return (
-    <aside className="w-full lg:w-80 shrink-0 space-y-4">
-      {/* Navigation Card */}
-      <div className="bg-white p-3.5 rounded-3xl border border-slate-200 shadow-sm space-y-1.5">
-        <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400 font-mono">
-          Menu de Produção
+    <aside className="w-full lg:w-64 bg-slate-900 text-slate-300 border-r border-slate-800 flex flex-col justify-between shrink-0 min-h-screen">
+      {/* Brand Header */}
+      <div>
+        <div className="p-5 border-b border-slate-800 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-sm shadow-md shadow-blue-500/20 shrink-0">
+            PCP
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-sm font-black text-white tracking-tight truncate">
+              PORTAL PCP
+            </h1>
+            <p className="text-[11px] text-slate-400 font-medium truncate">
+              Central de Planejamento Slitter
+            </p>
+          </div>
         </div>
 
-        {menuItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
+        {/* Navigation Menu */}
+        <nav className="p-3 space-y-1">
+          <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 font-mono">
+            Navegação Principal
+          </div>
 
-          return (
-            <button
-              key={item.id}
-              onClick={() => onSelectTab(item.id)}
-              className={`w-full flex items-center justify-between p-3 rounded-2xl transition-all text-left group ${
-                isActive
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className={`p-2.5 rounded-xl transition-colors shrink-0 ${
-                  isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600 group-hover:bg-blue-50 group-hover:text-blue-600'
-                }`}>
-                  <Icon className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className={`text-[10px] font-mono font-bold ${isActive ? 'text-white/80' : 'text-slate-400'}`}>
-                      TELA {item.num}
-                    </span>
-                  </div>
-                  <div className="text-xs font-black truncate">
-                    {item.title}
-                  </div>
-                  <div className={`text-[10px] truncate ${isActive ? 'text-white/80' : 'text-slate-500'}`}>
-                    {item.subtitle}
-                  </div>
-                </div>
-              </div>
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
 
-              {item.badge && (
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-black shrink-0 ml-2 ${
-                  isActive 
-                    ? 'bg-white/25 text-white' 
-                    : 'bg-slate-100 text-slate-600 group-hover:bg-slate-200'
-                }`}>
-                  {item.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
+            return (
+              <button
+                key={item.id}
+                onClick={() => onSelectTab(item.id)}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all text-left text-xs font-bold ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/70'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                  <span className="truncate">{item.title}</span>
+                </div>
+
+                {item.badge && (
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold shrink-0 ml-2 ${
+                    isActive 
+                      ? 'bg-white/20 text-white' 
+                      : 'bg-slate-800 text-slate-400'
+                  }`}>
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      {/* Footer Info */}
+      <div className="p-4 border-t border-slate-800 text-[11px] text-slate-500 font-mono flex items-center justify-between">
+        <span>Linha de Produção</span>
+        <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
+          Ativo Local
+        </span>
       </div>
     </aside>
   );

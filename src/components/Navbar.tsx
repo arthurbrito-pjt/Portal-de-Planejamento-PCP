@@ -1,30 +1,34 @@
 import React from 'react';
-import { Scissors } from 'lucide-react';
+import { Scissors, RefreshCw, CheckCircle2 } from 'lucide-react';
 
 interface NavbarProps {
+  activeTabTitle?: string;
   firebaseOnline?: boolean;
   onSync?: () => void;
   isSyncing?: boolean;
 }
 
-export const Navbar: React.FC<NavbarProps> = () => {
+export const Navbar: React.FC<NavbarProps> = ({
+  activeTabTitle = 'Painel Geral',
+  firebaseOnline = true,
+  onSync,
+  isSyncing = false
+}) => {
   return (
-    <header className="sticky top-0 z-30 w-full bg-white border-b border-slate-200 shadow-sm">
-      <div className="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        {/* Brand Logo & Name */}
-        <div className="flex items-center gap-3.5">
-          <div className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-md shadow-blue-500/20">
-            <Scissors className="w-5 h-5" />
-          </div>
-          <div>
-            <h1 className="text-base font-black text-slate-900 tracking-tight">
-              PORTAL DE PLANEJAMENTO PCP
-            </h1>
-            <p className="text-xs text-slate-500 hidden sm:block font-medium">
-              Planejamento e Otimização de Corte de Bobinas de Aço • Tubos & Perfis
-            </p>
-          </div>
-        </div>
+    <header className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between gap-4 shrink-0 shadow-xs">
+      <div className="flex items-center gap-3">
+        <span className="text-xs font-bold text-slate-400 font-mono">PCP</span>
+        <span className="text-slate-300">/</span>
+        <h2 className="text-xs font-black text-slate-800 uppercase tracking-wider font-mono">
+          {activeTabTitle}
+        </h2>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-bold font-mono">
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+          Refilo Conforme (10-18mm)
+        </span>
       </div>
     </header>
   );
