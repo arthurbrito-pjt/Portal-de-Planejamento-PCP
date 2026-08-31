@@ -9,7 +9,7 @@ import { ReportsView } from './views/ReportsView';
 import { DataManagementView } from './views/DataManagementView';
 import { StorageService } from './services/storageService';
 import { SlitterOptimizer } from './services/slitterOptimizer';
-import { Product, Coil, SlitterStrip, SlitterOrder, SlitterCombination } from './types/pcp';
+import { Product, Coil, SlitterStrip, SlitterOrder, SlitterCombination, Ferramental } from './types/pcp';
 import { SlitterProductionProgram } from './services/readinessService';
 
 const TAB_ROUTES: Record<TabType, string> = {
@@ -66,6 +66,7 @@ export const App: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [coils, setCoils] = useState<Coil[]>([]);
   const [orders, setOrders] = useState<SlitterOrder[]>([]);
+  const [ferramentais, setFerramentais] = useState<Ferramental[]>([]);
   const [history, setHistory] = useState(StorageService.getCutHistory());
   const [kpis, setKpis] = useState(StorageService.getKPIs());
 
@@ -146,6 +147,7 @@ export const App: React.FC = () => {
     setProducts(StorageService.getProducts());
     setCoils(StorageService.getCoils());
     setOrders(StorageService.getOrders());
+    setFerramentais(StorageService.getFerramentais());
     setHistory(StorageService.getCutHistory());
     setKpis(StorageService.getKPIs());
   };
@@ -303,6 +305,7 @@ export const App: React.FC = () => {
             <PlanningView
               products={products}
               coils={coils}
+              ferramentais={ferramentais}
               preSelectedProductId={preSelectedProductId}
               onProceedToSimulation={handleProceedToSimulation}
               onProceedToOrder={handleProceedToOrder}
@@ -352,6 +355,7 @@ export const App: React.FC = () => {
             <DataManagementView
               coils={coils}
               products={products}
+              ferramentais={ferramentais}
               onDataUpdated={loadData}
               onNavigateToDashboard={() => handleSelectTab('dashboard')}
             />

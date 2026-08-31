@@ -1,5 +1,7 @@
 export type ProductFamily = 'TUBO' | 'PERFIL';
 
+export type GrauDificuldade = 'BAIXO' | 'MEDIO' | 'ALTO';
+
 export interface Product {
   id: string;
   codigo: string;
@@ -11,6 +13,17 @@ export interface Product {
   familia: ProductFamily;
   demandaT?: number; // Demanda planejada em toneladas
   comprimentoPadrao?: number; // em metros, ex: 6m
+  grauDificuldade?: GrauDificuldade; // Grau de dificuldade de produção
+  volumePoliticaT?: { minimo: number; ideal: number; maximo: number }; // Política de lote (toneladas)
+}
+
+export interface Ferramental {
+  id: string;
+  codigo: string; // livre; pode coincidir com um código de slitter do catálogo
+  nome: string;
+  capacidadeMinimaT: number;
+  capacidadeIdealT: number;
+  capacidadeMaximaT: number;
 }
 
 export interface SlitterDemandItem {

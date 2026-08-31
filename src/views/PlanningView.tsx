@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  Product, 
-  Coil, 
-  SlitterCombination, 
-  SlitterStrip 
+import {
+  Product,
+  Coil,
+  SlitterCombination,
+  SlitterStrip,
+  Ferramental
 } from '../types/pcp';
 import { 
   SlitterOptimizer 
@@ -31,6 +32,7 @@ import {
 interface PlanningViewProps {
   products: Product[];
   coils: Coil[];
+  ferramentais: Ferramental[];
   preSelectedProductId?: string | null;
   onProceedToSimulation: (coil: Coil, strips: SlitterStrip[], combination?: SlitterCombination) => void;
   onProceedToOrder: (coil: Coil, strips: SlitterStrip[], combination?: SlitterCombination) => void;
@@ -40,6 +42,7 @@ interface PlanningViewProps {
 export const PlanningView: React.FC<PlanningViewProps> = ({
   products,
   coils,
+  ferramentais,
   preSelectedProductId,
   onProceedToSimulation,
   onProceedToOrder,
@@ -477,6 +480,18 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                   </button>
                 </div>
               </div>
+
+              {selectedProduct.volumePoliticaT && (
+                desiredQtyTon < selectedProduct.volumePoliticaT.minimo || desiredQtyTon > selectedProduct.volumePoliticaT.maximo
+              ) && (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-mono font-bold flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>
+                    Quantidade fora da política de volume deste item (mín {selectedProduct.volumePoliticaT.minimo}t / ideal {selectedProduct.volumePoliticaT.ideal}t / máx {selectedProduct.volumePoliticaT.maximo}t).
+                    Produções muito pequenas ou muito grandes tendem a aumentar setups ou reduzir eficiência.
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -664,6 +679,23 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
               </button>
             </div>
           </div>
+
+          {(() => {
+            const sltCode = SlitterCatalogService.getSlitterInfo(selectedProduct.larguraFita, selectedProduct.espessura, selectedProduct).code;
+            const matchedFerramental = ferramentais.find(f => f.codigo === sltCode);
+            if (!matchedFerramental) return null;
+            const foraDaPolitica = totalSelectedCoilsWeightTon < matchedFerramental.capacidadeMinimaT || totalSelectedCoilsWeightTon > matchedFerramental.capacidadeMaximaT;
+            if (!foraDaPolitica) return null;
+            return (
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-mono font-bold flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  Volume programado ({totalSelectedCoilsWeightTon}t) fora da política de capacidade do ferramental {matchedFerramental.codigo} — {matchedFerramental.nome}
+                  (mín {matchedFerramental.capacidadeMinimaT}t / ideal {matchedFerramental.capacidadeIdealT}t / máx {matchedFerramental.capacidadeMaximaT}t).
+                </span>
+              </div>
+            );
+          })()}
 
           {selectedCombination && (
             <div className="space-y-4">

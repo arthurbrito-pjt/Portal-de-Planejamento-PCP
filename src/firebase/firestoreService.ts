@@ -12,7 +12,7 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { db } from './config';
-import { Coil, Product, SlitterOrder, CutHistoryItem } from '../types/pcp';
+import { Coil, Product, SlitterOrder, CutHistoryItem, Ferramental } from '../types/pcp';
 
 export class FirestoreService {
   private static isFirestoreAvailable = true;
@@ -79,6 +79,32 @@ export class FirestoreService {
   static async saveMultipleProducts(products: Product[]): Promise<void> {
     for (const p of products) {
       await this.saveProduct(p);
+    }
+  }
+
+  // Ferramentais
+  static async getFerramentais(): Promise<Ferramental[]> {
+    try {
+      const snap = await getDocs(collection(db, 'ferramentais'));
+      if (snap.empty) return [];
+      return snap.docs.map(d => ({ ...d.data(), id: d.id } as Ferramental));
+    } catch (e) {
+      console.warn('Firestore getFerramentais error', e);
+      return [];
+    }
+  }
+
+  static async saveFerramental(item: Ferramental): Promise<void> {
+    try {
+      await setDoc(doc(db, 'ferramentais', item.id), item);
+    } catch (e) {
+      console.warn('Firestore saveFerramental error', e);
+    }
+  }
+
+  static async saveMultipleFerramentais(items: Ferramental[]): Promise<void> {
+    for (const f of items) {
+      await this.saveFerramental(f);
     }
   }
 

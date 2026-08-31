@@ -1,23 +1,26 @@
 import React, { useState } from 'react';
-import { Coil, Product } from '../types/pcp';
+import { Coil, Product, Ferramental, GrauDificuldade } from '../types/pcp';
 import { ExcelService } from '../services/excelService';
 import { StorageService } from '../services/storageService';
-import { 
-  Database, 
-  Upload, 
-  Plus, 
-  RefreshCw, 
-  FileSpreadsheet, 
-  Disc, 
-  Layers, 
+import { MetricsBadge } from '../components/MetricsBadge';
+import {
+  Database,
+  Upload,
+  Plus,
+  RefreshCw,
+  FileSpreadsheet,
+  Disc,
+  Layers,
   RotateCcw,
   Cloud,
-  ArrowLeft
+  ArrowLeft,
+  Wrench
 } from 'lucide-react';
 
 interface DataManagementViewProps {
   coils: Coil[];
   products: Product[];
+  ferramentais: Ferramental[];
   onDataUpdated: () => void;
   onNavigateToDashboard?: () => void;
 }
@@ -25,10 +28,11 @@ interface DataManagementViewProps {
 export const DataManagementView: React.FC<DataManagementViewProps> = ({
   coils,
   products,
+  ferramentais,
   onDataUpdated,
   onNavigateToDashboard
 }) => {
-  const [activeTab, setActiveTab] = useState<'import' | 'coils' | 'products' | 'firebase'>('import');
+  const [activeTab, setActiveTab] = useState<'import' | 'coils' | 'products' | 'ferramental' | 'firebase'>('import');
   const [importStatus, setImportStatus] = useState<string>('');
   const [isImporting, setIsImporting] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -50,7 +54,17 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
     espessura: 1.5,
     larguraFita: 238,
     demandaT: 10,
-    familia: 'TUBO'
+    familia: 'TUBO',
+    grauDificuldade: 'MEDIO',
+    volumePoliticaT: { minimo: 5, ideal: 15, maximo: 30 }
+  });
+
+  const [newFerramental, setNewFerramental] = useState<Partial<Ferramental>>({
+    codigo: '',
+    nome: '',
+    capacidadeMinimaT: 5,
+    capacidadeIdealT: 15,
+    capacidadeMaximaT: 30
   });
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'coils' | 'products') => {
@@ -132,11 +146,37 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
       espessura: Number(newProduct.espessura),
       larguraFita: Number(newProduct.larguraFita),
       demandaT: Number(newProduct.demandaT || 0),
-      familia: (newProduct.familia as any) || 'TUBO'
+      familia: (newProduct.familia as any) || 'TUBO',
+      grauDificuldade: newProduct.grauDificuldade as GrauDificuldade | undefined,
+      volumePoliticaT: newProduct.volumePoliticaT
     };
 
     StorageService.addProduct(prodObj);
     onDataUpdated();
+  };
+
+  const handleAddFerramental = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newFerramental.codigo || !newFerramental.nome) return;
+
+    const ferramentalObj: Ferramental = {
+      id: `FRM_${Date.now()}`,
+      codigo: newFerramental.codigo,
+      nome: newFerramental.nome,
+      capacidadeMinimaT: Number(newFerramental.capacidadeMinimaT || 0),
+      capacidadeIdealT: Number(newFerramental.capacidadeIdealT || 0),
+      capacidadeMaximaT: Number(newFerramental.capacidadeMaximaT || 0)
+    };
+
+    StorageService.addFerramental(ferramentalObj);
+    onDataUpdated();
+    setNewFerramental({
+      codigo: '',
+      nome: '',
+      capacidadeMinimaT: 5,
+      capacidadeIdealT: 15,
+      capacidadeMaximaT: 30
+    });
   };
 
   const handleSyncCloud = async () => {
@@ -206,6 +246,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
           { id: 'import', label: 'Importador Excel (.xlsx / .xls)', icon: Upload },
           { id: 'coils', label: `Bobinas Cadastradas (${coils.length})`, icon: Disc },
           { id: 'products', label: `Produtos / Demanda (${products.length})`, icon: Layers },
+          { id: 'ferramental', label: `Ferramentais (${ferramentais.length})`, icon: Wrench },
           { id: 'firebase', label: 'Configuração Firebase', icon: Cloud }
         ].map((tab) => {
           const Icon = tab.icon;
@@ -455,6 +496,78 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
                 />
               </div>
+
+              <div>
+                <label className="block text-[11px] text-slate-600 uppercase font-black">Grau de Dificuldade</label>
+                <select
+                  value={newProduct.grauDificuldade}
+                  onChange={(e) => setNewProduct({ ...newProduct, grauDificuldade: e.target.value as GrauDificuldade })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
+                >
+                  <option value="BAIXO">BAIXO</option>
+                  <option value="MEDIO">MEDIO</option>
+                  <option value="ALTO">ALTO</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100">
+              <label className="block text-[11px] text-slate-600 uppercase font-black mb-2">
+                Política de Volume de Produção (t)
+              </label>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[10px] text-slate-500 font-bold">Mínimo</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={newProduct.volumePoliticaT?.minimo ?? 0}
+                    onChange={(e) => setNewProduct({
+                      ...newProduct,
+                      volumePoliticaT: {
+                        minimo: parseFloat(e.target.value) || 0,
+                        ideal: newProduct.volumePoliticaT?.ideal ?? 0,
+                        maximo: newProduct.volumePoliticaT?.maximo ?? 0
+                      }
+                    })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-500 font-bold">Ideal</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={newProduct.volumePoliticaT?.ideal ?? 0}
+                    onChange={(e) => setNewProduct({
+                      ...newProduct,
+                      volumePoliticaT: {
+                        minimo: newProduct.volumePoliticaT?.minimo ?? 0,
+                        ideal: parseFloat(e.target.value) || 0,
+                        maximo: newProduct.volumePoliticaT?.maximo ?? 0
+                      }
+                    })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-500 font-bold">Máximo</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={newProduct.volumePoliticaT?.maximo ?? 0}
+                    onChange={(e) => setNewProduct({
+                      ...newProduct,
+                      volumePoliticaT: {
+                        minimo: newProduct.volumePoliticaT?.minimo ?? 0,
+                        ideal: newProduct.volumePoliticaT?.ideal ?? 0,
+                        maximo: parseFloat(e.target.value) || 0
+                      }
+                    })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="flex justify-end">
@@ -466,6 +579,156 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
               </button>
             </div>
           </form>
+
+          {products.length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-mono text-[11px] font-bold">
+                      <th className="py-2.5 px-3">Código</th>
+                      <th className="py-2.5 px-3">Descrição</th>
+                      <th className="py-2.5 px-3">Família</th>
+                      <th className="py-2.5 px-3">Dificuldade</th>
+                      <th className="py-2.5 px-3 text-right">Política de Volume (t)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-mono">
+                    {products.slice(0, 50).map((p) => (
+                      <tr key={p.id} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3 font-black text-slate-900">{p.codigo}</td>
+                        <td className="py-2.5 px-3 font-sans text-slate-700 truncate max-w-[240px]">{p.descricao}</td>
+                        <td className="py-2.5 px-3"><MetricsBadge type="familia" value={p.familia} size="sm" /></td>
+                        <td className="py-2.5 px-3">
+                          {p.grauDificuldade ? <MetricsBadge type="dificuldade" value={p.grauDificuldade} size="sm" /> : <span className="text-slate-400">—</span>}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-slate-600">
+                          {p.volumePoliticaT
+                            ? `${p.volumePoliticaT.minimo} / ${p.volumePoliticaT.ideal} / ${p.volumePoliticaT.maximo}`
+                            : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB Ferramental: Manage Tooling Capacity */}
+      {activeTab === 'ferramental' && (
+        <div className="space-y-6">
+          <form onSubmit={handleAddFerramental} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+              <Wrench className="w-4 h-4 text-amber-600" />
+              Cadastrar Ferramental & Política de Capacidade
+            </h3>
+
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div>
+                <label className="block text-[11px] text-slate-600 uppercase font-black">Código</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: SLT11000"
+                  value={newFerramental.codigo}
+                  onChange={(e) => setNewFerramental({ ...newFerramental, codigo: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-slate-600 uppercase font-black">Nome</label>
+                <input
+                  type="text"
+                  required
+                  value={newFerramental.nome}
+                  onChange={(e) => setNewFerramental({ ...newFerramental, nome: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-slate-600 uppercase font-black">Capacidade Mín. (t)</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  required
+                  value={newFerramental.capacidadeMinimaT}
+                  onChange={(e) => setNewFerramental({ ...newFerramental, capacidadeMinimaT: parseFloat(e.target.value) })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-slate-600 uppercase font-black">Capacidade Ideal (t)</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  required
+                  value={newFerramental.capacidadeIdealT}
+                  onChange={(e) => setNewFerramental({ ...newFerramental, capacidadeIdealT: parseFloat(e.target.value) })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-slate-600 uppercase font-black">Capacidade Máx. (t)</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  required
+                  value={newFerramental.capacidadeMaximaT}
+                  onChange={(e) => setNewFerramental({ ...newFerramental, capacidadeMaximaT: parseFloat(e.target.value) })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
+                />
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-500 font-medium">
+              Dica: use o mesmo código do catálogo de slitters (ex: SLT11000) para que os alertas de capacidade apareçam automaticamente no Planejamento.
+            </p>
+
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black rounded-xl shadow-md"
+              >
+                + Cadastrar Ferramental
+              </button>
+            </div>
+          </form>
+
+          {ferramentais.length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-mono text-[11px] font-bold">
+                      <th className="py-2.5 px-3">Código</th>
+                      <th className="py-2.5 px-3">Nome</th>
+                      <th className="py-2.5 px-3 text-right">Mín. (t)</th>
+                      <th className="py-2.5 px-3 text-right">Ideal (t)</th>
+                      <th className="py-2.5 px-3 text-right">Máx. (t)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-mono">
+                    {ferramentais.map((f) => (
+                      <tr key={f.id} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3 font-black text-slate-900">{f.codigo}</td>
+                        <td className="py-2.5 px-3 font-sans text-slate-700">{f.nome}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-600">{f.capacidadeMinimaT}</td>
+                        <td className="py-2.5 px-3 text-right text-emerald-700 font-bold">{f.capacidadeIdealT}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-600">{f.capacidadeMaximaT}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

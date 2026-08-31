@@ -1,5 +1,5 @@
-import { Product, Coil, SlitterOrder, CutHistoryItem, PCPKPIs } from '../types/pcp';
-import { INITIAL_PRODUCTS, INITIAL_COILS } from '../data/initialData';
+import { Product, Coil, SlitterOrder, CutHistoryItem, PCPKPIs, Ferramental } from '../types/pcp';
+import { INITIAL_PRODUCTS, INITIAL_COILS, INITIAL_FERRAMENTAL } from '../data/initialData';
 import { FirestoreService } from '../firebase/firestoreService';
 
 const STORAGE_KEYS = {
@@ -7,6 +7,7 @@ const STORAGE_KEYS = {
   COILS: 'pcp_coils_v1',
   SLITTER_ORDERS: 'pcp_slitter_orders_v1',
   CUT_HISTORY: 'pcp_cut_history_v1',
+  FERRAMENTAL: 'pcp_ferramental_v1',
   LAST_SYNC: 'pcp_last_sync_v1'
 };
 
@@ -15,6 +16,7 @@ export class StorageService {
   private static coilsCache: Coil[] | null = null;
   private static ordersCache: SlitterOrder[] | null = null;
   private static historyCache: CutHistoryItem[] | null = null;
+  private static ferramentaisCache: Ferramental[] | null = null;
 
   // Initialize data from local or initial seeds
   static initialize(): void {
@@ -29,6 +31,9 @@ export class StorageService {
     }
     if (!localStorage.getItem(STORAGE_KEYS.CUT_HISTORY)) {
       localStorage.setItem(STORAGE_KEYS.CUT_HISTORY, JSON.stringify([]));
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.FERRAMENTAL)) {
+      localStorage.setItem(STORAGE_KEYS.FERRAMENTAL, JSON.stringify(INITIAL_FERRAMENTAL));
     }
   }
 
@@ -101,6 +106,37 @@ export class StorageService {
       prods.unshift(product);
     }
     this.saveProducts(prods);
+  }
+
+  // Ferramentais
+  static getFerramentais(): Ferramental[] {
+    if (this.ferramentaisCache) return this.ferramentaisCache;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.FERRAMENTAL);
+      this.ferramentaisCache = raw ? JSON.parse(raw) : INITIAL_FERRAMENTAL;
+      return this.ferramentaisCache || INITIAL_FERRAMENTAL;
+    } catch {
+      return INITIAL_FERRAMENTAL;
+    }
+  }
+
+  static saveFerramentais(items: Ferramental[], syncCloud = true): void {
+    this.ferramentaisCache = items;
+    localStorage.setItem(STORAGE_KEYS.FERRAMENTAL, JSON.stringify(items));
+    if (syncCloud) {
+      FirestoreService.saveMultipleFerramentais(items).catch(() => {});
+    }
+  }
+
+  static addFerramental(item: Ferramental): void {
+    const items = this.getFerramentais();
+    const existingIdx = items.findIndex(f => f.id === item.id || f.codigo === item.codigo);
+    if (existingIdx >= 0) {
+      items[existingIdx] = item;
+    } else {
+      items.unshift(item);
+    }
+    this.saveFerramentais(items);
   }
 
   // Coils
@@ -214,10 +250,12 @@ export class StorageService {
     this.coilsCache = INITIAL_COILS;
     this.ordersCache = [];
     this.historyCache = [];
+    this.ferramentaisCache = INITIAL_FERRAMENTAL;
     localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(INITIAL_PRODUCTS));
     localStorage.setItem(STORAGE_KEYS.COILS, JSON.stringify(INITIAL_COILS));
     localStorage.setItem(STORAGE_KEYS.SLITTER_ORDERS, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.CUT_HISTORY, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.FERRAMENTAL, JSON.stringify(INITIAL_FERRAMENTAL));
   }
 
   // KPI calculations

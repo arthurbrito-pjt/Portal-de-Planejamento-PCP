@@ -1,4 +1,6 @@
-import { Product, Coil } from '../types/pcp';
+import { Product, Coil, Ferramental } from '../types/pcp';
+
+export const INITIAL_FERRAMENTAL: Ferramental[] = [];
 
 export const INITIAL_PRODUCTS: Product[] = [
   {

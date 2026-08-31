@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface MetricsBadgeProps {
-  type: 'aproveitamento' | 'sobra' | 'status' | 'familia';
+  type: 'aproveitamento' | 'sobra' | 'status' | 'familia' | 'dificuldade';
   value: number | string;
   size?: 'sm' | 'md' | 'lg';
 }
@@ -59,6 +59,21 @@ export const MetricsBadge: React.FC<MetricsBadgeProps> = ({ type, value, size = 
           : 'bg-purple-50 text-purple-800 border-purple-200'
       } ${sizeClasses}`}>
         {value}
+      </span>
+    );
+  }
+
+  if (type === 'dificuldade') {
+    const grau = String(value).toUpperCase();
+    let bg = 'bg-slate-100 text-slate-700 border-slate-300';
+    if (grau === 'BAIXO') bg = 'bg-emerald-50 text-emerald-800 border-emerald-300';
+    else if (grau === 'MEDIO') bg = 'bg-amber-50 text-amber-800 border-amber-300';
+    else if (grau === 'ALTO') bg = 'bg-red-50 text-red-800 border-red-300';
+
+    return (
+      <span className={`inline-flex items-center gap-1.5 rounded-full border ${bg} ${sizeClasses}`}>
+        <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+        {grau}
       </span>
     );
   }
