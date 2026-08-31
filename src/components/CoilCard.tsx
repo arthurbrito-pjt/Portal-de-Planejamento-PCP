@@ -6,6 +6,7 @@ import { MetricsBadge } from './MetricsBadge';
 interface CoilCardProps {
   coil: Coil;
   isSelected?: boolean;
+  isLocked?: boolean;
   onSelect?: () => void;
   showSelectButton?: boolean;
 }
@@ -13,15 +14,22 @@ interface CoilCardProps {
 export const CoilCard: React.FC<CoilCardProps> = ({
   coil,
   isSelected = false,
+  isLocked = false,
   onSelect,
   showSelectButton = true
 }) => {
+  const isClickable = isSelected || !isLocked;
+
   return (
     <div
-      onClick={onSelect}
+      onClick={() => {
+        if (isClickable && onSelect) onSelect();
+      }}
       className={`p-5 rounded-3xl border transition-all duration-200 cursor-pointer relative overflow-hidden group ${
         isSelected
           ? 'bg-blue-50/90 border-blue-500 shadow-md ring-2 ring-blue-400/40 -translate-y-1'
+          : isLocked
+          ? 'bg-slate-50/60 border-slate-200 opacity-70 hover:border-slate-300 cursor-not-allowed'
           : 'bg-white border-slate-200 hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5'
       }`}
     >
@@ -83,6 +91,8 @@ export const CoilCard: React.FC<CoilCardProps> = ({
             className={`w-full py-2 px-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
               isSelected
                 ? 'bg-blue-600 text-white shadow-sm'
+                : isLocked
+                ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
                 : 'bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-700 border border-slate-200'
             }`}
           >
@@ -91,6 +101,8 @@ export const CoilCard: React.FC<CoilCardProps> = ({
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>Lote Selecionado</span>
               </>
+            ) : isLocked ? (
+              <span>🔒 Demanda Já Atendida</span>
             ) : (
               <span>Selecionar este Lote</span>
             )}

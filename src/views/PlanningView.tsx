@@ -123,16 +123,9 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     ).sort((a, b) => b.largura - a.largura);
   }, [coils, selectedProduct]);
 
-  useEffect(() => {
-    if (compatibleCoils.length > 0) {
-      const isMismatch = selectedCoils.length === 0 || selectedCoils.some(sc => Math.abs(sc.espessura - (selectedProduct?.espessura || 0)) > 0.001);
-      if (isMismatch) {
-        setSelectedCoils([compatibleCoils[0]]);
-      }
-    } else {
-      setSelectedCoils([]);
-    }
-  }, [compatibleCoils, selectedProduct]);
+  const isDemandCovered = useMemo(() => {
+    return totalSelectedCoilsWeightTon >= desiredQtyTon;
+  }, [totalSelectedCoilsWeightTon, desiredQtyTon]);
 
   const handleToggleCoil = (coil: Coil) => {
     if (selectedCoils.some(c => c.id === coil.id)) {
@@ -140,12 +133,23 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         setSelectedCoils(selectedCoils.filter(c => c.id !== coil.id));
       }
     } else {
+      if (isDemandCovered) {
+        // Lock coil selection when desired demand is already 100% fulfilled
+        return;
+      }
       setSelectedCoils([...selectedCoils, coil]);
     }
   };
 
   const handleSelectAllCoils = () => {
-    setSelectedCoils(compatibleCoils);
+    let accum = 0;
+    const neededCoils: Coil[] = [];
+    for (const c of compatibleCoils) {
+      neededCoils.push(c);
+      accum += c.peso;
+      if (accum >= desiredQtyTon) break;
+    }
+    setSelectedCoils(neededCoils);
   };
 
   const handleClearCoilSelection = () => {
@@ -534,7 +538,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         </div>
       )}
 
-      {/* STEP 3 & 4: Compatible Coils (Multi-Coil Selection) */}
+      {/* STEP 3 & 4: Compatible Coils (Multi-Coil Selection & Demand Locking) */}
       {(currentStep === 3 || currentStep === 4) && selectedProduct && (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -546,7 +550,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                 Passo {currentStep === 3 ? '3: Bobinas Compatíveis Localizadas' : '4: Selecionar Lote(s) de Bobina'}
               </h3>
               <p className="text-xs text-slate-500 mt-1">
-                Localizamos <strong>{compatibleCoils.length} lotes disponíveis</strong> no estoque com espessura de <strong className="text-purple-700 font-mono">{selectedProduct.espessura} mm</strong>. Você pode selecionar mais de uma bobina.
+                Localizamos <strong>{compatibleCoils.length} lotes disponíveis</strong> no estoque com espessura de <strong className="text-purple-700 font-mono">{selectedProduct.espessura} mm</strong>.
               </p>
             </div>
 
@@ -562,35 +566,65 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
           </div>
 
           {compatibleCoils.length > 0 && (
-            <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="px-3.5 py-2 bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl font-mono text-xs font-black flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-blue-600" />
-                  <span>{selectedCoils.length} de {compatibleCoils.length} Bobina(s) Selecionada(s)</span>
+            <div className="bg-white p-4.5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="px-3.5 py-2 bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl font-mono text-xs font-black flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-blue-600" />
+                    <span>{selectedCoils.length} de {compatibleCoils.length} Bobina(s) Selecionada(s)</span>
+                  </div>
+
+                  <div className="text-xs text-slate-700 font-mono font-bold flex items-center gap-2">
+                    <span>Demanda Solicitada: <strong className="text-blue-900 font-black">{desiredQtyTon} t</strong></span>
+                    <span>•</span>
+                    <span>Peso Acumulado: <strong className="text-emerald-700 text-sm font-black">{totalSelectedCoilsWeightTon} t</strong></span>
+                  </div>
                 </div>
-                <div className="text-xs text-slate-700 font-mono font-bold">
-                  Peso Total da Matéria-Prima: <span className="text-emerald-700 font-black text-sm">{totalSelectedCoilsWeightTon} t</span>
+
+                <div className="flex items-center gap-2">
+                  {!isDemandCovered && (
+                    <button
+                      type="button"
+                      onClick={handleSelectAllCoils}
+                      className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-2xl shadow-sm transition-all"
+                    >
+                      ✓ Auto-Selecionar para {desiredQtyTon}t
+                    </button>
+                  )}
+                  {selectedCoils.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={handleClearCoilSelection}
+                      className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-2xl border border-slate-200 transition-all"
+                    >
+                      Manter Apenas 1 Lote
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleSelectAllCoils}
-                  className="px-3.5 py-2 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 text-xs font-bold rounded-2xl border border-slate-200 transition-all"
-                >
-                  ✓ Selecionar Todas ({compatibleCoils.length})
-                </button>
-                {selectedCoils.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={handleClearCoilSelection}
-                    className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-2xl border border-slate-200 transition-all"
-                  >
-                    Manter Apenas 1
-                  </button>
-                )}
-              </div>
+              {/* Demand Locking Alert Bar */}
+              {isDemandCovered ? (
+                <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-mono font-bold flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <strong>🔒 Demanda de {desiredQtyTon} t 100% Atendida!</strong> A seleção de novos lotes foi travada para evitar exceder o peso da demanda.
+                  </span>
+                  <span className="text-[11px] bg-emerald-200/60 px-2.5 py-0.5 rounded-full font-black">
+                    {((totalSelectedCoilsWeightTon / desiredQtyTon) * 100).toFixed(0)}% Atendido ({totalSelectedCoilsWeightTon}t / {desiredQtyTon}t)
+                  </span>
+                </div>
+              ) : (
+                <div className="p-3 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-mono font-bold flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Selecione mais bobinas para atingir a meta de <strong>{desiredQtyTon} t</strong> (Faltam <strong>{(desiredQtyTon - totalSelectedCoilsWeightTon).toFixed(2)} t</strong>).</span>
+                  </span>
+                  <span className="text-[11px] bg-amber-200/60 px-2.5 py-0.5 rounded-full font-black">
+                    {((totalSelectedCoilsWeightTon / desiredQtyTon) * 100).toFixed(0)}% Atendido
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -603,17 +637,23 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {compatibleCoils.map((c) => (
-                <CoilCard
-                  key={c.id}
-                  coil={c}
-                  isSelected={selectedCoils.some(sc => sc.id === c.id)}
-                  onSelect={() => {
-                    handleToggleCoil(c);
-                    setCurrentStep(4);
-                  }}
-                />
-              ))}
+              {compatibleCoils.map((c) => {
+                const isSelected = selectedCoils.some(sc => sc.id === c.id);
+                const isLocked = isDemandCovered && !isSelected;
+
+                return (
+                  <CoilCard
+                    key={c.id}
+                    coil={c}
+                    isSelected={isSelected}
+                    isLocked={isLocked}
+                    onSelect={() => {
+                      handleToggleCoil(c);
+                      setCurrentStep(4);
+                    }}
+                  />
+                );
+              })}
             </div>
           )}
         </div>
@@ -742,16 +782,63 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
           </div>
 
           {selectedCombination && (
-            <div className="space-y-3">
-              <SlitterVisualizer
-                coil={{
-                  ...selectedCoil,
-                  lote: selectedCoils.map(c => c.lote).join(' + '),
-                  peso: totalSelectedCoilsWeightTon
-                }}
-                strips={currentStrips}
-                interactive={false}
-              />
+            <div className="space-y-5">
+              <div className="flex items-center justify-between bg-blue-50/90 p-4 rounded-3xl border border-blue-200">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-600 text-white rounded-xl text-xs font-black">
+                    <Scissors className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-blue-900 tracking-tight">
+                      Simulação Gráfica do Corte Slitter ({selectedCoils.length} {selectedCoils.length > 1 ? 'Simulações Individuais' : 'Simulação'})
+                    </h4>
+                    <p className="text-xs text-blue-700 mt-0.5">
+                      Visualização gráfica por bobina individual com seu lote e peso real.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-right font-mono text-xs">
+                  <span className="text-slate-500 block text-[10px] font-bold uppercase">Massa Total Selecionada</span>
+                  <strong className="text-emerald-700 text-sm font-black">{totalSelectedCoilsWeightTon} t</strong>
+                </div>
+              </div>
+
+              {selectedCoils.map((coilItem, cIdx) => {
+                const coilStrips = SlitterOptimizer.generateStripsFromCombination(selectedCombination, coilItem);
+
+                return (
+                  <div key={coilItem.id || cIdx} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-7 h-7 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xs font-black font-mono shadow-xs">
+                          #{cIdx + 1}
+                        </span>
+                        <div>
+                          <span className="text-xs font-mono font-black text-slate-900">
+                            Bobina Lote <strong className="text-blue-700">{coilItem.lote}</strong> ({coilItem.codigo})
+                          </span>
+                          <div className="text-[11px] text-slate-500 font-mono">
+                            Largura: {coilItem.largura} mm | Espessura: {coilItem.espessura} mm | Peso Matéria-Prima: <strong className="text-slate-800">{coilItem.peso} t</strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-mono font-bold rounded-xl">
+                          Rendimento: {coilItem.peso} t cortadas
+                        </span>
+                      </div>
+                    </div>
+
+                    <SlitterVisualizer
+                      coil={coilItem}
+                      strips={coilStrips}
+                      interactive={false}
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
 
