@@ -118,20 +118,24 @@ export class ReadinessService {
       let estimatedYieldPercent = 0;
 
       if (matchingCoils.length > 0) {
-        let bestDistanceToIdeal = 9999;
+        let bestYield = -1;
         matchingCoils.forEach(c => {
-          const strips = Math.floor(c.largura / larguraFita);
-          if (strips > 0) {
-            const scrap = c.largura - (strips * larguraFita);
-            const inRange = scrap >= 10 && scrap <= 18;
-            const dist = inRange ? Math.abs(scrap - 14) : Math.abs(scrap - 14) + 100;
-            if (dist < bestDistanceToIdeal) {
-              bestDistanceToIdeal = dist;
-              bestCoil = c;
-              estimatedStrips = strips;
-              estimatedScrapMm = scrap;
-              estimatedYieldPercent = Number((((c.largura - scrap) / c.largura) * 100).toFixed(1));
-            }
+          const combList = SlitterOptimizer.optimize({
+            mainProduct,
+            desiredQuantityTon: totalDemandaT || 10,
+            selectedCoil: c,
+            compatibleProducts: produtos.map(p => p.product),
+            minScrapMm: 10,
+            maxScrapAllowedMm: 18
+          });
+
+          const topComb = combList[0];
+          if (topComb && topComb.aproveitamentoPercent > bestYield) {
+            bestYield = topComb.aproveitamentoPercent;
+            bestCoil = c;
+            estimatedStrips = topComb.fitas.reduce((acc, f) => acc + f.quantidade, 0);
+            estimatedScrapMm = topComb.sobraMm;
+            estimatedYieldPercent = topComb.aproveitamentoPercent;
           }
         });
 
@@ -237,7 +241,7 @@ export class ReadinessService {
               bestCoil = coil;
               bestCombination = topComb;
             } else if (isTopInIdeal && isCurrentInIdeal) {
-              if (Math.abs(topComb.sobraMm - 14) < Math.abs(bestCombination.sobraMm - 14)) {
+              if (topComb.aproveitamentoPercent > bestCombination.aproveitamentoPercent) {
                 bestCoil = coil;
                 bestCombination = topComb;
               }
@@ -293,13 +297,13 @@ export class ReadinessService {
       }
     }
 
-    // Sort programs: strictly 10 to 18mm first, then by closest to 14mm
+    // Sort programs: strictly 10 to 18mm first, then by highest aproveitamento percent
     programs.sort((a, b) => {
       const aIdeal = a.sobraMm >= 10 && a.sobraMm <= 18 ? 1 : 0;
       const bIdeal = b.sobraMm >= 10 && b.sobraMm <= 18 ? 1 : 0;
       if (aIdeal !== bIdeal) return bIdeal - aIdeal;
 
-      return Math.abs(a.sobraMm - 14) - Math.abs(b.sobraMm - 14);
+      return b.aproveitamentoPercent - a.aproveitamentoPercent;
     });
 
     return programs;
@@ -344,20 +348,24 @@ export class ReadinessService {
       let estimatedYieldPercent = 0;
 
       if (matchingCoils.length > 0) {
-        let bestDistanceToIdeal = 9999;
+        let bestYield = -1;
         matchingCoils.forEach(c => {
-          const strips = Math.floor(c.largura / product.larguraFita);
-          if (strips > 0) {
-            const scrap = c.largura - (strips * product.larguraFita);
-            const inRange = scrap >= 10 && scrap <= 18;
-            const dist = inRange ? Math.abs(scrap - 14) : Math.abs(scrap - 14) + 100;
-            if (dist < bestDistanceToIdeal) {
-              bestDistanceToIdeal = dist;
-              bestCoil = c;
-              estimatedStrips = strips;
-              estimatedScrapMm = scrap;
-              estimatedYieldPercent = Number((((c.largura - scrap) / c.largura) * 100).toFixed(1));
-            }
+          const combList = SlitterOptimizer.optimize({
+            mainProduct: product,
+            desiredQuantityTon: demanda || 10,
+            selectedCoil: c,
+            compatibleProducts: products,
+            minScrapMm: 10,
+            maxScrapAllowedMm: 18
+          });
+
+          const topComb = combList[0];
+          if (topComb && topComb.aproveitamentoPercent > bestYield) {
+            bestYield = topComb.aproveitamentoPercent;
+            bestCoil = c;
+            estimatedStrips = topComb.fitas.reduce((acc, f) => acc + f.quantidade, 0);
+            estimatedScrapMm = topComb.sobraMm;
+            estimatedYieldPercent = topComb.aproveitamentoPercent;
           }
         });
 

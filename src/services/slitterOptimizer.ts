@@ -112,26 +112,28 @@ export class SlitterOptimizer {
       : rawResults.filter(r => r.sobraMm >= minScrapMm);
 
     // Rank combinations:
-    // 1. Closest to 12-14mm ideal refilo
-    // 2. Higher count of main product strips
-    // 3. Higher utilization percent
+    // 1. Highest utilization (aproveitamentoPercent) FIRST!
+    // 2. Minimum refilo/scrap (sobraMm) within valid range
+    // 3. Higher count of main product strips
     finalPool.sort((a, b) => {
-      const aDist = Math.abs(a.sobraMm - 14);
-      const bDist = Math.abs(b.sobraMm - 14);
-      if (Math.abs(aDist - bDist) > 0.5) return aDist - bDist;
+      if (Math.abs(b.aproveitamentoPercent - a.aproveitamentoPercent) > 0.001) {
+        return b.aproveitamentoPercent - a.aproveitamentoPercent;
+      }
+
+      if (Math.abs(a.sobraMm - b.sobraMm) > 0.1) {
+        return a.sobraMm - b.sobraMm;
+      }
 
       const aMainQty = a.fitas.find(f => f.product.id === mainProduct.id)?.quantidade || 0;
       const bMainQty = b.fitas.find(f => f.product.id === mainProduct.id)?.quantidade || 0;
-      if (aMainQty !== bMainQty) return bMainQty - aMainQty;
-
-      return b.aproveitamentoPercent - a.aproveitamentoPercent;
+      return bMainQty - aMainQty;
     });
 
     return finalPool.slice(0, 15);
   }
 
   /**
-   * Combinatorial helper to find companion items that sum up to target width with 10mm <= scrap <= 18mm
+   * Combinatorial helper to find companion items that sum up to target space with 10mm <= scrap <= 18mm
    */
   private static findComplements(
     targetSpace: number,
@@ -142,11 +144,14 @@ export class SlitterOptimizer {
     const validCandidates = candidates.filter(p => p.larguraFita <= targetSpace);
     const solutions: { items: { product: Product; quantidade: number; larguraTotal: number }[]; scrap: number }[] = [];
 
-    // Prioritize products with active demand
-    validCandidates.sort((a, b) => (b.demandaT || 0) - (a.demandaT || 0));
+    // Sort candidate products by demand first, then by width descending
+    validCandidates.sort((a, b) => {
+      const demDiff = (b.demandaT || 0) - (a.demandaT || 0);
+      if (Math.abs(demDiff) > 0.1) return demDiff;
+      return b.larguraFita - a.larguraFita;
+    });
 
-    // Limit to top 25 candidate products to keep search ultra-fast
-    const topCandidates = validCandidates.slice(0, 25);
+    const topCandidates = validCandidates.slice(0, 30);
 
     // 1-item combinations (e.g. 1 or more strips of single companion product)
     for (const p of topCandidates) {
@@ -193,10 +198,51 @@ export class SlitterOptimizer {
       }
     }
 
-    // Sort solutions closest to 14mm
-    solutions.sort((a, b) => Math.abs(a.scrap - 14) - Math.abs(b.scrap - 14));
+    // 3-item combinations for tightest fit / highest yield
+    for (let i = 0; i < Math.min(topCandidates.length, 12); i++) {
+      const p1 = topCandidates[i];
+      const maxCount1 = Math.floor(targetSpace / p1.larguraFita);
+      
+      for (let count1 = maxCount1; count1 >= 1; count1--) {
+        const used1 = count1 * p1.larguraFita;
+        const rem1 = targetSpace - used1;
+        if (rem1 <= 0) continue;
 
-    return solutions.slice(0, 12);
+        for (let j = i + 1; j < Math.min(topCandidates.length, 15); j++) {
+          const p2 = topCandidates[j];
+          const maxCount2 = Math.floor(rem1 / p2.larguraFita);
+          for (let count2 = maxCount2; count2 >= 1; count2--) {
+            const used2 = count2 * p2.larguraFita;
+            const rem2 = rem1 - used2;
+            if (rem2 <= 0) continue;
+
+            for (let k = j + 1; k < Math.min(topCandidates.length, 18); k++) {
+              const p3 = topCandidates[k];
+              const maxCount3 = Math.floor(rem2 / p3.larguraFita);
+              for (let count3 = maxCount3; count3 >= 1; count3--) {
+                const used3 = count3 * p3.larguraFita;
+                const finalScrap = rem2 - used3;
+                if (finalScrap >= minScrap && finalScrap <= maxScrap) {
+                  solutions.push({
+                    items: [
+                      { product: p1, quantidade: count1, larguraTotal: used1 },
+                      { product: p2, quantidade: count2, larguraTotal: used2 },
+                      { product: p3, quantidade: count3, larguraTotal: used3 }
+                    ],
+                    scrap: finalScrap
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Sort solutions strictly by lowest scrap (highest utilization)
+    solutions.sort((a, b) => a.scrap - b.scrap);
+
+    return solutions.slice(0, 15);
   }
 
   /**
