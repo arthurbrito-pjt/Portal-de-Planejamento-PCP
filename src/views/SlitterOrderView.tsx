@@ -2,27 +2,37 @@ import React, { useState } from 'react';
 import { Coil, SlitterStrip, SlitterOrder } from '../types/pcp';
 import { ExcelService } from '../services/excelService';
 import { StorageService } from '../services/storageService';
+import { OrderBuilderService } from '../services/orderBuilderService';
 import { SlitterCatalogService } from '../services/slitterCatalogService';
 import { PrintTagsPortal } from '../components/PrintTagsPortal';
-import { 
-  ClipboardCheck, 
-  FileSpreadsheet, 
-  Printer, 
-  Save, 
-  Check, 
-  Calendar, 
-  ArrowLeft, 
+import { EmptyState } from '../components/EmptyState';
+import { MetricsBadge } from '../components/MetricsBadge';
+import {
+  ClipboardCheck,
+  FileSpreadsheet,
+  Printer,
+  Save,
+  Check,
+  Calendar,
+  ArrowLeft,
   Scissors,
   Tag,
-  CheckCircle2
+  CheckCircle2,
+  XCircle
 } from 'lucide-react';
 
 interface SlitterOrderViewProps {
   order: SlitterOrder | null;
   coil: Coil | null;
   strips: SlitterStrip[];
+  operadorInicial?: string;
+  turnoInicial?: string;
+  maquinaInicial?: string;
+  observacoesInicial?: string;
+  justCreated?: boolean;
   onOrderSaved?: (savedOrder: SlitterOrder) => void;
   onFinishOrder?: () => void;
+  onCancelOrder?: (orderId: string) => void;
   onNavigateToPlanning: () => void;
   onNavigateToSimulation?: () => void;
   onNavigateToDashboard?: () => void;
@@ -32,126 +42,98 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
   order,
   coil,
   strips,
+  operadorInicial,
+  turnoInicial,
+  maquinaInicial,
+  observacoesInicial,
+  justCreated = false,
   onOrderSaved,
   onFinishOrder,
+  onCancelOrder,
   onNavigateToPlanning,
   onNavigateToSimulation,
   onNavigateToDashboard
 }) => {
-  const [isSaved, setIsSaved] = useState<boolean>(false);
+  const [isSaved, setIsSaved] = useState<boolean>(!!order);
+  const [showJustCreatedBanner] = useState<boolean>(justCreated);
+  const [justUpdated, setJustUpdated] = useState<boolean>(false);
   const [isPrintingTagsPortal, setIsPrintingTagsPortal] = useState<boolean>(false);
-  const [operador, setOperador] = useState<string>('Operador PCP - Linha 01');
-  const [maquina, setMaquina] = useState<string>('Slitter Principal SLT-01');
-  const [observacoes, setObservacoes] = useState<string>('Plano de corte otimizado pelo Portal PCP com aproveitamento máximo da bobina e tolerância conforme de refilo (10 a 18 mm).');
+  const [operador, setOperador] = useState<string>(order?.operador || operadorInicial || '');
+  const [turno, setTurno] = useState<string>(order?.turno || turnoInicial || '');
+  const [maquina, setMaquina] = useState<string>(order?.maquina || maquinaInicial || '');
+  const [observacoes, setObservacoes] = useState<string>(order?.observacoes || observacoesInicial || '');
 
-  const currentCoil = order ? {
-    id: order.bobinaId,
-    codigo: order.bobinaCodigo,
-    lote: order.bobinaLote,
-    largura: order.bobinaLargura,
-    espessura: order.bobinaEspessura,
-    peso: order.bobinaPesoOriginal,
-    quantidade: 1,
-    status: 'Consumida' as const
-  } : coil;
+  // Rascunho estável: monta a OP (com numeroOP/id fixos) uma única vez a partir
+  // da bobina + fitas vindas do Estúdio de Simulação, antes de existir uma OP
+  // salva. Evita recalcular um número de OP diferente a cada render/keystroke.
+  const [draftOrder] = useState<SlitterOrder | null>(() => {
+    if (order || !coil || strips.length === 0) return null;
+    return OrderBuilderService.buildNew([{ coil, strips }], {});
+  });
 
-  const currentStrips = order ? order.fitas : strips;
+  const displayOrder = order || draftOrder;
 
-  if (!currentCoil || currentStrips.length === 0) {
+  if (!displayOrder) {
     return (
-      <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-4 max-w-xl mx-auto my-12 shadow-sm animate-fadeIn">
-        <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center mx-auto shadow-sm">
-          <ClipboardCheck className="w-8 h-8" />
-        </div>
-        <h3 className="text-xl font-black text-slate-900 tracking-tight">Nenhuma Ordem de Produção (OP) em Edição</h3>
-        <p className="text-xs text-slate-600 leading-relaxed font-medium">
-          Para gerar uma Ordem de Produção (OP) de Slitter, selecione uma bobina e planeje o corte no módulo de Planejamento.
-        </p>
-        <button
-          onClick={onNavigateToPlanning}
-          className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl shadow-md shadow-blue-500/20 transition-all hover:scale-105"
-        >
-          <Scissors className="w-4 h-4" />
-          <span>Iniciar Planejamento</span>
-        </button>
-      </div>
+      <EmptyState
+        icon={ClipboardCheck}
+        title="Nenhuma Ordem de Produção (OP) em Edição"
+        description="Para gerar uma Ordem de Produção (OP) de Slitter, selecione uma bobina e planeje o corte no módulo de Planejamento."
+        actionLabel="Iniciar Planejamento"
+        actionIcon={Scissors}
+        onAction={onNavigateToPlanning}
+      />
     );
   }
 
-  const totalUsedWidth = currentStrips.reduce((acc, s) => acc + s.largura, 0);
-  const sobraMm = Math.max(0, currentCoil.largura - totalUsedWidth);
-  const aproveitamentoPercent = Number(((totalUsedWidth / currentCoil.largura) * 100).toFixed(2));
-  const perdaPercent = Number(((sobraMm / currentCoil.largura) * 100).toFixed(2));
-  const sobraPesoTon = Number((currentCoil.peso * (sobraMm / currentCoil.largura)).toFixed(3));
+  const orderNumber = displayOrder.numeroOP || displayOrder.numeroOS || 'OP-SLT-2026-001';
+  const orderDate = displayOrder.dataCriacao;
+  const orderStatus = displayOrder.status;
+  const isLocked = orderStatus === 'Cancelada' || orderStatus === 'Concluída';
+  const bobinas = displayOrder.bobinas;
+  const isMultiCoil = bobinas.length > 1;
 
-  const orderNumber = order ? (order.numeroOP || order.numeroOS || 'OP-SLT-2026-001') : `OP-SLT-2026-${String(Math.floor(Math.random() * 900) + 100).padStart(3, '0')}`;
-  const orderDate = order ? order.dataCriacao : new Date().toLocaleDateString('pt-BR');
+  const handleSaveOrder = (): SlitterOrder => {
+    const base = order || draftOrder!;
+    const toSave = OrderBuilderService.updateFields(base, { operador, turno, maquina, observacoes });
 
-  const handleSaveOrder = () => {
-    const newOrder: SlitterOrder = {
-      id: order ? order.id : `ORD_${Date.now()}`,
-      numeroOP: orderNumber,
-      numeroOS: orderNumber,
-      dataCriacao: new Date().toISOString().split('T')[0],
-      bobinaId: currentCoil.id,
-      bobinaCodigo: currentCoil.codigo,
-      bobinaLote: currentCoil.lote,
-      bobinaLargura: currentCoil.largura,
-      bobinaEspessura: currentCoil.espessura,
-      bobinaPesoOriginal: currentCoil.peso,
-      fitas: currentStrips,
-      totalFitas: currentStrips.length,
-      totalLarguraFitas: totalUsedWidth,
-      sobraMm: sobraMm,
-      sobraPesoTon: sobraPesoTon,
-      aproveitamentoPercent: aproveitamentoPercent,
-      perdaPercent: perdaPercent,
-      status: 'Liberada',
-      operador,
-      maquina,
-      observacoes
-    };
-
-    StorageService.addOrder(newOrder);
+    StorageService.addOrder(toSave);
     setIsSaved(true);
-    if (onOrderSaved) onOrderSaved(newOrder);
+    if (isSaved) {
+      setJustUpdated(true);
+      setTimeout(() => setJustUpdated(false), 2500);
+    }
+    if (onOrderSaved) onOrderSaved(toSave);
+    return toSave;
   };
 
   const handleFinalizeAndClear = () => {
-    if (!isSaved) {
-      handleSaveOrder();
+    const savedOrder = isSaved ? order : handleSaveOrder();
+    const orderId = savedOrder?.id;
+
+    if (orderId) {
+      StorageService.updateOrderStatus(orderId, 'Concluída');
     }
+
     if (onFinishOrder) {
       onFinishOrder();
     }
   };
 
-  const handleExportExcel = () => {
-    const orderObj: SlitterOrder = {
-      id: order ? order.id : `ORD_${Date.now()}`,
-      numeroOP: orderNumber,
-      numeroOS: orderNumber,
-      dataCriacao: orderDate,
-      bobinaId: currentCoil.id,
-      bobinaCodigo: currentCoil.codigo,
-      bobinaLote: currentCoil.lote,
-      bobinaLargura: currentCoil.largura,
-      bobinaEspessura: currentCoil.espessura,
-      bobinaPesoOriginal: currentCoil.peso,
-      fitas: currentStrips,
-      totalFitas: currentStrips.length,
-      totalLarguraFitas: totalUsedWidth,
-      sobraMm: sobraMm,
-      sobraPesoTon: sobraPesoTon,
-      aproveitamentoPercent: aproveitamentoPercent,
-      perdaPercent: perdaPercent,
-      status: 'Liberada',
-      operador,
-      maquina,
-      observacoes
-    };
+  const handleCancelOrder = () => {
+    if (!order || !onCancelOrder) return;
+    const lotesTexto = bobinas.map(b => b.bobinaLote).join(', ');
+    const confirmed = window.confirm(
+      `Cancelar a OP ${orderNumber}? A(s) bobina(s) ${lotesTexto} volta(m) ao estoque como Disponível e o corte não será executado.`
+    );
+    if (!confirmed) return;
+    onCancelOrder(order.id);
+  };
 
-    ExcelService.exportSlitterOrderToExcel(orderObj);
+  const handleExportExcel = () => {
+    const base = order || draftOrder!;
+    const toExport = OrderBuilderService.updateFields(base, { operador, turno, maquina, observacoes });
+    ExcelService.exportSlitterOrderToExcel(toExport);
   };
 
   const handlePrintOp = () => {
@@ -176,10 +158,17 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
       {/* Portal Container for Tag Printing */}
       {isPrintingTagsPortal && (
         <PrintTagsPortal
-          strips={currentStrips}
-          coil={{ lote: currentCoil.lote, codigo: currentCoil.codigo }}
+          strips={displayOrder.fitas}
+          coil={{ lote: displayOrder.bobinaLote, codigo: displayOrder.bobinaCodigo }}
           orderNumber={orderNumber}
         />
+      )}
+
+      {showJustCreatedBanner && (
+        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 print:hidden">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>OP {orderNumber} gerada e salva com sucesso. Revise abaixo, imprima ou clique em "Finalizar OP & Concluir" para voltar ao painel.</span>
+        </div>
       )}
 
       {/* Top Action Bar */}
@@ -248,37 +237,75 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
             <span>Imprimir OP</span>
           </button>
 
+          {isSaved && !isLocked && justUpdated && (
+            <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-700">
+              <Check className="w-4 h-4" />
+              Alterações salvas
+            </span>
+          )}
+
           <button
             onClick={handleSaveOrder}
-            disabled={isSaved}
+            disabled={isLocked}
+            title={isLocked ? `OP ${orderStatus === 'Cancelada' ? 'cancelada' : 'concluída'} — não pode mais ser editada` : undefined}
             className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl shadow-xs transition-all ${
-              isSaved
-                ? 'bg-slate-100 text-slate-500 border border-slate-300 cursor-default'
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
+              isLocked
+                ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                : isSaved
+                  ? 'bg-white hover:bg-slate-100 text-slate-800 border border-slate-200'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
             }`}
           >
-            {isSaved ? (
-              <>
-                <Check className="w-4 h-4 text-emerald-600" />
-                <span>OP Salva & Liberada</span>
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" />
-                <span>Salvar OP</span>
-              </>
-            )}
+            <Save className="w-4 h-4" />
+            <span>{isSaved ? 'Atualizar OP' : 'Salvar OP'}</span>
           </button>
+
+          {order && onCancelOrder && (
+            <button
+              onClick={handleCancelOrder}
+              disabled={isLocked}
+              title={isLocked ? `OP ${orderStatus === 'Cancelada' ? 'já cancelada' : 'concluída'} — não pode mais ser cancelada` : 'Cancelar esta OP e devolver a(s) bobina(s) ao estoque'}
+              className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl shadow-xs transition-all ${
+                isLocked
+                  ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                  : 'bg-white hover:bg-red-50 text-red-700 border border-red-200'
+              }`}
+            >
+              <XCircle className="w-4 h-4" />
+              <span>Cancelar OP</span>
+            </button>
+          )}
 
           <button
             onClick={handleFinalizeAndClear}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all"
+            disabled={isLocked}
+            title={isLocked ? `OP ${orderStatus === 'Cancelada' ? 'cancelada' : 'já concluída'}` : undefined}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl shadow-xs transition-all ${
+              isLocked
+                ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+            }`}
           >
             <CheckCircle2 className="w-4 h-4" />
             <span>Finalizar OP & Concluir</span>
           </button>
         </div>
       </div>
+
+      {isLocked && (
+        <div className={`p-3.5 rounded-xl border text-xs font-bold flex items-center gap-2 print:hidden ${
+          orderStatus === 'Cancelada'
+            ? 'bg-red-50 border-red-200 text-red-800'
+            : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+        }`}>
+          {orderStatus === 'Cancelada' ? <XCircle className="w-4 h-4 shrink-0" /> : <CheckCircle2 className="w-4 h-4 shrink-0" />}
+          <span>
+            {orderStatus === 'Cancelada'
+              ? `Esta OP foi cancelada. A(s) bobina(s) ${bobinas.map(b => b.bobinaLote).join(', ')} foram devolvidas ao estoque como Disponível.`
+              : 'Esta OP já foi concluída e não pode mais ser editada, atualizada ou cancelada.'}
+          </span>
+        </div>
+      )}
 
       {/* Printable OP Sheet Container */}
       <div className="print-op-document bg-white p-8 sm:p-10 rounded-2xl border border-slate-200 shadow-xs space-y-7 print:bg-white print:text-black print:p-0 print:border-none print:shadow-none">
@@ -293,9 +320,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
                 <h1 className="text-xl sm:text-2xl font-black text-slate-900 print:text-black tracking-tight">
                   ORDEM DE PRODUÇÃO — CORTE SLITTER (OP)
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 text-xs font-mono font-bold">
-                  LIBERADA PARA CORTE
-                </span>
+                <MetricsBadge type="status" value={orderStatus} size="md" />
               </div>
               <p className="text-xs text-slate-500 print:text-gray-600 mt-0.5 font-medium">
                 Planejamento e Controle da Produção Metalúrgica • Indústria de Tubos e Perfis de Aço
@@ -314,14 +339,14 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
           </div>
         </div>
 
-        {/* Coil Summary Cards */}
+        {/* Coil Summary Cards (agregado — 1 ou mais bobinas) */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-              Código Bobina Matriz
+              {isMultiCoil ? `Bobinas (${bobinas.length})` : 'Código Bobina Matriz'}
             </div>
             <div className="text-base font-black text-slate-900 font-mono mt-1">
-              {currentCoil.codigo}
+              {isMultiCoil ? bobinas.map(b => b.bobinaCodigo).join(', ') : displayOrder.bobinaCodigo}
             </div>
           </div>
 
@@ -330,119 +355,122 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
               Lote da Matéria-Prima
             </div>
             <div className="text-base font-black text-blue-700 font-mono mt-1">
-              {currentCoil.lote}
+              {displayOrder.bobinaLote}
             </div>
           </div>
 
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-              Largura & Espessura
+              {isMultiCoil ? 'Espessura' : 'Largura & Espessura'}
             </div>
             <div className="text-base font-black text-slate-900 font-mono mt-1">
-              {currentCoil.largura} x {currentCoil.espessura} mm
+              {isMultiCoil ? `${displayOrder.bobinaEspessura} mm` : `${displayOrder.bobinaLargura} x ${displayOrder.bobinaEspessura} mm`}
             </div>
           </div>
 
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-              Peso da Bobina
+              Peso {isMultiCoil ? 'Total' : 'da Bobina'}
             </div>
             <div className="text-base font-black text-emerald-700 font-mono mt-1">
-              {currentCoil.peso} t
+              {displayOrder.bobinaPesoOriginal} t
             </div>
           </div>
 
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-              Aproveitamento Slitter
+              Aproveitamento {isMultiCoil ? 'Médio' : 'Slitter'}
             </div>
             <div className="text-base font-black text-emerald-700 font-mono mt-1">
-              {aproveitamentoPercent}%
+              {displayOrder.aproveitamentoPercent}%
             </div>
           </div>
         </div>
 
-        {/* Strips List Table */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
-            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider font-mono">
-              Fitas de Slitter a Produzir ({currentStrips.length} fitas programadas) & Destinação
-            </h3>
-            <span className="text-xs font-mono text-slate-600 font-bold">
-              Largura Útil: <strong>{totalUsedWidth} mm</strong> | Refilo Técnico: <strong className="text-emerald-700">{sobraMm} mm</strong>
-            </span>
+        {/* Strips por bobina */}
+        {bobinas.map((bobina, bIdx) => (
+          <div key={bobina.coilId} className="space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider font-mono">
+                {isMultiCoil && `Bobina ${bIdx + 1} de ${bobinas.length} — Lote ${bobina.bobinaLote} — `}
+                Fitas de Slitter a Produzir ({bobina.totalFitas} fitas programadas) & Destinação
+              </h3>
+              <span className="text-xs font-mono text-slate-600 font-bold">
+                Largura Útil: <strong>{bobina.totalLarguraFitas} mm</strong> | Refilo Técnico: <strong className="text-emerald-700">{bobina.sobraMm} mm</strong>
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse border border-slate-200 print:border-black">
+                <thead>
+                  <tr className="bg-slate-100 print:bg-gray-200 border-b border-slate-200 print:border-black text-slate-700 font-mono text-[11px] font-bold">
+                    <th className="py-3 px-3 border-r border-slate-200 print:border-black">Fita Slitter</th>
+                    <th className="py-3 px-3 border-r border-slate-200 print:border-black">Código Slitter</th>
+                    <th className="py-3 px-3 border-r border-slate-200 print:border-black">Material de Destino (Produto Final)</th>
+                    <th className="py-3 px-3 border-r border-slate-200 print:border-black">Família</th>
+                    <th className="py-3 px-3 border-r border-slate-200 print:border-black text-right">Largura da Fita</th>
+                    <th className="py-3 px-3 border-r border-slate-200 print:border-black text-right">Peso do Rolo</th>
+                    <th className="py-3 px-3 text-right">Rendimento</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 font-mono">
+                  {bobina.fitas.map((strip, idx) => {
+                    const sltInfo = SlitterCatalogService.getSlitterInfo(strip.largura, strip.espessura);
+
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="py-3 px-3 font-black border-r border-slate-200 text-slate-900">
+                          Fita {String(strip.stripNumber).padStart(2, '0')}
+                        </td>
+                        <td className="py-3 px-3 font-black text-blue-700 border-r border-slate-200">
+                          <div>{sltInfo.code}</div>
+                          <div className="text-[10px] text-slate-500 font-normal">{sltInfo.name}</div>
+                        </td>
+                        <td className="py-3 px-3 font-sans text-slate-800 font-bold border-r border-slate-200">
+                          <div className="font-mono text-blue-900 font-bold">{strip.productCode}</div>
+                          <div className="text-slate-600 truncate">{strip.productDescription}</div>
+                        </td>
+                        <td className="py-3 px-3 font-sans border-r border-slate-200 font-bold">
+                          {strip.productFamily}
+                        </td>
+                        <td className="py-3 px-3 text-right font-black text-slate-900 border-r border-slate-200">
+                          {strip.largura} mm
+                        </td>
+                        <td className="py-3 px-3 text-right text-emerald-700 font-bold border-r border-slate-200">
+                          {strip.pesoTon} t ({strip.pesoKg} kg)
+                        </td>
+                        <td className="py-3 px-3 text-right text-blue-700 font-bold">
+                          {strip.metrosLineares} m
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  {/* Scrap row */}
+                  <tr className="bg-slate-50 font-bold">
+                    <td className="py-3 px-3 text-amber-700 border-r border-slate-200">
+                      Refilo Lateral
+                    </td>
+                    <td colSpan={3} className="py-3 px-3 text-slate-600 font-sans border-r border-slate-200">
+                      {bobina.sobraMm >= 10 && bobina.sobraMm <= 18
+                        ? 'Refilo padrão ideal de corte (10 a 18 mm ~1,5%)'
+                        : `Refilo ajustado (${bobina.sobraMm} mm)`}
+                    </td>
+                    <td className="py-3 px-3 text-right text-amber-700 border-r border-slate-200 font-black">
+                      {bobina.sobraMm} mm
+                    </td>
+                    <td className="py-3 px-3 text-right text-amber-700 border-r border-slate-200 font-black">
+                      {bobina.sobraPesoTon} t ({bobina.perdaPercent}%)
+                    </td>
+                    <td className="py-3 px-3 text-right text-slate-400">
+                      -
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse border border-slate-200 print:border-black">
-              <thead>
-                <tr className="bg-slate-100 print:bg-gray-200 border-b border-slate-200 print:border-black text-slate-700 font-mono text-[11px] font-bold">
-                  <th className="py-3 px-3 border-r border-slate-200 print:border-black">Fita Slitter</th>
-                  <th className="py-3 px-3 border-r border-slate-200 print:border-black">Código Slitter</th>
-                  <th className="py-3 px-3 border-r border-slate-200 print:border-black">Material de Destino (Produto Final)</th>
-                  <th className="py-3 px-3 border-r border-slate-200 print:border-black">Família</th>
-                  <th className="py-3 px-3 border-r border-slate-200 print:border-black text-right">Largura da Fita</th>
-                  <th className="py-3 px-3 border-r border-slate-200 print:border-black text-right">Peso do Rolo</th>
-                  <th className="py-3 px-3 text-right">Rendimento</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 font-mono">
-                {currentStrips.map((strip, idx) => {
-                  const sltInfo = SlitterCatalogService.getSlitterInfo(strip.largura, strip.espessura);
-
-                  return (
-                    <tr key={idx} className="hover:bg-slate-50">
-                      <td className="py-3 px-3 font-black border-r border-slate-200 text-slate-900">
-                        Fita {String(strip.stripNumber).padStart(2, '0')}
-                      </td>
-                      <td className="py-3 px-3 font-black text-blue-700 border-r border-slate-200">
-                        <div>{sltInfo.code}</div>
-                        <div className="text-[10px] text-slate-500 font-normal">{sltInfo.name}</div>
-                      </td>
-                      <td className="py-3 px-3 font-sans text-slate-800 font-bold border-r border-slate-200">
-                        <div className="font-mono text-blue-900 font-bold">{strip.productCode}</div>
-                        <div className="text-slate-600 truncate">{strip.productDescription}</div>
-                      </td>
-                      <td className="py-3 px-3 font-sans border-r border-slate-200 font-bold">
-                        {strip.productFamily}
-                      </td>
-                      <td className="py-3 px-3 text-right font-black text-slate-900 border-r border-slate-200">
-                        {strip.largura} mm
-                      </td>
-                      <td className="py-3 px-3 text-right text-emerald-700 font-bold border-r border-slate-200">
-                        {strip.pesoTon} t ({strip.pesoKg} kg)
-                      </td>
-                      <td className="py-3 px-3 text-right text-blue-700 font-bold">
-                        {strip.metrosLineares} m
-                      </td>
-                    </tr>
-                  );
-                })}
-
-                {/* Scrap row */}
-                <tr className="bg-slate-50 font-bold">
-                  <td className="py-3 px-3 text-amber-700 border-r border-slate-200">
-                    Refilo Lateral
-                  </td>
-                  <td colSpan={3} className="py-3 px-3 text-slate-600 font-sans border-r border-slate-200">
-                    {sobraMm >= 10 && sobraMm <= 18 
-                      ? 'Refilo padrão ideal de corte (10 a 18 mm ~1,5%)' 
-                      : `Refilo ajustado (${sobraMm} mm)`}
-                  </td>
-                  <td className="py-3 px-3 text-right text-amber-700 border-r border-slate-200 font-black">
-                    {sobraMm} mm
-                  </td>
-                  <td className="py-3 px-3 text-right text-amber-700 border-r border-slate-200 font-black">
-                    {sobraPesoTon} t ({perdaPercent}%)
-                  </td>
-                  <td className="py-3 px-3 text-right text-slate-400">
-                    -
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+        ))}
 
         {/* Operational lines & Signatures */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-slate-200 print:border-black">
@@ -457,7 +485,9 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
                   type="text"
                   value={maquina}
                   onChange={(e) => setMaquina(e.target.value)}
-                  className="bg-transparent border-b border-slate-300 text-right font-mono font-bold text-slate-900 focus:outline-none"
+                  disabled={isLocked}
+                  placeholder="Selecione a máquina no Planejamento"
+                  className="bg-transparent border-b border-slate-300 text-right font-mono font-bold text-slate-900 placeholder:font-normal placeholder:text-slate-400 focus:outline-none disabled:text-slate-400 disabled:cursor-not-allowed"
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -466,7 +496,20 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
                   type="text"
                   value={operador}
                   onChange={(e) => setOperador(e.target.value)}
-                  className="bg-transparent border-b border-slate-300 text-right font-mono font-bold text-slate-900 focus:outline-none"
+                  disabled={isLocked}
+                  placeholder="Selecione o operador"
+                  className="bg-transparent border-b border-slate-300 text-right font-mono font-bold text-slate-900 placeholder:font-normal placeholder:text-slate-400 focus:outline-none disabled:text-slate-400 disabled:cursor-not-allowed"
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-600">Turno:</span>
+                <input
+                  type="text"
+                  value={turno}
+                  onChange={(e) => setTurno(e.target.value)}
+                  disabled={isLocked}
+                  placeholder="Selecione o turno"
+                  className="bg-transparent border-b border-slate-300 text-right font-mono font-bold text-slate-900 placeholder:font-normal placeholder:text-slate-400 focus:outline-none disabled:text-slate-400 disabled:cursor-not-allowed"
                 />
               </div>
             </div>

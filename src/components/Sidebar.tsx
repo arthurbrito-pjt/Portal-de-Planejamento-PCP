@@ -1,15 +1,16 @@
 import React from 'react';
-import { 
-  LayoutDashboard, 
-  Sliders, 
-  Scissors, 
-  ClipboardCheck, 
-  BarChart3, 
+import {
+  LayoutDashboard,
+  Sliders,
+  Scissors,
+  ClipboardCheck,
+  BarChart3,
   Database,
-  Layers
+  Layers,
+  Bot
 } from 'lucide-react';
 
-export type TabType = 'dashboard' | 'planning' | 'simulation' | 'order' | 'reports' | 'data';
+export type TabType = 'dashboard' | 'planning' | 'simulation' | 'order' | 'reports' | 'cotacao' | 'data' | 'ai';
 
 interface SidebarProps {
   activeTab: TabType;
@@ -60,6 +61,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       title: 'Gestão de Estoque',
       icon: Database,
       badge: coilsCount > 0 ? `${coilsCount}` : null
+    },
+    {
+      id: 'ai' as TabType,
+      title: 'Agente de IA',
+      icon: Bot,
+      badge: 'Novo'
     }
   ];
 

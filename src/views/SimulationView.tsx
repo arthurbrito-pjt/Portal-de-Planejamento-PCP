@@ -3,12 +3,13 @@ import { Coil, SlitterStrip, Product } from '../types/pcp';
 import { SlitterVisualizer } from '../components/SlitterVisualizer';
 import { SlitterCatalogService } from '../services/slitterCatalogService';
 import { SlitterTagModal } from '../components/SlitterTagModal';
-import { 
-  Scissors, 
-  Plus, 
-  Trash2, 
-  CheckCircle2, 
-  Layers, 
+import { EmptyState } from '../components/EmptyState';
+import {
+  Scissors,
+  Plus,
+  Trash2,
+  CheckCircle2,
+  Layers,
   Sliders,
   ArrowLeft,
   Tag
@@ -38,22 +39,14 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
 
   if (!coil || strips.length === 0) {
     return (
-      <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-4 max-w-xl mx-auto my-12 shadow-sm animate-fadeIn">
-        <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center mx-auto shadow-sm">
-          <Scissors className="w-8 h-8" />
-        </div>
-        <h3 className="text-xl font-black text-slate-900 tracking-tight">Nenhum Corte em Simulação</h3>
-        <p className="text-xs text-slate-600 leading-relaxed font-medium">
-          Para realizar a simulação gráfica e ajuste fino das fitas do Slitter, inicie selecionando um produto base e a bobina no Planejamento.
-        </p>
-        <button
-          onClick={onNavigateToPlanning}
-          className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl shadow-md shadow-blue-500/20 transition-all hover:scale-105"
-        >
-          <Sliders className="w-4 h-4" />
-          <span>Ir para o Planejamento (6 Passos)</span>
-        </button>
-      </div>
+      <EmptyState
+        icon={Scissors}
+        title="Nenhum Corte em Simulação"
+        description="Para realizar a simulação gráfica e ajuste fino das fitas do Slitter, inicie selecionando um produto base e a bobina no Planejamento."
+        actionLabel="Ir para o Planejamento (3 Etapas)"
+        actionIcon={Sliders}
+        onAction={onNavigateToPlanning}
+      />
     );
   }
 

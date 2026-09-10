@@ -1,5 +1,5 @@
-import { Product, Coil, SlitterOrder, CutHistoryItem, PCPKPIs, Ferramental } from '../types/pcp';
-import { INITIAL_PRODUCTS, INITIAL_COILS, INITIAL_FERRAMENTAL } from '../data/initialData';
+import { Product, Coil, SlitterOrder, CutHistoryItem, PCPKPIs, Ferramental, SlitterIntermediaryItem } from '../types/pcp';
+import { INITIAL_PRODUCTS, INITIAL_COILS, INITIAL_FERRAMENTAL, INITIAL_INTERMEDIARY_SLITTERS } from '../data/initialData';
 import { FirestoreService } from '../firebase/firestoreService';
 
 const STORAGE_KEYS = {
@@ -8,6 +8,7 @@ const STORAGE_KEYS = {
   SLITTER_ORDERS: 'pcp_slitter_orders_v1',
   CUT_HISTORY: 'pcp_cut_history_v1',
   FERRAMENTAL: 'pcp_ferramental_v1',
+  SLITTER_INTERMEDIARY: 'pcp_slitter_intermediary_v1',
   LAST_SYNC: 'pcp_last_sync_v1'
 };
 
@@ -17,6 +18,7 @@ export class StorageService {
   private static ordersCache: SlitterOrder[] | null = null;
   private static historyCache: CutHistoryItem[] | null = null;
   private static ferramentaisCache: Ferramental[] | null = null;
+  private static intermediaryCache: SlitterIntermediaryItem[] | null = null;
 
   // Initialize data from local or initial seeds
   static initialize(): void {
@@ -32,8 +34,18 @@ export class StorageService {
     if (!localStorage.getItem(STORAGE_KEYS.CUT_HISTORY)) {
       localStorage.setItem(STORAGE_KEYS.CUT_HISTORY, JSON.stringify([]));
     }
-    if (!localStorage.getItem(STORAGE_KEYS.FERRAMENTAL)) {
+    
+    // Seed ferramentais se vazio
+    const rawFrm = localStorage.getItem(STORAGE_KEYS.FERRAMENTAL);
+    if (!rawFrm || JSON.parse(rawFrm).length === 0) {
       localStorage.setItem(STORAGE_KEYS.FERRAMENTAL, JSON.stringify(INITIAL_FERRAMENTAL));
+      this.ferramentaisCache = INITIAL_FERRAMENTAL;
+    }
+
+    // Seed estoque intermediário se não existir
+    if (!localStorage.getItem(STORAGE_KEYS.SLITTER_INTERMEDIARY)) {
+      localStorage.setItem(STORAGE_KEYS.SLITTER_INTERMEDIARY, JSON.stringify(INITIAL_INTERMEDIARY_SLITTERS));
+      this.intermediaryCache = INITIAL_INTERMEDIARY_SLITTERS;
     }
   }
 
@@ -139,6 +151,29 @@ export class StorageService {
     this.saveFerramentais(items);
   }
 
+  // Estoque Intermediário de Slitter (fitas cortadas)
+  static getIntermediarySlitters(): SlitterIntermediaryItem[] {
+    if (this.intermediaryCache) return this.intermediaryCache;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.SLITTER_INTERMEDIARY);
+      this.intermediaryCache = raw ? JSON.parse(raw) : INITIAL_INTERMEDIARY_SLITTERS;
+      return this.intermediaryCache || INITIAL_INTERMEDIARY_SLITTERS;
+    } catch {
+      return INITIAL_INTERMEDIARY_SLITTERS;
+    }
+  }
+
+  static saveIntermediarySlitters(items: SlitterIntermediaryItem[]): void {
+    this.intermediaryCache = items;
+    localStorage.setItem(STORAGE_KEYS.SLITTER_INTERMEDIARY, JSON.stringify(items));
+  }
+
+  static addIntermediarySlitter(item: SlitterIntermediaryItem): void {
+    const items = this.getIntermediarySlitters();
+    items.unshift(item);
+    this.saveIntermediarySlitters(items);
+  }
+
   // Coils
   static getCoils(): Coil[] {
     if (this.coilsCache) return this.coilsCache;
@@ -198,30 +233,66 @@ export class StorageService {
 
   static addOrder(order: SlitterOrder): void {
     const orders = this.getOrders();
-    orders.unshift(order);
-    this.saveOrders(orders);
-    
-    // Update coil status
-    this.updateCoilStatus(order.bobinaId, 'Consumida');
+    const existingIdx = orders.findIndex(o => o.id === order.id);
+    const isNew = existingIdx === -1;
 
-    // Add to history
-    this.addCutHistory({
-      id: `HIST_${order.id}`,
-      orderId: order.id,
-      dataCorte: order.dataCriacao,
-      bobinaLote: order.bobinaLote,
-      bobinaLargura: order.bobinaLargura,
-      bobinaEspessura: order.bobinaEspessura,
-      bobinaPesoTon: order.bobinaPesoOriginal,
-      aproveitamentoPercent: order.aproveitamentoPercent,
-      sobraMm: order.sobraMm,
-      totalFitas: order.totalFitas,
-      resumoFitas: order.fitas.map(f => `${f.largura}mm (${f.productCode})`).join(' + '),
-      status: 'Concluído'
-    });
+    if (isNew) {
+      orders.unshift(order);
+    } else {
+      orders[existingIdx] = order;
+    }
+    this.saveOrders(orders);
+
+    if (isNew) {
+      // Baixa TODAS as bobinas físicas consumidas nesta OP (pode ser mais de uma)
+      const coilIds = order.bobinas?.length ? order.bobinas.map(b => b.coilId) : [order.bobinaId];
+      coilIds.forEach(id => this.updateCoilStatus(id, 'Consumida'));
+
+      // Add to history
+      this.addCutHistory({
+        id: `HIST_${order.id}`,
+        orderId: order.id,
+        dataCorte: order.dataCriacao,
+        bobinaLote: order.bobinaLote,
+        bobinaLargura: order.bobinaLargura,
+        bobinaEspessura: order.bobinaEspessura,
+        bobinaPesoTon: order.bobinaPesoOriginal,
+        aproveitamentoPercent: order.aproveitamentoPercent,
+        sobraMm: order.sobraMm,
+        totalFitas: order.totalFitas,
+        resumoFitas: order.fitas.map(f => `${f.largura}mm (${f.productCode})`).join(' + '),
+        status: 'Concluído'
+      });
+    }
 
     // Cloud sync
     FirestoreService.saveSlitterOrder(order).catch(() => {});
+  }
+
+  static updateOrderStatus(orderId: string, status: SlitterOrder['status']): SlitterOrder | null {
+    const orders = this.getOrders();
+    const idx = orders.findIndex(o => o.id === orderId || o.numeroOP === orderId || o.numeroOS === orderId);
+    if (idx === -1) return null;
+
+    const updated: SlitterOrder = { ...orders[idx], status };
+    orders[idx] = updated;
+    this.saveOrders(orders);
+
+    FirestoreService.saveSlitterOrder(updated).catch(() => {});
+    return updated;
+  }
+
+  /**
+   * Cancela uma OP e devolve TODAS as bobinas consumidas ao estoque como
+   * 'Disponível', já que o corte planejado não vai (ou não vai mais) acontecer.
+   */
+  static cancelOrder(orderId: string): SlitterOrder | null {
+    const updated = this.updateOrderStatus(orderId, 'Cancelada');
+    if (updated) {
+      const coilIds = updated.bobinas?.length ? updated.bobinas.map(b => b.coilId) : [updated.bobinaId];
+      coilIds.forEach(id => this.updateCoilStatus(id, 'Disponível'));
+    }
+    return updated;
   }
 
   // Cut History
@@ -244,6 +315,27 @@ export class StorageService {
     FirestoreService.addCutHistoryItem(item).catch(() => {});
   }
 
+  /**
+   * Apaga todas as Ordens de Produção e o histórico de corte, devolvendo ao
+   * estoque (status 'Disponível') as bobinas que haviam sido consumidas por
+   * essas OPs — como se o corte nunca tivesse acontecido.
+   */
+  static resetAllOrders(): void {
+    const orders = this.getOrders();
+    const consumedCoilIds = new Set(
+      orders.flatMap(o => (o.bobinas?.length ? o.bobinas.map(b => b.coilId) : [o.bobinaId]))
+    );
+
+    const coils = this.getCoils().map(c =>
+      consumedCoilIds.has(c.id) ? { ...c, status: 'Disponível' as const } : c
+    );
+
+    this.saveCoils(coils);
+    this.saveOrders([]);
+    this.historyCache = [];
+    localStorage.setItem(STORAGE_KEYS.CUT_HISTORY, JSON.stringify([]));
+  }
+
   // Reset to initial demo database
   static resetToInitial(): void {
     this.productsCache = INITIAL_PRODUCTS;
@@ -251,11 +343,13 @@ export class StorageService {
     this.ordersCache = [];
     this.historyCache = [];
     this.ferramentaisCache = INITIAL_FERRAMENTAL;
+    this.intermediaryCache = INITIAL_INTERMEDIARY_SLITTERS;
     localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(INITIAL_PRODUCTS));
     localStorage.setItem(STORAGE_KEYS.COILS, JSON.stringify(INITIAL_COILS));
     localStorage.setItem(STORAGE_KEYS.SLITTER_ORDERS, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.CUT_HISTORY, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.FERRAMENTAL, JSON.stringify(INITIAL_FERRAMENTAL));
+    localStorage.setItem(STORAGE_KEYS.SLITTER_INTERMEDIARY, JSON.stringify(INITIAL_INTERMEDIARY_SLITTERS));
   }
 
   // KPI calculations

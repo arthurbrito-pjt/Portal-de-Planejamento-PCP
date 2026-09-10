@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Coil, Product, SlitterOrder, CutHistoryItem } from '../types/pcp';
 import { ExcelService } from '../services/excelService';
 import { OpSummaryView } from '../components/OpSummaryView';
@@ -12,9 +12,12 @@ import {
   TrendingUp,
   Eye,
   FileText,
-  ArrowLeft
+  ArrowLeft,
+  XCircle
 } from 'lucide-react';
 import { MetricsBadge } from '../components/MetricsBadge';
+
+type ReportTab = 'slitters' | 'bobinas' | 'produtos' | 'perdas';
 
 interface ReportsViewProps {
   orders: SlitterOrder[];
@@ -22,8 +25,12 @@ interface ReportsViewProps {
   products: Product[];
   history: CutHistoryItem[];
   selectedOpIdSummary?: string | null;
+  highlightOrderId?: string | null;
+  activeReportTab?: string | null;
+  onNavigateToReportTab?: (tab: ReportTab) => void;
   onSelectOpSummary?: (opId: string | null) => void;
   onViewOrderDetails?: (order: SlitterOrder) => void;
+  onCancelOrder?: (order: SlitterOrder) => void;
   onNavigateToDashboard?: () => void;
 }
 
@@ -32,11 +39,30 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   coils,
   products,
   selectedOpIdSummary,
+  highlightOrderId,
+  activeReportTab: activeReportTabProp,
+  onNavigateToReportTab,
   onSelectOpSummary,
   onViewOrderDetails,
+  onCancelOrder,
   onNavigateToDashboard
 }) => {
-  const [activeReportTab, setActiveReportTab] = useState<'slitters' | 'bobinas' | 'produtos' | 'perdas'>('slitters');
+  const highlightRowRef = useRef<HTMLTableRowElement | null>(null);
+
+  useEffect(() => {
+    if (highlightOrderId && highlightRowRef.current) {
+      highlightRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [highlightOrderId, activeReportTabProp]);
+  const [localReportTab, setLocalReportTab] = useState<ReportTab>('slitters');
+  const activeReportTab: ReportTab = (activeReportTabProp as ReportTab) || localReportTab;
+  const setActiveReportTab = (tab: ReportTab) => {
+    if (onNavigateToReportTab) {
+      onNavigateToReportTab(tab);
+    } else {
+      setLocalReportTab(tab);
+    }
+  };
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [localSelectedOrderSummary, setLocalSelectedOrderSummary] = useState<SlitterOrder | null>(null);
 
@@ -64,6 +90,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     } else {
       setLocalSelectedOrderSummary(null);
     }
+  };
+
+  const handleCancelOrder = (order: SlitterOrder) => {
+    if (!onCancelOrder) return;
+    const confirmed = window.confirm(
+      `Cancelar a OP ${order.numeroOP || order.numeroOS}? A bobina ${order.bobinaLote} volta ao estoque como Disponível e o corte não será executado.`
+    );
+    if (!confirmed) return;
+    onCancelOrder(order);
   };
 
   // If viewing an OP summary, render the summary as a native full page view
@@ -187,32 +222,45 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider font-mono font-bold">
-                    <th className="py-3 px-3">Número OP</th>
-                    <th className="py-3 px-3">Data</th>
+                    <th className="py-3 px-3">OP</th>
                     <th className="py-3 px-3">Lote Bobina</th>
-                    <th className="py-3 px-3 text-right">Largura</th>
-                    <th className="py-3 px-3 text-right">Espessura</th>
+                    <th className="py-3 px-3 text-right">Dimensões</th>
                     <th className="py-3 px-3 text-right">Fitas</th>
-                    <th className="py-3 px-3 text-right">Refilo</th>
-                    <th className="py-3 px-3 text-right">Aproveitamento</th>
+                    <th className="py-3 px-3 text-right">Corte</th>
                     <th className="py-3 px-3 text-center">Status</th>
                     <th className="py-3 px-3 text-center">Ação</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-mono">
-                  {filteredOrders.map((o) => (
-                    <tr key={o.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3.5 px-3 font-black text-blue-700">{o.numeroOP || o.numeroOS}</td>
-                      <td className="py-3.5 px-3 text-slate-600 font-sans">{o.dataCriacao}</td>
-                      <td className="py-3.5 px-3 font-black text-slate-900">{o.bobinaLote}</td>
-                      <td className="py-3.5 px-3 text-right text-slate-700">{o.bobinaLargura} mm</td>
-                      <td className="py-3.5 px-3 text-right text-purple-700">{o.bobinaEspessura} mm</td>
-                      <td className="py-3.5 px-3 text-right text-slate-900 font-bold">{o.totalFitas}</td>
-                      <td className={`py-3.5 px-3 text-right font-black ${o.sobraMm >= 10 && o.sobraMm <= 18 ? 'text-emerald-700' : 'text-slate-900'}`}>
-                        {o.sobraMm} mm
+                  {filteredOrders.map((o) => {
+                    const isHighlighted = !!highlightOrderId && (o.id === highlightOrderId || o.numeroOP === highlightOrderId || o.numeroOS === highlightOrderId);
+                    return (
+                    <tr
+                      key={o.id}
+                      ref={isHighlighted ? highlightRowRef : undefined}
+                      className={`transition-colors ${isHighlighted ? 'bg-blue-50 ring-1 ring-inset ring-blue-300' : 'hover:bg-slate-50'}`}
+                    >
+                      <td className="py-3.5 px-3 font-black">
+                        <button
+                          type="button"
+                          onClick={() => handleSelectOp(o)}
+                          className="text-blue-700 hover:text-blue-900 hover:underline"
+                          title="Ver resumo da OP"
+                        >
+                          {o.numeroOP || o.numeroOS}
+                        </button>
+                        <div className="text-[10px] text-slate-400 font-sans font-normal">{o.dataCriacao}</div>
                       </td>
-                      <td className="py-3.5 px-3 text-right font-black text-emerald-700">
-                        {o.aproveitamentoPercent}%
+                      <td className="py-3.5 px-3 font-black text-slate-900">{o.bobinaLote}</td>
+                      <td className="py-3.5 px-3 text-right text-slate-700">
+                        {o.bobinaLargura} x {o.bobinaEspessura} mm
+                      </td>
+                      <td className="py-3.5 px-3 text-right text-slate-900 font-bold">{o.totalFitas}</td>
+                      <td className="py-3.5 px-3 text-right">
+                        <div className="font-black text-emerald-700">{o.aproveitamentoPercent}%</div>
+                        <div className={`text-[10px] font-sans ${o.sobraMm >= 10 && o.sobraMm <= 18 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                          refilo {o.sobraMm} mm
+                        </div>
                       </td>
                       <td className="py-3.5 px-3 text-center">
                         <MetricsBadge type="status" value={o.status} size="sm" />
@@ -235,10 +283,20 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                               <FileText className="w-4 h-4" />
                             </button>
                           )}
+                          {onCancelOrder && o.status !== 'Cancelada' && o.status !== 'Concluída' && (
+                            <button
+                              onClick={() => handleCancelOrder(o)}
+                              className="p-2 rounded-xl bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border border-red-200 transition-all shadow-xs flex items-center justify-center"
+                              title="Cancelar OP"
+                            >
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

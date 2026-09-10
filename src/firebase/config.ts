@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import { getFunctions } from 'firebase/functions';
 
 export const firebaseConfig = {
   apiKey: "AIzaSyBTQkECdYZAfeztZn0I35xNxTOXfwmOWqM",
@@ -14,3 +15,5 @@ export const firebaseConfig = {
 // Initialize Firebase (guard against multiple initializations in dev/hot reload)
 export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const db = getFirestore(app);
+// Cloud Functions (usadas pelo Agente de IA — ver src/services/aiAgentService.ts)
+export const functions = getFunctions(app);

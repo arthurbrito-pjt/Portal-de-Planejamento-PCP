@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Coil, Product, Ferramental, GrauDificuldade } from '../types/pcp';
+import { Coil, Product, Ferramental, FerramentalClasse, GrauDificuldade, StatusContabil } from '../types/pcp';
 import { ExcelService } from '../services/excelService';
 import { StorageService } from '../services/storageService';
 import { MetricsBadge } from '../components/MetricsBadge';
@@ -37,35 +37,42 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
   const [isImporting, setIsImporting] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
-  const [newCoil, setNewCoil] = useState<Partial<Coil>>({
-    codigo: 'BQN10040',
-    lote: 'LOTE-NOVO-01',
-    espessura: 1.5,
-    largura: 1200,
-    peso: 15.0,
+  const EMPTY_COIL: Partial<Coil> = {
+    codigo: '',
+    lote: '',
+    espessura: undefined,
+    largura: undefined,
+    peso: undefined,
     quantidade: 1,
-    status: 'Disponível'
-  });
+    status: 'Disponível',
+    statusContabil: 'CONCILIADO',
+    estoqueFisico: true
+  };
 
-  const [newProduct, setNewProduct] = useState<Partial<Product>>({
-    codigo: 'TBZ10001',
-    descricao: 'NOVO TUBO INDUSTRIAL',
+  const EMPTY_PRODUCT: Partial<Product> = {
+    codigo: '',
+    descricao: '',
     tipo: 'TUBO',
-    espessura: 1.5,
-    larguraFita: 238,
-    demandaT: 10,
+    espessura: undefined,
+    larguraFita: undefined,
+    demandaT: undefined,
     familia: 'TUBO',
-    grauDificuldade: 'MEDIO',
-    volumePoliticaT: { minimo: 5, ideal: 15, maximo: 30 }
-  });
+    grauDificuldade: undefined,
+    volumePoliticaT: undefined
+  };
 
-  const [newFerramental, setNewFerramental] = useState<Partial<Ferramental>>({
+  const EMPTY_FERRAMENTAL: Partial<Ferramental> = {
     codigo: '',
     nome: '',
-    capacidadeMinimaT: 5,
-    capacidadeIdealT: 15,
-    capacidadeMaximaT: 30
-  });
+    classe: 'A',
+    capacidadeMinimaT: undefined,
+    capacidadeIdealT: undefined,
+    capacidadeMaximaT: undefined
+  };
+
+  const [newCoil, setNewCoil] = useState<Partial<Coil>>(EMPTY_COIL);
+  const [newProduct, setNewProduct] = useState<Partial<Product>>(EMPTY_PRODUCT);
+  const [newFerramental, setNewFerramental] = useState<Partial<Ferramental>>(EMPTY_FERRAMENTAL);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'coils' | 'products') => {
     const file = e.target.files?.[0];
@@ -123,15 +130,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
 
     StorageService.addCoil(coilObj);
     onDataUpdated();
-    setNewCoil({
-      codigo: 'BQN10040',
-      lote: `LOTE-${Math.floor(Math.random() * 9000) + 1000}`,
-      espessura: 1.5,
-      largura: 1200,
-      peso: 15.0,
-      quantidade: 1,
-      status: 'Disponível'
-    });
+    setNewCoil(EMPTY_COIL);
   };
 
   const handleAddProduct = (e: React.FormEvent) => {
@@ -153,6 +152,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
 
     StorageService.addProduct(prodObj);
     onDataUpdated();
+    setNewProduct(EMPTY_PRODUCT);
   };
 
   const handleAddFerramental = (e: React.FormEvent) => {
@@ -163,6 +163,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
       id: `FRM_${Date.now()}`,
       codigo: newFerramental.codigo,
       nome: newFerramental.nome,
+      classe: (newFerramental.classe as FerramentalClasse) || 'A',
       capacidadeMinimaT: Number(newFerramental.capacidadeMinimaT || 0),
       capacidadeIdealT: Number(newFerramental.capacidadeIdealT || 0),
       capacidadeMaximaT: Number(newFerramental.capacidadeMaximaT || 0)
@@ -170,13 +171,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
 
     StorageService.addFerramental(ferramentalObj);
     onDataUpdated();
-    setNewFerramental({
-      codigo: '',
-      nome: '',
-      capacidadeMinimaT: 5,
-      capacidadeIdealT: 15,
-      capacidadeMaximaT: 30
-    });
+    setNewFerramental(EMPTY_FERRAMENTAL);
   };
 
   const handleSyncCloud = async () => {
@@ -185,6 +180,14 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
     setIsSyncing(false);
     setImportStatus(res.message);
     onDataUpdated();
+  };
+
+  const handleResetAllOrders = () => {
+    if (window.confirm('Deseja realmente apagar TODAS as Ordens de Produção (OP) e o histórico de corte? As bobinas consumidas por elas voltarão para o estoque como "Disponível". Esta ação não pode ser desfeita.')) {
+      StorageService.resetAllOrders();
+      onDataUpdated();
+      setImportStatus('Todas as Ordens de Produção foram apagadas e as bobinas consumidas voltaram ao estoque.');
+    }
   };
 
   const handleResetToInitial = () => {
@@ -228,6 +231,14 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
             <span>Sincronizar Firebase</span>
+          </button>
+
+          <button
+            onClick={handleResetAllOrders}
+            className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-red-50 text-red-700 border border-red-200 text-xs font-black rounded-xl transition-all shadow-sm"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-red-600" />
+            <span>Resetar Ordens de Produção (OPs)</span>
           </button>
 
           <button
@@ -365,6 +376,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                 <input
                   type="text"
                   required
+                  placeholder="Ex: BQN10040"
                   value={newCoil.codigo}
                   onChange={(e) => setNewCoil({ ...newCoil, codigo: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
@@ -376,6 +388,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                 <input
                   type="text"
                   required
+                  placeholder="Ex: P507885"
                   value={newCoil.lote}
                   onChange={(e) => setNewCoil({ ...newCoil, lote: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
@@ -387,7 +400,8 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                 <input
                   type="number"
                   required
-                  value={newCoil.largura}
+                  placeholder="Ex: 1200"
+                  value={newCoil.largura ?? ''}
                   onChange={(e) => setNewCoil({ ...newCoil, largura: parseFloat(e.target.value) })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
                 />
@@ -399,7 +413,8 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                   type="number"
                   step="0.01"
                   required
-                  value={newCoil.espessura}
+                  placeholder="Ex: 1.5"
+                  value={newCoil.espessura ?? ''}
                   onChange={(e) => setNewCoil({ ...newCoil, espessura: parseFloat(e.target.value) })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
                 />
@@ -411,7 +426,8 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                   type="number"
                   step="0.01"
                   required
-                  value={newCoil.peso}
+                  placeholder="Ex: 15.0"
+                  value={newCoil.peso ?? ''}
                   onChange={(e) => setNewCoil({ ...newCoil, peso: parseFloat(e.target.value) })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
                 />
@@ -445,6 +461,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                 <input
                   type="text"
                   required
+                  placeholder="Ex: TBZ10001"
                   value={newProduct.codigo}
                   onChange={(e) => setNewProduct({ ...newProduct, codigo: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
@@ -456,6 +473,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                 <input
                   type="text"
                   required
+                  placeholder="Ex: TUBO INDUSTRIAL LQ 60x60"
                   value={newProduct.descricao}
                   onChange={(e) => setNewProduct({ ...newProduct, descricao: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
@@ -480,7 +498,8 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                   type="number"
                   step="0.01"
                   required
-                  value={newProduct.espessura}
+                  placeholder="Ex: 1.5"
+                  value={newProduct.espessura ?? ''}
                   onChange={(e) => setNewProduct({ ...newProduct, espessura: parseFloat(e.target.value) })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
                 />
@@ -491,7 +510,8 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                 <input
                   type="number"
                   required
-                  value={newProduct.larguraFita}
+                  placeholder="Ex: 238"
+                  value={newProduct.larguraFita ?? ''}
                   onChange={(e) => setNewProduct({ ...newProduct, larguraFita: parseFloat(e.target.value) })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
                 />
@@ -500,10 +520,11 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
               <div>
                 <label className="block text-[11px] text-slate-600 uppercase font-black">Grau de Dificuldade</label>
                 <select
-                  value={newProduct.grauDificuldade}
-                  onChange={(e) => setNewProduct({ ...newProduct, grauDificuldade: e.target.value as GrauDificuldade })}
+                  value={newProduct.grauDificuldade ?? ''}
+                  onChange={(e) => setNewProduct({ ...newProduct, grauDificuldade: (e.target.value || undefined) as GrauDificuldade | undefined })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
                 >
+                  <option value="">Selecione...</option>
                   <option value="BAIXO">BAIXO</option>
                   <option value="MEDIO">MEDIO</option>
                   <option value="ALTO">ALTO</option>
@@ -626,7 +647,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
               Cadastrar Ferramental & Política de Capacidade
             </h3>
 
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
               <div>
                 <label className="block text-[11px] text-slate-600 uppercase font-black">Código</label>
                 <input
@@ -651,12 +672,26 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
               </div>
 
               <div>
+                <label className="block text-[11px] text-slate-600 uppercase font-black">Classe ABC</label>
+                <select
+                  value={newFerramental.classe || 'A'}
+                  onChange={(e) => setNewFerramental({ ...newFerramental, classe: e.target.value as FerramentalClasse })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
+                >
+                  <option value="A">A (Sempre roda)</option>
+                  <option value="B">B (Frequência Média)</option>
+                  <option value="C">C (Menos roda)</option>
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-[11px] text-slate-600 uppercase font-black">Capacidade Mín. (t)</label>
                 <input
                   type="number"
                   step="0.5"
                   required
-                  value={newFerramental.capacidadeMinimaT}
+                  placeholder="Ex: 5"
+                  value={newFerramental.capacidadeMinimaT ?? ''}
                   onChange={(e) => setNewFerramental({ ...newFerramental, capacidadeMinimaT: parseFloat(e.target.value) })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
                 />
@@ -668,7 +703,8 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                   type="number"
                   step="0.5"
                   required
-                  value={newFerramental.capacidadeIdealT}
+                  placeholder="Ex: 15"
+                  value={newFerramental.capacidadeIdealT ?? ''}
                   onChange={(e) => setNewFerramental({ ...newFerramental, capacidadeIdealT: parseFloat(e.target.value) })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
                 />
@@ -680,7 +716,8 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                   type="number"
                   step="0.5"
                   required
-                  value={newFerramental.capacidadeMaximaT}
+                  placeholder="Ex: 30"
+                  value={newFerramental.capacidadeMaximaT ?? ''}
                   onChange={(e) => setNewFerramental({ ...newFerramental, capacidadeMaximaT: parseFloat(e.target.value) })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
                 />
@@ -688,7 +725,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
             </div>
 
             <p className="text-[11px] text-slate-500 font-medium">
-              Dica: use o mesmo código do catálogo de slitters (ex: SLT11000) para que os alertas de capacidade apareçam automaticamente no Planejamento.
+              Dica: use o mesmo código do catálogo de slitters (ex: SLT11000). Ferramentais Classe C alertam sobre acúmulo de lote mínimo antes de programar o setup.
             </p>
 
             <div className="flex justify-end">
@@ -709,6 +746,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                     <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-mono text-[11px] font-bold">
                       <th className="py-2.5 px-3">Código</th>
                       <th className="py-2.5 px-3">Nome</th>
+                      <th className="py-2.5 px-3 text-center">Classe</th>
                       <th className="py-2.5 px-3 text-right">Mín. (t)</th>
                       <th className="py-2.5 px-3 text-right">Ideal (t)</th>
                       <th className="py-2.5 px-3 text-right">Máx. (t)</th>
@@ -719,6 +757,15 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                       <tr key={f.id} className="hover:bg-slate-50">
                         <td className="py-2.5 px-3 font-black text-slate-900">{f.codigo}</td>
                         <td className="py-2.5 px-3 font-sans text-slate-700">{f.nome}</td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span className={`inline-flex px-2 py-0.5 rounded-md text-[11px] font-black ${
+                            f.classe === 'A' ? 'bg-emerald-100 text-emerald-800' :
+                            f.classe === 'B' ? 'bg-blue-100 text-blue-800' :
+                            'bg-purple-100 text-purple-800'
+                          }`}>
+                            Classe {f.classe || 'A'}
+                          </span>
+                        </td>
                         <td className="py-2.5 px-3 text-right text-slate-600">{f.capacidadeMinimaT}</td>
                         <td className="py-2.5 px-3 text-right text-emerald-700 font-bold">{f.capacidadeIdealT}</td>
                         <td className="py-2.5 px-3 text-right text-slate-600">{f.capacidadeMaximaT}</td>

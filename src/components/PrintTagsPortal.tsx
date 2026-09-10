@@ -20,7 +20,9 @@ export const PrintTagsPortal: React.FC<PrintTagsPortalProps> = ({ strips, coil, 
         {strips.map((strip, idx) => {
           const isTubo = strip.productFamily === 'TUBO';
           const sltInfo = SlitterCatalogService.getSlitterInfo(strip.largura, strip.espessura);
-          const qrValue = `SLT:${sltInfo.code}|FITA:${strip.stripNumber}/${strips.length}|PROD:${strip.productCode}|LOTE:${coil.lote}|OP:${orderNumber}`;
+          const stripLote = strip.bobinaLote || coil.lote;
+          const stripCodigo = strip.bobinaCodigo || coil.codigo;
+          const qrValue = `SLT:${sltInfo.code}|FITA:${strip.stripNumber}/${strips.length}|PROD:${strip.productCode}|LOTE:${stripLote}|OP:${orderNumber}`;
 
           return (
             <div
@@ -89,7 +91,7 @@ export const PrintTagsPortal: React.FC<PrintTagsPortalProps> = ({ strips, coil, 
 
                 <div className="p-2 rounded bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
                   <span className="text-[10px] text-slate-500 font-bold uppercase">BOBINA MATRIZ / LOTE ORIGEM:</span>
-                  <strong className="text-slate-900">{coil.lote} ({coil.codigo})</strong>
+                  <strong className="text-slate-900">{stripLote} ({stripCodigo})</strong>
                 </div>
 
                 <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-3">

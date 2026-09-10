@@ -238,6 +238,63 @@ Portal-de-Planejamento-PCP/
 
 ---
 
+## 🤖 7. Agente de IA — Recomendações, Alertas & Resumo Executivo
+
+Nova tela do Portal (`src/views/AIAgentView.tsx`) que usa a API da Anthropic
+(Claude) para analisar, em português, os dados já calculados pelo motor de
+otimização (`ReadinessService` / `SlitterOptimizer`) e gerar:
+
+- **Recomendações de Corte**: prioriza quais programas de corte já sugeridos
+  pelo motor devem ser executados primeiro (por risco de ruptura, volume de
+  demanda e aproveitamento), com atalhos para abrir direto no Estúdio de Corte
+  ou na Ordem de Produção.
+- **Alertas Proativos**: riscos de ruptura de estoque, baixo aproveitamento
+  recorrente e sobras fora da faixa ideal (10 a 18 mm).
+- **Resumo Executivo**: um resumo em linguagem natural da situação atual da
+  produção, pronto para compartilhar com a gestão.
+
+A IA **não recalcula cortes** — ela sempre trabalha sobre os programas e
+demandas que o motor combinatório já validou, respeitando a regra de refilo
+de 10 a 18 mm.
+
+### Arquitetura
+
+```
+React (AIAgentView) ──► aiAgentService.ts ──► Cloud Function "aiAgentAssistant"
+                                                        │
+                                                        ▼
+                                          API da Anthropic (Claude)
+                                     (chave em Firebase Secret Manager)
+```
+
+A chamada ao modelo acontece inteiramente no backend (Cloud Function em
+`functions/index.js`), então a chave de API nunca é exposta ao navegador.
+
+### Configuração e Deploy
+
+1. Obtenha uma chave de API em [console.anthropic.com](https://console.anthropic.com).
+2. Instale as dependências das Functions:
+   ```bash
+   cd functions
+   npm install
+   cd ..
+   ```
+3. Salve a chave como *secret* do Firebase (uma vez só; ele pede o valor de forma interativa e segura):
+   ```bash
+   firebase functions:secrets:set ANTHROPIC_API_KEY
+   ```
+4. Publique a Cloud Function:
+   ```bash
+   firebase deploy --only functions
+   ```
+5. Publique o restante do app normalmente (`npm run build && firebase deploy --only hosting`).
+
+Se quiser trocar o modelo usado (constante `CLAUDE_MODEL` em
+`functions/index.js`), confira os modelos disponíveis para sua conta em
+[docs.claude.com](https://docs.claude.com/en/docs/about-claude/models).
+
+---
+
 <div align="center">
 
 **Portal de Planejamento PCP — Slitter de Bobinas**  

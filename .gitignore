@@ -28,3 +28,9 @@ dist-ssr
 
 # Temporary files
 test_optimizer.ts
+
+# Firebase Functions (Agente de IA)
+functions/node_modules
+functions/lib
+functions/.env
+functions/.env.*

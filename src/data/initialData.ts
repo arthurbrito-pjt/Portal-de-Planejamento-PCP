@@ -1,8 +1,181 @@
-import { Product, Coil, Ferramental } from '../types/pcp';
+import { Product, Coil, Ferramental, SlitterIntermediaryItem, GrauDificuldade } from '../types/pcp';
 
-export const INITIAL_FERRAMENTAL: Ferramental[] = [];
+export const INITIAL_FERRAMENTAL: Ferramental[] = [
+  {
+    id: 'FRM_SLT11000',
+    codigo: 'SLT11000',
+    nome: 'SLITTER 45 x 17 x 1,80MM',
+    classe: 'A',
+    capacidadeMinimaT: 10,
+    capacidadeIdealT: 25,
+    capacidadeMaximaT: 50,
+    descricaoUso: 'Alta frequência / Perfil U 45x17 (Sempre roda)'
+  },
+  {
+    id: 'FRM_SLT11005',
+    codigo: 'SLT11005',
+    nome: 'SLITTER 50 x 25 x 1,80MM',
+    classe: 'A',
+    capacidadeMinimaT: 12,
+    capacidadeIdealT: 30,
+    capacidadeMaximaT: 60,
+    descricaoUso: 'Alta frequência / Perfil U 50x25 (Sempre roda)'
+  },
+  {
+    id: 'FRM_SLT11020',
+    codigo: 'SLT11020',
+    nome: 'SLITTER 75 x 40 x 1,80MM',
+    classe: 'A',
+    capacidadeMinimaT: 15,
+    capacidadeIdealT: 35,
+    capacidadeMaximaT: 70,
+    descricaoUso: 'Carro-chefe da linha de perfis leves'
+  },
+  {
+    id: 'FRM_SLT11025',
+    codigo: 'SLT11025',
+    nome: 'SLITTER 75 x 40 x 15 x 1,80MM',
+    classe: 'B',
+    capacidadeMinimaT: 10,
+    capacidadeIdealT: 20,
+    capacidadeMaximaT: 45,
+    descricaoUso: 'Perfil enrijecido médio giro'
+  },
+  {
+    id: 'FRM_SLT11040',
+    codigo: 'SLT11040',
+    nome: 'SLITTER 100 x 40 x 1,80MM',
+    classe: 'A',
+    capacidadeMinimaT: 15,
+    capacidadeIdealT: 30,
+    capacidadeMaximaT: 60,
+    descricaoUso: 'Perfil U estrutural padrão'
+  },
+  {
+    id: 'FRM_SLT11050',
+    codigo: 'SLT11050',
+    nome: 'SLITTER 100 x 50 x 17 x 2,00MM',
+    classe: 'B',
+    capacidadeMinimaT: 10,
+    capacidadeIdealT: 22,
+    capacidadeMaximaT: 45,
+    descricaoUso: 'Perfil enrijecido 2.00mm médio giro'
+  },
+  {
+    id: 'FRM_SLT11310',
+    codigo: 'SLT11310',
+    nome: 'SLITTER 100 x 40 x 2,65MM',
+    classe: 'B',
+    capacidadeMinimaT: 12,
+    capacidadeIdealT: 25,
+    capacidadeMaximaT: 50,
+    descricaoUso: 'Perfil pesado médio giro'
+  },
+  {
+    id: 'FRM_SLT11065',
+    codigo: 'SLT11065',
+    nome: 'SLITTER 150 x 50 x 17 x 2,65MM',
+    classe: 'C',
+    capacidadeMinimaT: 15,
+    capacidadeIdealT: 30,
+    capacidadeMaximaT: 55,
+    descricaoUso: 'Item especial / Baixo giro (Requer acúmulo de lote)'
+  },
+  {
+    id: 'FRM_SLT11370',
+    codigo: 'SLT11370',
+    nome: 'SLITTER 200 x 75 x 25 x 4,75MM',
+    classe: 'C',
+    capacidadeMinimaT: 20,
+    capacidadeIdealT: 40,
+    capacidadeMaximaT: 80,
+    descricaoUso: 'Chapa pesada 4.75mm (Menos roda / Setup demorado)'
+  },
+  {
+    id: 'FRM_SLT10199',
+    codigo: 'SLT10199',
+    nome: 'SLITTER 199 x 1,25MM',
+    classe: 'A',
+    capacidadeMinimaT: 15,
+    capacidadeIdealT: 35,
+    capacidadeMaximaT: 60,
+    descricaoUso: 'Tubo 63.50mm / 50x50mm ZC (Sempre roda)'
+  },
+  {
+    id: 'FRM_SLT10238',
+    codigo: 'SLT10238',
+    nome: 'SLITTER 238 x 1,50MM',
+    classe: 'A',
+    capacidadeMinimaT: 20,
+    capacidadeIdealT: 45,
+    capacidadeMaximaT: 90,
+    descricaoUso: 'Tubo 60x60 e 40x80mm LQ (Sempre roda)'
+  },
+  {
+    id: 'FRM_SLT10318',
+    codigo: 'SLT10318',
+    nome: 'SLITTER 318 x 1,50MM',
+    classe: 'B',
+    capacidadeMinimaT: 15,
+    capacidadeIdealT: 30,
+    capacidadeMaximaT: 60,
+    descricaoUso: 'Tubo 80x80mm LQ médio giro'
+  },
+  {
+    id: 'FRM_SLT10364',
+    codigo: 'SLT10364',
+    nome: 'SLITTER 364 x 1,50MM',
+    classe: 'C',
+    capacidadeMinimaT: 10,
+    capacidadeIdealT: 20,
+    capacidadeMaximaT: 40,
+    descricaoUso: 'Tubo redondo 114.30mm grande formato'
+  }
+];
 
-export const INITIAL_PRODUCTS: Product[] = [
+export const INITIAL_INTERMEDIARY_SLITTERS: SlitterIntermediaryItem[] = [
+  {
+    id: 'SLT_INT_001',
+    codigoSlitter: 'SLT10238',
+    nomeSlitter: 'SLITTER 238 x 1,50MM',
+    larguraFita: 238.0,
+    espessura: 1.5,
+    pesoDisponivelTon: 14.2,
+    metrosLineares: 5064,
+    dataCorte: '2026-09-06',
+    loteOrigem: 'OB01934',
+    localizacao: 'Baia B-02 (Estoque Intermediário)',
+    familiaDestino: 'TUBO'
+  },
+  {
+    id: 'SLT_INT_002',
+    codigoSlitter: 'SLT11020',
+    nomeSlitter: 'SLITTER 75 x 40 x 1,80MM',
+    larguraFita: 146.0,
+    espessura: 1.8,
+    pesoDisponivelTon: 8.6,
+    metrosLineares: 4160,
+    dataCorte: '2026-09-07',
+    loteOrigem: 'P414274',
+    localizacao: 'Baia B-05 (Estoque Intermediário)',
+    familiaDestino: 'PERFIL'
+  },
+  {
+    id: 'SLT_INT_003',
+    codigoSlitter: 'SLT10199',
+    nomeSlitter: 'SLITTER 199 x 1,25MM',
+    larguraFita: 199.0,
+    espessura: 1.25,
+    pesoDisponivelTon: 11.8,
+    metrosLineares: 6050,
+    dataCorte: '2026-09-07',
+    loteOrigem: 'P3017012',
+    localizacao: 'Baia B-01 (Estoque Intermediário)',
+    familiaDestino: 'TUBO'
+  }
+];
+
+const RAW_PRODUCTS: Product[] = [
   {
     "id": "PROD_TBZ10500_1_25",
     "codigo": "TBZ10500",
@@ -1125,7 +1298,30 @@ export const INITIAL_PRODUCTS: Product[] = [
   }
 ];
 
-export const INITIAL_COILS: Coil[] = [
+export const INITIAL_PRODUCTS: Product[] = RAW_PRODUCTS.map(p => {
+  let grau: GrauDificuldade = 'MEDIO';
+  if (p.espessura <= 1.25 || p.espessura >= 4.75) {
+    grau = 'ALTO';
+  } else if (p.espessura === 1.5 || p.espessura === 1.8 || p.espessura === 2.0) {
+    grau = 'BAIXO';
+  }
+
+  const minLote = p.familia === 'TUBO' ? 10 : 8;
+  const idealLote = p.familia === 'TUBO' ? 25 : 20;
+  const maxLote = p.familia === 'TUBO' ? 50 : 40;
+
+  return {
+    ...p,
+    grauDificuldade: p.grauDificuldade || grau,
+    volumePoliticaT: p.volumePoliticaT || {
+      minimo: minLote,
+      ideal: idealLote,
+      maximo: maxLote
+    }
+  };
+});
+
+const RAW_COILS: Coil[] = [
   {
     "id": "COIL_001",
     "codigo": "BQN10210",
@@ -4437,6 +4633,16 @@ export const INITIAL_COILS: Coil[] = [
     "status": "Disponível"
   }
 ];
+
+export const INITIAL_COILS: Coil[] = RAW_COILS.map((c, idx) => {
+  // Define que algumas bobinas estão fisicamente na fábrica aguardando conciliação/ajuste contábil
+  const isPendenteAjuste = idx % 7 === 2;
+  return {
+    ...c,
+    estoqueFisico: true,
+    statusContabil: isPendenteAjuste ? 'PENDENTE_AJUSTE' : 'CONCILIADO'
+  };
+});
 
 export const DEFAULT_PARAMETERS = {
   maxScrapAllowedMm: 10,

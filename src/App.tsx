@@ -7,9 +7,11 @@ import { SimulationView } from './views/SimulationView';
 import { SlitterOrderView } from './views/SlitterOrderView';
 import { ReportsView } from './views/ReportsView';
 import { DataManagementView } from './views/DataManagementView';
+import { AIAgentView } from './views/AIAgentView';
+import { CotacaoView } from './views/CotacaoView';
 import { StorageService } from './services/storageService';
 import { SlitterOptimizer } from './services/slitterOptimizer';
-import { Product, Coil, SlitterStrip, SlitterOrder, SlitterCombination, Ferramental } from './types/pcp';
+import { Product, Coil, SlitterStrip, SlitterOrder, SlitterCombination, Ferramental, SlitterIntermediaryItem } from './types/pcp';
 import { SlitterProductionProgram } from './services/readinessService';
 
 const TAB_ROUTES: Record<TabType, string> = {
@@ -17,8 +19,10 @@ const TAB_ROUTES: Record<TabType, string> = {
   planning: 'planejamento',
   simulation: 'estudio',
   order: 'ordem-producao',
+  cotacao: 'cotacao',
   reports: 'relatorios',
-  data: 'gestao-dados'
+  data: 'gestao-dados',
+  ai: 'agente-ia'
 };
 
 const ROUTE_TABS: Record<string, TabType> = {
@@ -26,8 +30,10 @@ const ROUTE_TABS: Record<string, TabType> = {
   'planejamento': 'planning',
   'estudio': 'simulation',
   'ordem-producao': 'order',
+  'cotacao': 'cotacao',
   'relatorios': 'reports',
-  'gestao-dados': 'data'
+  'gestao-dados': 'data',
+  'agente-ia': 'ai'
 };
 
 interface ParsedRoute {
@@ -67,6 +73,7 @@ export const App: React.FC = () => {
   const [coils, setCoils] = useState<Coil[]>([]);
   const [orders, setOrders] = useState<SlitterOrder[]>([]);
   const [ferramentais, setFerramentais] = useState<Ferramental[]>([]);
+  const [intermediarySlitters, setIntermediarySlitters] = useState<SlitterIntermediaryItem[]>([]);
   const [history, setHistory] = useState(StorageService.getCutHistory());
   const [kpis, setKpis] = useState(StorageService.getKPIs());
 
@@ -76,8 +83,13 @@ export const App: React.FC = () => {
   const [activeStrips, setActiveStrips] = useState<SlitterStrip[]>([]);
   const [activeOrder, setActiveOrder] = useState<SlitterOrder | null>(null);
   const [selectedOpIdSummary, setSelectedOpIdSummary] = useState<string | null>(null);
+  const [orderDraft, setOrderDraft] = useState<{ operador?: string; turno?: string; maquina?: string; observacoes?: string }>({});
+  const [orderJustCreated, setOrderJustCreated] = useState<boolean>(false);
+  const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null);
 
   const activeTab = currentRoute.tab;
+  const dashboardSubview = currentRoute.tab === 'dashboard' ? currentRoute.paramId : null;
+  const reportsSubTab = currentRoute.tab === 'reports' && currentRoute.subAction !== 'op' ? currentRoute.paramId : null;
 
   const navigateToRoute = (tab: TabType, subAction?: string | null, paramId?: string | null) => {
     const route = TAB_ROUTES[tab] || 'programacao';
@@ -148,6 +160,7 @@ export const App: React.FC = () => {
     setCoils(StorageService.getCoils());
     setOrders(StorageService.getOrders());
     setFerramentais(StorageService.getFerramentais());
+    setIntermediarySlitters(StorageService.getIntermediarySlitters());
     setHistory(StorageService.getCutHistory());
     setKpis(StorageService.getKPIs());
   };
@@ -177,6 +190,8 @@ export const App: React.FC = () => {
     setActiveOrder(null);
     setPreSelectedProductId(null);
     setSelectedOpIdSummary(null);
+    setOrderDraft({});
+    setOrderJustCreated(false);
   };
 
   const handleNavigateToPlanning = (productId?: string) => {
@@ -206,6 +221,7 @@ export const App: React.FC = () => {
     setActiveCoil(program.coil);
     setActiveStrips(strips);
     setActiveOrder(null);
+    setOrderJustCreated(false);
     navigateToRoute('order');
   };
 
@@ -220,7 +236,30 @@ export const App: React.FC = () => {
     setActiveCoil(coil);
     setActiveStrips(strips);
     setActiveOrder(null);
+    setOrderDraft({});
     navigateToRoute('order');
+  };
+
+  // A OP já vem salva do wizard de Planejamento (Etapa 3) — só precisamos
+  // refletir o estado e abrir o documento já pronto para revisão/impressão.
+  const handleOrderCreatedFromPlanning = (order: SlitterOrder) => {
+    setActiveOrder(order);
+    setActiveCoil({
+      id: order.bobinaId,
+      codigo: order.bobinaCodigo,
+      lote: order.bobinaLote,
+      largura: order.bobinaLargura,
+      espessura: order.bobinaEspessura,
+      peso: order.bobinaPesoOriginal,
+      quantidade: 1,
+      status: 'Consumida'
+    });
+    setActiveStrips(order.fitas);
+    setOrderDraft({});
+    setOrderJustCreated(true);
+    setHighlightOrderId(order.id);
+    loadData();
+    navigateToRoute('order', null, order.numeroOP || order.numeroOS || order.id);
   };
 
   const handleViewOrderDetails = (order: SlitterOrder) => {
@@ -237,6 +276,7 @@ export const App: React.FC = () => {
       status: 'Consumida'
     });
     setActiveStrips(order.fitas);
+    setOrderJustCreated(false);
     navigateToRoute('order', null, opId);
   };
 
@@ -252,8 +292,17 @@ export const App: React.FC = () => {
 
   const handleOrderSaved = (savedOrder: SlitterOrder) => {
     const opId = savedOrder.numeroOP || savedOrder.numeroOS || savedOrder.id;
+    setHighlightOrderId(savedOrder.id);
     loadData();
     navigateToRoute('order', null, opId);
+  };
+
+  const handleCancelOrder = (orderId: string) => {
+    const updated = StorageService.cancelOrder(orderId);
+    if (updated) {
+      setActiveOrder(prev => (prev && prev.id === updated.id ? updated : prev));
+    }
+    loadData();
   };
 
   const activeTabTitles: Record<string, string> = {
@@ -261,8 +310,10 @@ export const App: React.FC = () => {
     planning: 'Planejamento de Corte (3 Etapas)',
     simulation: 'Estúdio de Corte & Ajuste de Facas',
     order: 'Ordem de Produção (OP)',
+    cotacao: 'Portal da Cotação — Previsão D+2 & Lote Mínimo',
     reports: 'Relatórios & Histórico',
-    data: 'Gestão de Estoque & Importador Excel'
+    data: 'Gestão de Estoque & Importador Excel',
+    ai: 'Agente de IA — Recomendações, Alertas & Resumo'
   };
 
   return (
@@ -293,9 +344,14 @@ export const App: React.FC = () => {
               coils={coils}
               products={products}
               orders={orders}
+              ferramentais={ferramentais}
+              intermediarySlitters={intermediarySlitters}
+              activeSubview={dashboardSubview}
+              onNavigateToSubview={(subview) => navigateToRoute('dashboard', null, subview)}
               onNavigateToPlanning={handleNavigateToPlanning}
               onNavigateToOrders={() => handleSelectTab('reports')}
               onNavigateToData={() => handleSelectTab('data')}
+              onNavigateToCotacao={() => handleSelectTab('cotacao')}
               onOpenProgramSimulation={handleOpenProgramInSimulation}
               onOpenProgramOrder={handleOpenProgramInOrder}
             />
@@ -306,10 +362,22 @@ export const App: React.FC = () => {
               products={products}
               coils={coils}
               ferramentais={ferramentais}
+              intermediarySlitters={intermediarySlitters}
               preSelectedProductId={preSelectedProductId}
               onProceedToSimulation={handleProceedToSimulation}
-              onProceedToOrder={handleProceedToOrder}
+              onOrderCreated={handleOrderCreatedFromPlanning}
               onNavigateToDashboard={() => handleSelectTab('dashboard')}
+            />
+          )}
+
+          {activeTab === 'cotacao' && (
+            <CotacaoView
+              products={products}
+              coils={coils}
+              orders={orders}
+              ferramentais={ferramentais}
+              intermediarySlitters={intermediarySlitters}
+              onNavigateToPlanning={handleNavigateToPlanning}
             />
           )}
 
@@ -330,8 +398,14 @@ export const App: React.FC = () => {
               order={activeOrder}
               coil={activeCoil}
               strips={activeStrips}
+              operadorInicial={orderDraft.operador}
+              turnoInicial={orderDraft.turno}
+              maquinaInicial={orderDraft.maquina}
+              observacoesInicial={orderDraft.observacoes}
+              justCreated={orderJustCreated}
               onOrderSaved={handleOrderSaved}
               onFinishOrder={handleFinishOrder}
+              onCancelOrder={handleCancelOrder}
               onNavigateToPlanning={() => handleSelectTab('planning')}
               onNavigateToSimulation={() => handleSelectTab('simulation')}
               onNavigateToDashboard={() => handleSelectTab('dashboard')}
@@ -345,8 +419,12 @@ export const App: React.FC = () => {
               products={products}
               history={history}
               selectedOpIdSummary={selectedOpIdSummary}
+              highlightOrderId={highlightOrderId}
+              activeReportTab={reportsSubTab}
+              onNavigateToReportTab={(tab) => navigateToRoute('reports', null, tab)}
               onSelectOpSummary={handleSelectOpSummary}
               onViewOrderDetails={handleViewOrderDetails}
+              onCancelOrder={(order) => handleCancelOrder(order.id)}
               onNavigateToDashboard={() => handleSelectTab('dashboard')}
             />
           )}
@@ -357,6 +435,19 @@ export const App: React.FC = () => {
               products={products}
               ferramentais={ferramentais}
               onDataUpdated={loadData}
+              onNavigateToDashboard={() => handleSelectTab('dashboard')}
+            />
+          )}
+
+          {activeTab === 'ai' && (
+            <AIAgentView
+              products={products}
+              coils={coils}
+              orders={orders}
+              kpis={kpis}
+              history={history}
+              onOpenProgramSimulation={handleOpenProgramInSimulation}
+              onOpenProgramOrder={handleOpenProgramInOrder}
               onNavigateToDashboard={() => handleSelectTab('dashboard')}
             />
           )}

@@ -128,10 +128,13 @@ export class FirestoreService {
         updatedAt: serverTimestamp()
       });
       
-      // Also update coil status to "Em Produção" or "Consumida"
-      await updateDoc(doc(db, 'bobinas', order.bobinaId), {
-        status: 'Consumida'
-      }).catch(() => {});
+      // Also update coil status to "Em Produção" or "Consumida" (todas as bobinas da OP)
+      const coilIds = order.bobinas?.length ? order.bobinas.map(b => b.coilId) : [order.bobinaId];
+      for (const coilId of coilIds) {
+        await updateDoc(doc(db, 'bobinas', coilId), {
+          status: 'Consumida'
+        }).catch(() => {});
+      }
     } catch (e) {
       console.warn('Firestore saveSlitterOrder error', e);
     }
