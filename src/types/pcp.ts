@@ -24,6 +24,8 @@ export interface Ferramental {
   codigo: string; // livre; pode coincidir com um código de slitter do catálogo
   nome: string;
   classe: FerramentalClasse; // 'A' | 'B' | 'C'
+  larguraFita?: number; // mm — largura da fita cortada por este ferramental (associação com Product.larguraFita)
+  espessura?: number; // mm — espessura da fita cortada por este ferramental (associação com Product.espessura)
   capacidadeMinimaT: number;
   capacidadeIdealT: number;
   capacidadeMaximaT: number;
@@ -63,6 +65,7 @@ export interface SlitterDemandItem {
   }[];
   mainProduct: Product;
   status: 'PRONTO' | 'PARCIAL' | 'BLOQUEADO';
+  ferramentalCadastrado: boolean; // false = código do slitter não está no cadastro de Ferramentais (Importador & Cadastros)
   compatibleLotCount: number;
   totalCompatibleWeightTon: number;
   coveragePercent: number;

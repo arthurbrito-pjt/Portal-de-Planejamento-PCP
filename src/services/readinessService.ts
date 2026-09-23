@@ -36,6 +36,7 @@ export interface SlitterProductionProgram {
     product: Product;
     codigoSlitter: string;
     nomeSlitter: string;
+    ferramentalCadastrado: boolean;
     fitaLargura: number;
     quantidadeFitas: number;
     larguraTotal: number;
@@ -153,6 +154,7 @@ export class ReadinessService {
         produtos,
         mainProduct,
         status,
+        ferramentalCadastrado: slitterInfo.cadastrado,
         compatibleLotCount,
         totalCompatibleWeightTon,
         coveragePercent,
@@ -276,6 +278,7 @@ export class ReadinessService {
             product: f.product,
             codigoSlitter: sInfo.code,
             nomeSlitter: sInfo.name,
+            ferramentalCadastrado: sInfo.cadastrado,
             fitaLargura: f.product.larguraFita,
             quantidadeFitas: f.quantidade,
             larguraTotal: f.larguraTotal,

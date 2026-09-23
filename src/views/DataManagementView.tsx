@@ -65,6 +65,8 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
     codigo: '',
     nome: '',
     classe: 'A',
+    larguraFita: undefined,
+    espessura: undefined,
     capacidadeMinimaT: undefined,
     capacidadeIdealT: undefined,
     capacidadeMaximaT: undefined
@@ -164,6 +166,8 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
       codigo: newFerramental.codigo,
       nome: newFerramental.nome,
       classe: (newFerramental.classe as FerramentalClasse) || 'A',
+      larguraFita: newFerramental.larguraFita !== undefined ? Number(newFerramental.larguraFita) : undefined,
+      espessura: newFerramental.espessura !== undefined ? Number(newFerramental.espessura) : undefined,
       capacidadeMinimaT: Number(newFerramental.capacidadeMinimaT || 0),
       capacidadeIdealT: Number(newFerramental.capacidadeIdealT || 0),
       capacidadeMaximaT: Number(newFerramental.capacidadeMaximaT || 0)
@@ -672,6 +676,30 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
               </div>
 
               <div>
+                <label className="block text-[11px] text-slate-600 uppercase font-black">Largura Fita (mm)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  placeholder="Ex: 199"
+                  value={newFerramental.larguraFita ?? ''}
+                  onChange={(e) => setNewFerramental({ ...newFerramental, larguraFita: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-slate-600 uppercase font-black">Espessura (mm)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="Ex: 1.25"
+                  value={newFerramental.espessura ?? ''}
+                  onChange={(e) => setNewFerramental({ ...newFerramental, espessura: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
+                />
+              </div>
+
+              <div>
                 <label className="block text-[11px] text-slate-600 uppercase font-black">Classe ABC</label>
                 <select
                   value={newFerramental.classe || 'A'}
@@ -725,7 +753,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
             </div>
 
             <p className="text-[11px] text-slate-500 font-medium">
-              Dica: use o mesmo código do catálogo de slitters (ex: SLT11000). Ferramentais Classe C alertam sobre acúmulo de lote mínimo antes de programar o setup.
+              Dica: Largura Fita + Espessura são o que associa este ferramental ao tubo/perfil correto no planejamento — sem esses dois campos preenchidos, o sistema não consegue casar a demanda com o código certo e o item aparece como "Ferramental não cadastrado". Use o mesmo código do catálogo de slitters (ex: SLT11000). Ferramentais Classe C alertam sobre acúmulo de lote mínimo antes de programar o setup.
             </p>
 
             <div className="flex justify-end">
@@ -746,6 +774,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                     <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-mono text-[11px] font-bold">
                       <th className="py-2.5 px-3">Código</th>
                       <th className="py-2.5 px-3">Nome</th>
+                      <th className="py-2.5 px-3 text-right">Fita x Esp.</th>
                       <th className="py-2.5 px-3 text-center">Classe</th>
                       <th className="py-2.5 px-3 text-right">Mín. (t)</th>
                       <th className="py-2.5 px-3 text-right">Ideal (t)</th>
@@ -757,6 +786,15 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                       <tr key={f.id} className="hover:bg-slate-50">
                         <td className="py-2.5 px-3 font-black text-slate-900">{f.codigo}</td>
                         <td className="py-2.5 px-3 font-sans text-slate-700">{f.nome}</td>
+                        <td className="py-2.5 px-3 text-right">
+                          {typeof f.larguraFita === 'number' && typeof f.espessura === 'number' ? (
+                            <span className="text-slate-600">{f.larguraFita} x {f.espessura} mm</span>
+                          ) : (
+                            <span className="text-red-700 bg-red-50 border border-red-200 rounded px-1.5 py-0.5 text-[10px] font-sans font-bold">
+                              não associado
+                            </span>
+                          )}
+                        </td>
                         <td className="py-2.5 px-3 text-center">
                           <span className={`inline-flex px-2 py-0.5 rounded-md text-[11px] font-black ${
                             f.classe === 'A' ? 'bg-emerald-100 text-emerald-800' :

@@ -2,7 +2,7 @@ import React from 'react';
 import { getAproveitamentoLevel, getSobraLevel, getDificuldadeLevel, isPendenteAjusteContabil } from '../domain/metricsThresholds';
 
 interface MetricsBadgeProps {
-  type: 'aproveitamento' | 'sobra' | 'status' | 'familia' | 'dificuldade' | 'contabil' | 'ferramental_abc';
+  type: 'aproveitamento' | 'sobra' | 'status' | 'familia' | 'dificuldade' | 'contabil' | 'ferramental_abc' | 'ferramental_cadastro';
   value: number | string;
   size?: 'sm' | 'md' | 'lg';
 }
@@ -92,6 +92,15 @@ export const MetricsBadge: React.FC<MetricsBadgeProps> = ({ type, value, size = 
       } ${sizeClasses}`}>
         <span className={`w-1.5 h-1.5 rounded-full ${isPendente ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`}></span>
         {isPendente ? 'Físico na Baia (Ajuste Pendente)' : 'Contábil Conciliado'}
+      </span>
+    );
+  }
+
+  if (type === 'ferramental_cadastro') {
+    return (
+      <span className={`inline-flex items-center gap-1.5 rounded-full border bg-red-50 text-red-800 border-red-300 ${sizeClasses}`}>
+        <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+        Ferramental não cadastrado
       </span>
     );
   }

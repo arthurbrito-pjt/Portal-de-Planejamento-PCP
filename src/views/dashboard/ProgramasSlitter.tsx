@@ -220,6 +220,11 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
                             </span>
                           </div>
                           <p className="text-xs text-slate-700 mt-1 font-medium">{mat.nomeSlitter}</p>
+                          {!mat.ferramentalCadastrado && (
+                            <span className="inline-block mt-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 rounded px-1.5 py-0.5">
+                              Ferramental não cadastrado
+                            </span>
+                          )}
                           <div className="text-[11px] font-mono text-slate-500 mt-1">
                             Fita: <span className="text-slate-700 font-bold">{mat.fitaLargura} x {coil.espessura} mm</span>
                           </div>

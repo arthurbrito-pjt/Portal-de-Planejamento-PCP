@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { Coil, Product, SlitterOrder, Ferramental, SlitterIntermediaryItem } from '../../types/pcp';
+import { Coil, Product, SlitterOrder, Ferramental, SlitterIntermediaryItem, PCPKPIs } from '../../types/pcp';
 import { ReadinessService, SlitterProductionProgram } from '../../services/readinessService';
 import { ProductionForecastService } from '../../services/productionForecastService';
 import { MetricsBadge } from '../../components/MetricsBadge';
+import { KpiOverview } from '../../components/KpiOverview';
 import {
   AlertTriangle,
   Hourglass,
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 
 interface DashboardHomeProps {
+  kpis: PCPKPIs;
   products: Product[];
   coils: Coil[];
   orders: SlitterOrder[];
@@ -24,6 +26,7 @@ interface DashboardHomeProps {
   onOpenProgramSimulation: (program: SlitterProductionProgram) => void;
   onOpenProgramOrder: (program: SlitterProductionProgram) => void;
   onNavigateToSubview: (subview: string) => void;
+  onNavigateToData: () => void;
 }
 
 interface HomeAlert {
@@ -52,6 +55,7 @@ const VISIBLE_ALERTS_DEFAULT = 4;
 const VISIBLE_SUGGESTIONS = 3;
 
 export const DashboardHome: React.FC<DashboardHomeProps> = ({
+  kpis,
   products,
   coils,
   orders,
@@ -60,7 +64,8 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   onNavigateToPlanning,
   onOpenProgramSimulation,
   onOpenProgramOrder,
-  onNavigateToSubview
+  onNavigateToSubview,
+  onNavigateToData
 }) => {
   const [showAllAlerts, setShowAllAlerts] = useState(false);
 
@@ -93,6 +98,28 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   );
   const totalReadyCount = useMemo(() => slitterDemands.filter(s => s.status === 'PRONTO').length, [slitterDemands]);
 
+  const statusCounts = useMemo(() => ({
+    pronto: slitterDemands.filter(s => s.status === 'PRONTO').length,
+    parcial: slitterDemands.filter(s => s.status === 'PARCIAL').length,
+    bloqueado: slitterDemands.filter(s => s.status === 'BLOQUEADO').length
+  }), [slitterDemands]);
+
+  const abcCounts = useMemo(() => ({
+    a: toolingAnalysis.filter(t => t.ferramental.classe === 'A').length,
+    b: toolingAnalysis.filter(t => t.ferramental.classe === 'B').length,
+    c: toolingAnalysis.filter(t => t.ferramental.classe === 'C').length
+  }), [toolingAnalysis]);
+
+  const semCadastroCount = useMemo(
+    () => slitterDemands.filter(s => !s.ferramentalCadastrado && s.totalDemandaT > 0).length,
+    [slitterDemands]
+  );
+
+  const wipTotalTon = useMemo(
+    () => Number(intermediarySlitters.reduce((acc, i) => acc + i.pesoDisponivelTon, 0).toFixed(2)),
+    [intermediarySlitters]
+  );
+
   const findProgramForSlitter = (item: (typeof slitterDemands)[number]): SlitterProductionProgram | undefined => {
     if (!item.bestCoil) return undefined;
     return slitterPrograms.find(p => p.coil.id === item.bestCoil!.id);
@@ -108,6 +135,16 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
       message: <><strong className="font-mono font-medium">{f.produto.codigo}</strong> sem matéria-prima disponível — previsão D+2 comprometida</>,
       onClick: () => onNavigateToPlanning(f.produto.id)
     }));
+
+    if (semCadastroCount > 0) {
+      alerts.push({
+        id: 'ferramental_sem_cadastro',
+        tone: 'red',
+        icon: AlertTriangle,
+        message: <><strong className="font-mono font-medium">{semCadastroCount}</strong> slitter(s) com demanda sem ferramental cadastrado — código não pode ser confirmado</>,
+        onClick: onNavigateToData
+      });
+    }
 
     ferramentaisAguardandoLote.forEach(item => alerts.push({
       id: `abc_${item.ferramental.id}`,
@@ -126,13 +163,23 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
     }));
 
     return alerts.sort((a, b) => TONE_WEIGHT[b.tone] - TONE_WEIGHT[a.tone]);
-  }, [forecastPendencias, ferramentaisAguardandoLote, setupFragmentationDays, onNavigateToPlanning, onNavigateToSubview]);
+  }, [forecastPendencias, semCadastroCount, ferramentaisAguardandoLote, setupFragmentationDays, onNavigateToPlanning, onNavigateToSubview, onNavigateToData]);
 
   const visibleAlerts = showAllAlerts ? allAlerts : allAlerts.slice(0, VISIBLE_ALERTS_DEFAULT);
   const hiddenAlertsCount = allAlerts.length - visibleAlerts.length;
 
   return (
     <div className="space-y-4">
+      <KpiOverview
+        kpis={kpis}
+        statusCounts={statusCounts}
+        abcCounts={abcCounts}
+        semCadastroCount={semCadastroCount}
+        wipTotalTon={wipTotalTon}
+        onNavigateToSubview={onNavigateToSubview}
+        onNavigateToData={onNavigateToData}
+      />
+
       {allAlerts.length > 0 && (
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
           <h4 className="text-xs font-semibold text-slate-800 flex items-center justify-between">
@@ -200,6 +247,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                     <span className="text-xs font-black font-mono text-[#0B1F3A]">{item.codigoSlitter}</span>
                     <MetricsBadge type="familia" value={item.mainProduct.familia} size="sm" />
                   </div>
+                  {!item.ferramentalCadastrado && (
+                    <MetricsBadge type="ferramental_cadastro" value="" size="sm" />
+                  )}
                   <div className="text-[11px] text-slate-500 line-clamp-1 font-medium">{item.nomeSlitter}</div>
                   <div className="flex items-center justify-between text-[11px] font-mono text-slate-600">
                     <span>{item.totalDemandaT}t demanda</span>

@@ -57,6 +57,7 @@ export const OpSuggestionCard: React.FC<OpSuggestionCardProps> = ({
           <MetricsBadge type="familia" value={p.familia} size="sm" />
           {p.grauDificuldade && <MetricsBadge type="dificuldade" value={p.grauDificuldade} size="sm" />}
           {ferramentalClasse && <MetricsBadge type="ferramental_abc" value={ferramentalClasse} size="sm" />}
+          {!item.ferramentalCadastrado && <MetricsBadge type="ferramental_cadastro" value="" size="sm" />}
         </div>
       </div>
 

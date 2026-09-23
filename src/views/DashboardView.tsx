@@ -60,6 +60,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   activeSubview,
   onNavigateToSubview,
   onNavigateToPlanning,
+  onNavigateToData,
   onOpenProgramSimulation,
   onOpenProgramOrder
 }) => {
@@ -127,6 +128,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {!activeSubview && (
         <DashboardHome
+          kpis={kpis}
           products={products}
           coils={coils}
           orders={orders}
@@ -136,6 +138,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           onOpenProgramSimulation={onOpenProgramSimulation}
           onOpenProgramOrder={onOpenProgramOrder}
           onNavigateToSubview={onNavigateToSubview}
+          onNavigateToData={onNavigateToData}
         />
       )}
 

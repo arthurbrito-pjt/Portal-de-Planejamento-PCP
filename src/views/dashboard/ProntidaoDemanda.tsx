@@ -85,6 +85,11 @@ export const ProntidaoDemanda: React.FC<ProntidaoDemandaProps> = ({ products, co
                 <td className="py-3 px-3">
                   <div className="font-mono font-bold text-[#0B1F3A]">{s.codigoSlitter}</div>
                   <div className="text-[10px] text-slate-400 font-normal">{s.nomeSlitter}</div>
+                  {!s.ferramentalCadastrado && (
+                    <span className="inline-block mt-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 rounded px-1.5 py-0.5">
+                      Ferramental não cadastrado
+                    </span>
+                  )}
                 </td>
                 <td className="py-3 px-3">
                   <div className="flex flex-wrap items-center gap-1 max-w-xs">

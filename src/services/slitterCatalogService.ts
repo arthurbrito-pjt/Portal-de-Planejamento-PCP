@@ -1,10 +1,20 @@
 import { Product } from '../types/pcp';
+import { StorageService } from './storageService';
 
 export interface SlitterCatalogItem {
   code: string;
   name: string;
   larguraFita: number;
   espessura: number;
+}
+
+export interface SlitterInfoResult {
+  code: string;
+  name: string;
+  // false = não há ferramental cadastrado (Importador & Cadastros) nem catálogo
+  // oficial para esta largura/espessura — o código retornado é apenas um rótulo
+  // de alerta, não um código de ferramental real.
+  cadastrado: boolean;
 }
 
 // Predefined Slitters extracted from official production engineering sheets
@@ -626,39 +636,52 @@ export const PERFIL_SLITTERS_CATALOG: { code: string; desc: string; blank: numbe
   }
 ];
 
+const WIDTH_TOLERANCE_MM = 0.6;
+const THICKNESS_TOLERANCE_MM = 0.03;
+
 export class SlitterCatalogService {
   /**
-   * Returns the official Slitter Code and Name for a given strip width and thickness.
+   * Returns the real Slitter Code and Name for a given strip width and thickness.
+   *
+   * Ordem de resolução:
+   * 1. Cadastro mestre de Ferramentais (Importador & Cadastros) — fonte de
+   *    verdade editável pelo usuário, casada por largura de fita + espessura reais.
+   * 2. Catálogo oficial de slitters de perfil (planilhas de engenharia,
+   *    `PERFIL_SLITTERS_CATALOG`), usado como referência quando o ferramental
+   *    ainda não foi cadastrado individualmente.
+   * 3. Sem correspondência: retorna um rótulo explícito de "não cadastrado" em
+   *    vez de inventar um código plausível — evita códigos genéricos incorretos.
    */
-  static getSlitterInfo(larguraFita: number, espessura: number, product?: Product): { code: string; name: string } {
-    // 1. Check if matching perfil catalog
+  static getSlitterInfo(larguraFita: number, espessura: number, product?: Product): SlitterInfoResult {
+    // 1. Cadastro mestre de Ferramentais (largura/espessura reais do produto)
+    const ferramentais = StorageService.getFerramentais();
+    const registrado = ferramentais.find(f =>
+      typeof f.larguraFita === 'number' &&
+      typeof f.espessura === 'number' &&
+      Math.abs(f.larguraFita - larguraFita) < WIDTH_TOLERANCE_MM &&
+      Math.abs(f.espessura - espessura) < THICKNESS_TOLERANCE_MM
+    );
+    if (registrado) {
+      return { code: registrado.codigo, name: registrado.nome, cadastrado: true };
+    }
+
+    // 2. Catálogo oficial de perfis (fallback para larguras ainda não cadastradas)
     if (product?.familia === 'PERFIL' || !product) {
       const match = PERFIL_SLITTERS_CATALOG.find(
-        s => Math.abs(s.blank - larguraFita) < 0.5 && s.desc.includes(`${espessura.toFixed(2).replace('.', ',')}MM`)
+        s => Math.abs(s.blank - larguraFita) < WIDTH_TOLERANCE_MM && s.desc.includes(`${espessura.toFixed(2).replace('.', ',')}MM`)
       );
       if (match) {
-        return {
-          code: match.code,
-          name: match.desc
-        };
+        return { code: match.code, name: match.desc, cadastrado: true };
       }
     }
 
-    // 2. If product is a tubo or generic
-    if (product?.codigo && product.codigo.startsWith('TB')) {
-      const numPart = product.codigo.replace(/[^0-9]/g, '');
-      return {
-        code: `SLT10${numPart.slice(-3).padStart(3, '0')}`,
-        name: `SLITTER ${larguraFita} x ${espessura.toFixed(2).replace('.', ',')}MM`
-      };
-    }
-
-    // 3. Standard clean Slitter identification
+    // 3. Sem correspondência: ferramental precisa ser cadastrado em Importador & Cadastros
     const roundedWidth = Math.round(larguraFita);
-    const espStr = espessura.toFixed(2).replace('.', '_');
+    const espStr = espessura.toFixed(2).replace('.', ',');
     return {
-      code: `SLT-${roundedWidth}x${espStr}`,
-      name: `SLITTER ${larguraFita} x ${espessura.toFixed(2).replace('.', ',')}MM`
+      code: 'SEM-CADASTRO',
+      name: `Ferramental não cadastrado (${roundedWidth} x ${espStr}MM)`,
+      cadastrado: false
     };
   }
 }
