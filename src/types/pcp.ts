@@ -275,9 +275,12 @@ export interface AIRecommendation {
   impactoEstimado?: string;
 }
 
+export type AIProvider = 'anthropic' | 'gemini' | 'openai';
+
 export interface AIAgentResult {
   geradoEm: string;
-  mode?: 'recommendations' | 'alerts' | 'summary';
+  mode?: 'recommendations' | 'planning' | 'alerts' | 'summary';
+  provider?: AIProvider;
   resumo?: string;
   insights?: AIInsight[];
   recomendacoes?: AIRecommendation[];

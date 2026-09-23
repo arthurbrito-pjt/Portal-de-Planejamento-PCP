@@ -29,8 +29,16 @@ dist-ssr
 # Temporary files
 test_optimizer.ts
 
-# Firebase Functions (Agente de IA)
+# Firebase Functions (Agente de IA — versão anterior, mantida como referência)
 functions/node_modules
 functions/lib
 functions/.env
 functions/.env.*
+
+# Cloudflare Worker (Agente de IA)
+worker/.wrangler
+worker/node_modules
+
+# Variáveis de ambiente locais (VITE_AI_WORKER_URL etc.)
+.env
+.env.local

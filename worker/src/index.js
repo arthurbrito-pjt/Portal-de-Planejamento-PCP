@@ -1,11 +1,11 @@
 /**
  * Agente de IA do Portal de Planejamento PCP — Cedisa Central de Aço
  * ------------------------------------------------------------------
- * Cloud Function callable que recebe um snapshot dos dados de PCP
- * (estoque de bobinas, demandas por slitter, programas de corte já
- * calculados pelo motor de otimização, curva ABC de ferramentais, KPIs
- * e histórico) e usa um provedor de IA à escolha (Anthropic, Gemini ou
- * OpenAI) para gerar, em português:
+ * Cloudflare Worker que recebe um snapshot dos dados de PCP (estoque de
+ * bobinas, demandas por slitter, programas de corte já calculados pelo
+ * motor de otimização, curva ABC de ferramentais, KPIs e histórico) e usa
+ * um provedor de IA à escolha (Anthropic, Gemini ou OpenAI) para gerar,
+ * em português:
  *
  *   - "recommendations": recomendações priorizadas de quais programas
  *      de corte executar primeiro;
@@ -18,30 +18,20 @@
  *   - "summary": um resumo executivo da situação atual da produção.
  *
  * As chaves de API (ANTHROPIC_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY)
- * ficam em Firebase Secret Manager — nunca são expostas ao navegador.
- * Configure a(s) que for usar com:
- *   firebase functions:secrets:set ANTHROPIC_API_KEY
- *   firebase functions:secrets:set GEMINI_API_KEY
- *   firebase functions:secrets:set OPENAI_API_KEY
+ * ficam como Worker Secrets do Cloudflare — nunca são expostas ao
+ * navegador. Configure a(s) que for usar com:
+ *   npx wrangler secret put ANTHROPIC_API_KEY
+ *   npx wrangler secret put GEMINI_API_KEY
+ *   npx wrangler secret put OPENAI_API_KEY
  * Veja o README.md na raiz do projeto para instruções completas.
  */
 
-const { onCall, HttpsError } = require('firebase-functions/v2/https');
-const { defineSecret } = require('firebase-functions/params');
-const logger = require('firebase-functions/logger');
-
-const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
-const GEMINI_API_KEY = defineSecret('GEMINI_API_KEY');
-const OPENAI_API_KEY = defineSecret('OPENAI_API_KEY');
-
-// Modelos usados por padrão. Se precisar trocar, confira os modelos
-// disponíveis para sua conta em cada provedor:
-// Anthropic: https://docs.claude.com/en/docs/about-claude/models
-// Gemini:    https://ai.google.dev/gemini-api/docs/models
-// OpenAI:    https://platform.openai.com/docs/models
 const CLAUDE_MODEL = 'claude-sonnet-4-5';
 const ANTHROPIC_VERSION = '2023-06-01';
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_MODEL = 'gemini-3.8-flash';
+// Usado só quando GEMINI_MODEL esgota as tentativas com erro de sobrecarga —
+// modelo estável, com cota bem maior, como rede de segurança.
+const GEMINI_FALLBACK_MODEL = 'gemini-3.6-flash';
 const OPENAI_MODEL = 'gpt-4o-mini';
 
 const BASE_CONTEXT = [
@@ -165,6 +155,14 @@ Responda SOMENTE com um JSON válido, sem nenhum texto fora do JSON, no formato:
 Limite "insights" a no máximo 5 pontos-chave.`
 };
 
+class HttpError extends Error {
+  constructor(status, code, message) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
 /** Extrai o primeiro objeto JSON de um texto livre (alguns modelos retornam markdown/prosa em volta). */
 function extractJson(rawText) {
   const jsonMatch = rawText.match(/\{[\s\S]*\}/);
@@ -181,7 +179,7 @@ async function callAnthropic(apiKey, systemPrompt, userContent) {
     },
     body: JSON.stringify({
       model: CLAUDE_MODEL,
-      max_tokens: 2000,
+      max_tokens: 4000,
       system: systemPrompt,
       messages: [{ role: 'user', content: userContent }]
     })
@@ -189,8 +187,8 @@ async function callAnthropic(apiKey, systemPrompt, userContent) {
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    logger.error('Erro retornado pela API da Anthropic', { status: res.status, errText });
-    throw new HttpsError('internal', 'Falha ao consultar o agente de IA (Anthropic).');
+    console.error('Erro retornado pela API da Anthropic', res.status, errText);
+    throw new HttpError(502, 'internal', 'Falha ao consultar o agente de IA (Anthropic).');
   }
 
   const data = await res.json();
@@ -198,30 +196,77 @@ async function callAnthropic(apiKey, systemPrompt, userContent) {
   return textBlock ? textBlock.text : '{}';
 }
 
-async function callGemini(apiKey, systemPrompt, userContent) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: systemPrompt }] },
-      contents: [{ role: 'user', parts: [{ text: userContent }] }],
-      generationConfig: {
-        maxOutputTokens: 2000,
-        responseMimeType: 'application/json'
-      }
-    })
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// gemini-3.8-flash é um modelo preview com cota diária bem mais baixa que os
+// modelos estáveis. 503 = sobrecarga passageira do modelo (vale re-tentar);
+// 429 = cota do dia já esgotada (re-tentar o mesmo modelo não resolve, é
+// direto para o fallback).
+const GEMINI_MAX_ATTEMPTS = 3;
+const GEMINI_RETRY_DELAYS_MS = [1000, 2000];
+
+async function callGeminiModel(apiKey, model, systemPrompt, userContent) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const body = JSON.stringify({
+    system_instruction: { parts: [{ text: systemPrompt }] },
+    contents: [{ role: 'user', parts: [{ text: userContent }] }],
+    generationConfig: {
+      maxOutputTokens: 8000,
+      responseMimeType: 'application/json',
+      // Modelos gemini-3.x fazem "thinking" interno que consome parte do
+      // budget de maxOutputTokens antes de escrever a resposta — desligamos
+      // para deixar todo o limite disponível para o JSON de saída.
+      thinkingConfig: { thinkingBudget: 0 }
+    }
   });
 
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    logger.error('Erro retornado pela API do Gemini', { status: res.status, errText });
-    throw new HttpsError('internal', 'Falha ao consultar o agente de IA (Gemini).');
+  let lastErrText = '';
+  let lastStatus = 0;
+
+  for (let attempt = 0; attempt < GEMINI_MAX_ATTEMPTS; attempt++) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return data?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '{}';
+    }
+
+    lastStatus = res.status;
+    lastErrText = await res.text().catch(() => '');
+
+    // 429 (cota esgotada) não se resolve tentando de novo o mesmo modelo —
+    // só 503 (sobrecarga temporária) justifica retry com espera.
+    const isRetryable = res.status === 503;
+    const hasMoreAttempts = attempt < GEMINI_MAX_ATTEMPTS - 1;
+    if (!isRetryable || !hasMoreAttempts) break;
+
+    console.error(`Gemini ${model} ${lastStatus} (tentativa ${attempt + 1}/${GEMINI_MAX_ATTEMPTS}), tentando de novo`, lastErrText);
+    await sleep(GEMINI_RETRY_DELAYS_MS[attempt]);
   }
 
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '{}';
-  return text;
+  const message =
+    lastStatus === 429
+      ? `Cota gratuita do Gemini (${model}) esgotada por hoje. Tente novamente mais tarde ou peça um aumento de cota em ai.google.dev/gemini-api/docs/rate-limits.`
+      : 'Falha ao consultar o agente de IA (Gemini) — o modelo está indisponível no momento.';
+  const err = new HttpError(502, 'internal', message);
+  err.status_ = lastStatus;
+  console.error(`Erro retornado pela API do Gemini (${model})`, lastStatus, lastErrText);
+  throw err;
+}
+
+async function callGemini(apiKey, systemPrompt, userContent) {
+  try {
+    return await callGeminiModel(apiKey, GEMINI_MODEL, systemPrompt, userContent);
+  } catch (err) {
+    const wasOverloaded = err instanceof HttpError && (err.status_ === 503 || err.status_ === 429);
+    if (!wasOverloaded) throw err;
+    console.error(`${GEMINI_MODEL} indisponível após retries, tentando fallback ${GEMINI_FALLBACK_MODEL}`);
+    return await callGeminiModel(apiKey, GEMINI_FALLBACK_MODEL, systemPrompt, userContent);
+  }
 }
 
 async function callOpenAI(apiKey, systemPrompt, userContent) {
@@ -233,7 +278,7 @@ async function callOpenAI(apiKey, systemPrompt, userContent) {
     },
     body: JSON.stringify({
       model: OPENAI_MODEL,
-      max_tokens: 2000,
+      max_tokens: 4000,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: systemPrompt },
@@ -244,49 +289,97 @@ async function callOpenAI(apiKey, systemPrompt, userContent) {
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    logger.error('Erro retornado pela API da OpenAI', { status: res.status, errText });
-    throw new HttpsError('internal', 'Falha ao consultar o agente de IA (OpenAI).');
+    console.error('Erro retornado pela API da OpenAI', res.status, errText);
+    throw new HttpError(502, 'internal', 'Falha ao consultar o agente de IA (OpenAI).');
   }
 
   const data = await res.json();
   return data?.choices?.[0]?.message?.content || '{}';
 }
 
-const PROVIDERS = {
-  anthropic: { secret: ANTHROPIC_API_KEY, envVar: 'ANTHROPIC_API_KEY', call: callAnthropic },
-  gemini: { secret: GEMINI_API_KEY, envVar: 'GEMINI_API_KEY', call: callGemini },
-  openai: { secret: OPENAI_API_KEY, envVar: 'OPENAI_API_KEY', call: callOpenAI }
-};
+function providersFor(env) {
+  return {
+    anthropic: { apiKey: env.ANTHROPIC_API_KEY, envVar: 'ANTHROPIC_API_KEY', call: callAnthropic },
+    gemini: { apiKey: env.GEMINI_API_KEY, envVar: 'GEMINI_API_KEY', call: callGemini },
+    openai: { apiKey: env.OPENAI_API_KEY, envVar: 'OPENAI_API_KEY', call: callOpenAI }
+  };
+}
 
-exports.aiAgentAssistant = onCall(
-  {
-    secrets: [ANTHROPIC_API_KEY, GEMINI_API_KEY, OPENAI_API_KEY],
-    region: 'us-central1',
-    timeoutSeconds: 60,
-    cors: true
-  },
-  async (request) => {
-    const { mode, context, provider } = request.data || {};
+function corsHeaders(origin) {
+  return {
+    'Access-Control-Allow-Origin': origin || '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'content-type',
+    'Access-Control-Max-Age': '86400'
+  };
+}
+
+function json(body, status, origin) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json', ...corsHeaders(origin) }
+  });
+}
+
+export default {
+  async fetch(request, env) {
+    const origin = request.headers.get('Origin');
+
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: corsHeaders(origin) });
+    }
+
+    if (request.method === 'GET' && new URL(request.url).pathname === '/debug-model-check') {
+      const model = new URL(request.url).searchParams.get('model') || GEMINI_MODEL;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`;
+      const t0 = Date.now();
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'diga apenas "ok"' }] }] })
+      });
+      const text = await r.text();
+      return json({ model, status: r.status, ms: Date.now() - t0, body: text.slice(0, 200) }, 200, origin);
+    }
+
+    if (request.method !== 'POST') {
+      return json({ error: 'method-not-allowed' }, 405, origin);
+    }
+
+    let payload;
+    try {
+      payload = await request.json();
+    } catch {
+      return json({ error: 'invalid-argument', message: 'Corpo da requisição inválido (JSON esperado).' }, 400, origin);
+    }
+
+    const { mode, context, provider } = payload || {};
 
     if (!mode || !PROMPTS[mode]) {
-      throw new HttpsError(
-        'invalid-argument',
-        'Parâmetro "mode" inválido. Use "recommendations", "planning", "alerts" ou "summary".'
+      return json(
+        { error: 'invalid-argument', message: 'Parâmetro "mode" inválido. Use "recommendations", "planning", "alerts" ou "summary".' },
+        400,
+        origin
       );
     }
 
     if (!context || typeof context !== 'object') {
-      throw new HttpsError('invalid-argument', 'Parâmetro "context" ausente ou inválido.');
+      return json({ error: 'invalid-argument', message: 'Parâmetro "context" ausente ou inválido.' }, 400, origin);
     }
 
-    const providerKey = provider && PROVIDERS[provider] ? provider : 'anthropic';
-    const providerConfig = PROVIDERS[providerKey];
+    const providers = providersFor(env);
+    const providerKey = provider && providers[provider] ? provider : 'anthropic';
+    const providerConfig = providers[providerKey];
 
-    const apiKey = providerConfig.secret.value();
+    const apiKey = providerConfig.apiKey;
     if (!apiKey) {
-      throw new HttpsError(
-        'failed-precondition',
-        `${providerConfig.envVar} não configurada. Rode "firebase functions:secrets:set ${providerConfig.envVar}" e faça o deploy. Veja o README.md para instruções.`
+      return json(
+        {
+          error: 'failed-precondition',
+          message: `${providerConfig.envVar} não configurada. Rode "npx wrangler secret put ${providerConfig.envVar}" (dentro da pasta worker/) e faça o deploy. Veja o README.md para instruções.`
+        },
+        412,
+        origin
       );
     }
 
@@ -299,19 +392,21 @@ exports.aiAgentAssistant = onCall(
     try {
       rawText = await providerConfig.call(apiKey, systemPrompt, userContent);
     } catch (err) {
-      if (err instanceof HttpsError) throw err;
-      logger.error(`Falha de rede ao chamar a API (${providerKey})`, err);
-      throw new HttpsError('unavailable', 'Não foi possível contatar o serviço de IA. Tente novamente.');
+      if (err instanceof HttpError) {
+        return json({ error: err.code, message: err.message }, err.status, origin);
+      }
+      console.error(`Falha de rede ao chamar a API (${providerKey})`, err);
+      return json({ error: 'unavailable', message: 'Não foi possível contatar o serviço de IA. Tente novamente.' }, 503, origin);
     }
 
     let parsed;
     try {
       parsed = extractJson(rawText);
-    } catch (err) {
-      logger.error('Resposta da IA não pôde ser interpretada como JSON', { rawText });
-      throw new HttpsError('internal', 'A resposta do agente de IA não pôde ser interpretada.');
+    } catch {
+      console.error('Resposta da IA não pôde ser interpretada como JSON', rawText);
+      return json({ error: 'internal', message: 'A resposta do agente de IA não pôde ser interpretada.' }, 502, origin);
     }
 
-    return { geradoEm: new Date().toISOString(), mode, provider: providerKey, ...parsed };
+    return json({ geradoEm: new Date().toISOString(), mode, provider: providerKey, ...parsed }, 200, origin);
   }
-);
+};

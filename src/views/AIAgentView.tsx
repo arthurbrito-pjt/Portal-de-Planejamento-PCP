@@ -10,7 +10,8 @@ import {
   AlertTriangle,
   AlertCircle,
   Info,
-  Bot
+  Bot,
+  Target
 } from 'lucide-react';
 import {
   Product,
@@ -18,9 +19,12 @@ import {
   SlitterOrder,
   PCPKPIs,
   CutHistoryItem,
+  Ferramental,
+  SlitterIntermediaryItem,
   AIAgentResult,
   AIInsight,
-  AIRecommendation
+  AIRecommendation,
+  AIProvider
 } from '../types/pcp';
 import { AIAgentService, AIAgentMode } from '../services/aiAgentService';
 import { SlitterProductionProgram } from '../services/readinessService';
@@ -31,14 +35,29 @@ interface AIAgentViewProps {
   orders: SlitterOrder[];
   kpis: PCPKPIs;
   history: CutHistoryItem[];
+  ferramentais?: Ferramental[];
+  intermediarySlitters?: SlitterIntermediaryItem[];
   onOpenProgramSimulation: (program: SlitterProductionProgram) => void;
   onOpenProgramOrder: (program: SlitterProductionProgram) => void;
   onNavigateToDashboard: () => void;
 }
 
-type SectionKey = 'recommendations' | 'alerts' | 'summary';
+type SectionKey = 'planning' | 'recommendations' | 'alerts' | 'summary';
+
+const PROVIDER_OPTIONS: { value: AIProvider; label: string }[] = [
+  { value: 'anthropic', label: 'Claude (Anthropic)' },
+  { value: 'gemini', label: 'Gemini (Google)' },
+  { value: 'openai', label: 'GPT (OpenAI)' }
+];
 
 const SECTIONS: { key: SectionKey; mode: AIAgentMode; title: string; description: string; icon: React.ElementType }[] = [
+  {
+    key: 'planning',
+    mode: 'planning',
+    title: 'Planejamento Otimizado',
+    description: 'Cruza Curva ABC de ferramentais, estoque, cadastro de ferramental, melhor aproveitamento de bobina e limitações operacionais (setups) para montar o plano de corte prioritário.',
+    icon: Target
+  },
   {
     key: 'recommendations',
     mode: 'recommendations',
@@ -80,22 +99,30 @@ export const AIAgentView: React.FC<AIAgentViewProps> = ({
   orders,
   kpis,
   history,
+  ferramentais = [],
+  intermediarySlitters = [],
   onOpenProgramSimulation,
   onOpenProgramOrder,
   onNavigateToDashboard
 }) => {
-  const [activeSection, setActiveSection] = useState<SectionKey>('recommendations');
+  const [activeSection, setActiveSection] = useState<SectionKey>('planning');
+  const [provider, setProvider] = useState<AIProvider>(() => AIAgentService.getStoredProvider());
   const [results, setResults] = useState<Partial<Record<SectionKey, AIAgentResult>>>({});
   const [loading, setLoading] = useState<Partial<Record<SectionKey, boolean>>>({});
   const [errors, setErrors] = useState<Partial<Record<SectionKey, string>>>({});
 
   const activeSectionInfo = SECTIONS.find(s => s.key === activeSection)!;
 
+  const handleProviderChange = (next: AIProvider) => {
+    setProvider(next);
+    AIAgentService.setStoredProvider(next);
+  };
+
   const runAgent = async (section: SectionKey, mode: AIAgentMode) => {
     setLoading(prev => ({ ...prev, [section]: true }));
     setErrors(prev => ({ ...prev, [section]: undefined }));
     try {
-      const result = await AIAgentService.run(mode, { products, coils, orders, kpis, history });
+      const result = await AIAgentService.run(mode, { products, coils, orders, kpis, history, ferramentais, intermediarySlitters }, provider);
       setResults(prev => ({ ...prev, [section]: result }));
     } catch (err: any) {
       const message = err?.message || 'Não foi possível consultar o agente de IA. Verifique se a Cloud Function está publicada.';
@@ -135,12 +162,26 @@ export const AIAgentView: React.FC<AIAgentViewProps> = ({
             </p>
           </div>
         </div>
-        <button
-          onClick={onNavigateToDashboard}
-          className="text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors"
-        >
-          Voltar ao Painel Geral
-        </button>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+            Provedor de IA
+            <select
+              value={provider}
+              onChange={(e) => handleProviderChange(e.target.value as AIProvider)}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-800"
+            >
+              {PROVIDER_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </label>
+          <button
+            onClick={onNavigateToDashboard}
+            className="text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors"
+          >
+            Voltar ao Painel Geral
+          </button>
+        </div>
       </div>
 
       {/* Section Tabs */}
@@ -207,7 +248,7 @@ export const AIAgentView: React.FC<AIAgentViewProps> = ({
           </div>
         )}
 
-        {activeSection === 'recommendations' && result?.recomendacoes && result.recomendacoes.length > 0 && (
+        {(activeSection === 'recommendations' || activeSection === 'planning') && result?.recomendacoes && result.recomendacoes.length > 0 && (
           <div className="space-y-3">
             {result.recomendacoes.map((rec: AIRecommendation, idx: number) => (
               <div key={idx} className="p-4 rounded-lg border border-slate-200 bg-slate-50 space-y-2">

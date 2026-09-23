@@ -1,0 +1,8 @@
+name = "pcp-ai-agent"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+# Secrets (NÃO listar valores aqui — configure com `npx wrangler secret put <NOME>`):
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put GEMINI_API_KEY
+#   npx wrangler secret put OPENAI_API_KEY

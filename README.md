@@ -238,12 +238,18 @@ Portal-de-Planejamento-PCP/
 
 ---
 
-## 🤖 7. Agente de IA — Recomendações, Alertas & Resumo Executivo
+## 🤖 7. Agente de IA — Planejamento Otimizado, Recomendações, Alertas & Resumo
 
-Nova tela do Portal (`src/views/AIAgentView.tsx`) que usa a API da Anthropic
-(Claude) para analisar, em português, os dados já calculados pelo motor de
-otimização (`ReadinessService` / `SlitterOptimizer`) e gerar:
+Tela do Portal (`src/views/AIAgentView.tsx`) que usa um provedor de IA à sua
+escolha (**Claude/Anthropic, Gemini/Google ou GPT/OpenAI** — selecionável na
+própria tela) para analisar, em português, os dados já calculados pelo motor
+de otimização (`ReadinessService` / `SlitterOptimizer`) e gerar:
 
+- **Planejamento Otimizado**: cruza simultaneamente Curva ABC de Ferramentais,
+  estoque disponível, cadastro de ferramental (nunca recomenda como prioridade
+  um item sem ferramental cadastrado), melhor aproveitamento de bobina (menor
+  perda) e limitações operacionais (agrupa por espessura para reduzir trocas
+  de faca/setup e retrabalho).
 - **Recomendações de Corte**: prioriza quais programas de corte já sugeridos
   pelo motor devem ser executados primeiro (por risco de ruptura, volume de
   demanda e aproveitamento), com atalhos para abrir direto no Estúdio de Corte
@@ -260,38 +266,69 @@ de 10 a 18 mm.
 ### Arquitetura
 
 ```
-React (AIAgentView) ──► aiAgentService.ts ──► Cloud Function "aiAgentAssistant"
+React (AIAgentView) ──► aiAgentService.ts ──► Cloudflare Worker "pcp-ai-agent"
+                            (provider: "anthropic" | "gemini" | "openai")
                                                         │
                                                         ▼
-                                          API da Anthropic (Claude)
-                                     (chave em Firebase Secret Manager)
+                              API do provedor escolhido (Claude / Gemini / GPT)
+                                (chave em Cloudflare Worker Secrets, por provedor)
 ```
 
-A chamada ao modelo acontece inteiramente no backend (Cloud Function em
-`functions/index.js`), então a chave de API nunca é exposta ao navegador.
+> Histórico: a primeira versão desse backend usava uma Cloud Function do
+> Firebase (`functions/index.js`, ainda no repositório como referência). O
+> projeto Firebase deste app está no plano gratuito **Spark**, que não permite
+> Cloud Functions chamarem APIs externas (exige upgrade pago para o plano
+> **Blaze**) — por isso o backend do Agente de IA foi movido para um
+> **Cloudflare Worker** (`worker/`), que tem plano gratuito sem cartão para
+> este volume de uso e não depende do plano do Firebase.
+
+A chamada ao modelo acontece inteiramente no backend (Worker em
+`worker/src/index.js`), então a chave de API **nunca é exposta ao navegador**,
+qualquer que seja o provedor escolhido. O provedor ativo é selecionado na
+própria tela do Agente de IA (fica salvo no `localStorage`, sem chave nenhuma
+nele — só o nome do provedor) e enviado junto com cada chamada.
 
 ### Configuração e Deploy
 
-1. Obtenha uma chave de API em [console.anthropic.com](https://console.anthropic.com).
-2. Instale as dependências das Functions:
+1. Crie uma conta gratuita em [dash.cloudflare.com/sign-up](https://dash.cloudflare.com/sign-up)
+   (sem cartão de crédito) — pule este passo se já tiver uma.
+2. Autentique o Wrangler (CLI da Cloudflare) uma única vez — abre o navegador
+   para você autorizar com sua conta:
    ```bash
-   cd functions
-   npm install
-   cd ..
+   cd worker
+   npx wrangler login
    ```
-3. Salve a chave como *secret* do Firebase (uma vez só; ele pede o valor de forma interativa e segura):
+3. Obtenha a(s) chave(s) de API do(s) provedor(es) que for usar e salve como
+   *secret* do Worker (uma vez só por chave; o comando pede o valor de forma
+   interativa e segura — não precisa configurar todas, só as que for usar):
    ```bash
-   firebase functions:secrets:set ANTHROPIC_API_KEY
+   npx wrangler secret put ANTHROPIC_API_KEY   # console.anthropic.com
+   npx wrangler secret put GEMINI_API_KEY      # aistudio.google.com/apikey
+   npx wrangler secret put OPENAI_API_KEY      # platform.openai.com/api-keys
    ```
-4. Publique a Cloud Function:
+4. Publique o Worker:
    ```bash
-   firebase deploy --only functions
+   npx wrangler deploy
    ```
-5. Publique o restante do app normalmente (`npm run build && firebase deploy --only hosting`).
+   O comando imprime a URL pública do Worker (algo como
+   `https://pcp-ai-agent.<seu-usuario>.workers.dev`).
+5. Volte para a raiz do projeto e aponte o app para essa URL, criando um
+   arquivo `.env` (não versionado) com:
+   ```bash
+   VITE_AI_WORKER_URL=https://pcp-ai-agent.<seu-usuario>.workers.dev
+   ```
+6. Rode `npm run build` novamente (ou reinicie o `npm run dev`) para a variável
+   ser incorporada, e publique o app normalmente
+   (`firebase deploy --only hosting`).
+7. Na tela **Agente de IA**, escolha o provedor desejado no seletor "Provedor de IA"
+   antes de gerar — se a chave daquele provedor não estiver configurada, o
+   Worker retorna um erro claro dizendo qual `npx wrangler secret put` rodar.
 
-Se quiser trocar o modelo usado (constante `CLAUDE_MODEL` em
-`functions/index.js`), confira os modelos disponíveis para sua conta em
-[docs.claude.com](https://docs.claude.com/en/docs/about-claude/models).
+Se quiser trocar os modelos usados (constantes `CLAUDE_MODEL`, `GEMINI_MODEL`,
+`OPENAI_MODEL` em `worker/src/index.js`), confira os modelos disponíveis para
+sua conta em [docs.claude.com](https://docs.claude.com/en/docs/about-claude/models),
+[ai.google.dev/gemini-api/docs/models](https://ai.google.dev/gemini-api/docs/models)
+e [platform.openai.com/docs/models](https://platform.openai.com/docs/models).
 
 ---
 

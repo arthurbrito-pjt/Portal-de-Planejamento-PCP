@@ -491,6 +491,8 @@ export const App: React.FC = () => {
               orders={orders}
               kpis={kpis}
               history={history}
+              ferramentais={ferramentais}
+              intermediarySlitters={intermediarySlitters}
               onOpenProgramSimulation={handleOpenProgramInSimulation}
               onOpenProgramOrder={handleOpenProgramInOrder}
               onNavigateToDashboard={() => handleSelectTab('dashboard')}
