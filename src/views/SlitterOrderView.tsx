@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { Coil, SlitterStrip, SlitterOrder } from '../types/pcp';
 import { ExcelService } from '../services/excelService';
 import { StorageService } from '../services/storageService';
-import { OrderBuilderService } from '../services/orderBuilderService';
+import { OrderBuilderService, OrderCoilInput } from '../services/orderBuilderService';
 import { SlitterCatalogService } from '../services/slitterCatalogService';
 import { PrintTagsPortal } from '../components/PrintTagsPortal';
 import { EmptyState } from '../components/EmptyState';
 import { MetricsBadge } from '../components/MetricsBadge';
+import { CedisaLogo } from '../components/CedisaLogo';
 import {
   ClipboardCheck,
   FileSpreadsheet,
@@ -25,6 +26,7 @@ interface SlitterOrderViewProps {
   order: SlitterOrder | null;
   coil: Coil | null;
   strips: SlitterStrip[];
+  coilInputs?: OrderCoilInput[];
   operadorInicial?: string;
   turnoInicial?: string;
   maquinaInicial?: string;
@@ -42,6 +44,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
   order,
   coil,
   strips,
+  coilInputs,
   operadorInicial,
   turnoInicial,
   maquinaInicial,
@@ -67,7 +70,11 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
   // da bobina + fitas vindas do Estúdio de Simulação, antes de existir uma OP
   // salva. Evita recalcular um número de OP diferente a cada render/keystroke.
   const [draftOrder] = useState<SlitterOrder | null>(() => {
-    if (order || !coil || strips.length === 0) return null;
+    if (order) return null;
+    if (coilInputs && coilInputs.length > 0) {
+      return OrderBuilderService.buildNew(coilInputs, {});
+    }
+    if (!coil || strips.length === 0) return null;
     return OrderBuilderService.buildNew([{ coil, strips }], {});
   });
 
@@ -178,7 +185,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
             onClick={onNavigateToPlanning}
             className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-xs flex items-center gap-1.5 text-xs font-bold"
           >
-            <ArrowLeft className="w-4 h-4 text-blue-600" />
+            <ArrowLeft className="w-4 h-4 text-[#0B1F3A]" />
             <span>Voltar ao Planejamento</span>
           </button>
 
@@ -214,7 +221,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
         <div className="flex items-center gap-3">
           <button
             onClick={handlePrintTagsOnly}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all"
+            className="flex items-center gap-2 px-4 py-2 bg-[#0B1F3A] hover:bg-[#163866] text-white text-xs font-bold rounded-xl shadow-xs transition-all"
             title="Imprime apenas as etiquetas industriais dos slitters"
           >
             <Tag className="w-4 h-4" />
@@ -253,7 +260,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
                 ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
                 : isSaved
                   ? 'bg-white hover:bg-slate-100 text-slate-800 border border-slate-200'
-                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  : 'bg-orange-500 hover:bg-orange-600 text-white'
             }`}
           >
             <Save className="w-4 h-4" />
@@ -312,10 +319,9 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
         {/* Document Header */}
         <div className="border-b-2 border-slate-200 print:border-black pb-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 text-white rounded-xl font-black text-xl shadow-xs">
-              PCP
-            </div>
-            <div>
+            <CedisaLogo variant="horizontal" theme="color" size="lg" className="print:hidden" />
+            <CedisaLogo variant="horizontal" theme="print" size="lg" className="hidden print:block" />
+            <div className="border-l border-slate-200 pl-4">
               <div className="flex items-center gap-2">
                 <h1 className="text-xl sm:text-2xl font-black text-slate-900 print:text-black tracking-tight">
                   ORDEM DE PRODUÇÃO — CORTE SLITTER (OP)
@@ -323,13 +329,13 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
                 <MetricsBadge type="status" value={orderStatus} size="md" />
               </div>
               <p className="text-xs text-slate-500 print:text-gray-600 mt-0.5 font-medium">
-                Planejamento e Controle da Produção Metalúrgica • Indústria de Tubos e Perfis de Aço
+                CEDISA CENTRAL DE AÇO S/A • Planejamento e Controle da Produção Slitter
               </p>
             </div>
           </div>
 
           <div className="text-right font-mono">
-            <div className="text-2xl sm:text-3xl font-black text-blue-700 print:text-black tracking-tight">
+            <div className="text-2xl sm:text-3xl font-black text-[#0B1F3A] print:text-black tracking-tight">
               {orderNumber}
             </div>
             <div className="text-xs text-slate-500 print:text-gray-600 flex items-center gap-2 justify-end mt-1 font-sans font-medium">
@@ -354,7 +360,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
               Lote da Matéria-Prima
             </div>
-            <div className="text-base font-black text-blue-700 font-mono mt-1">
+            <div className="text-base font-black text-[#0B1F3A] font-mono mt-1">
               {displayOrder.bobinaLote}
             </div>
           </div>
@@ -422,12 +428,12 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
                         <td className="py-3 px-3 font-black border-r border-slate-200 text-slate-900">
                           Fita {String(strip.stripNumber).padStart(2, '0')}
                         </td>
-                        <td className="py-3 px-3 font-black text-blue-700 border-r border-slate-200">
+                        <td className="py-3 px-3 font-black text-[#0B1F3A] border-r border-slate-200">
                           <div>{sltInfo.code}</div>
                           <div className="text-[10px] text-slate-500 font-normal">{sltInfo.name}</div>
                         </td>
                         <td className="py-3 px-3 font-sans text-slate-800 font-bold border-r border-slate-200">
-                          <div className="font-mono text-blue-900 font-bold">{strip.productCode}</div>
+                          <div className="font-mono text-[#0B1F3A] font-bold">{strip.productCode}</div>
                           <div className="text-slate-600 truncate">{strip.productDescription}</div>
                         </td>
                         <td className="py-3 px-3 font-sans border-r border-slate-200 font-bold">
@@ -439,7 +445,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
                         <td className="py-3 px-3 text-right text-emerald-700 font-bold border-r border-slate-200">
                           {strip.pesoTon} t ({strip.pesoKg} kg)
                         </td>
-                        <td className="py-3 px-3 text-right text-blue-700 font-bold">
+                        <td className="py-3 px-3 text-right text-[#0B1F3A] font-bold">
                           {strip.metrosLineares} m
                         </td>
                       </tr>

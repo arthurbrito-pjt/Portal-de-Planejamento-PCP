@@ -83,7 +83,7 @@ export const ProntidaoDemanda: React.FC<ProntidaoDemandaProps> = ({ products, co
                   )}
                 </td>
                 <td className="py-3 px-3">
-                  <div className="font-mono font-medium text-blue-700">{s.codigoSlitter}</div>
+                  <div className="font-mono font-bold text-[#0B1F3A]">{s.codigoSlitter}</div>
                   <div className="text-[10px] text-slate-400 font-normal">{s.nomeSlitter}</div>
                 </td>
                 <td className="py-3 px-3">
@@ -102,7 +102,7 @@ export const ProntidaoDemanda: React.FC<ProntidaoDemandaProps> = ({ products, co
                 <td className="py-3 px-3 text-center">
                   {s.bestCoil ? (
                     <>
-                      <div className="font-mono text-blue-700">{s.bestCoil.lote} ({s.bestCoil.largura}mm)</div>
+                      <div className="font-mono text-[#0B1F3A] font-bold">{s.bestCoil.lote} ({s.bestCoil.largura}mm)</div>
                       {s.estimatedYieldPercent > 0 && (
                         <div className="text-[10px] text-emerald-700 font-mono">{s.estimatedYieldPercent}% aprov.</div>
                       )}
@@ -113,7 +113,7 @@ export const ProntidaoDemanda: React.FC<ProntidaoDemandaProps> = ({ products, co
                   <button
                     onClick={() => onNavigateToPlanning(s.mainProduct.id)}
                     disabled={s.compatibleLotCount === 0}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-lg text-xs font-medium transition-colors"
+                    className="px-3 py-1.5 bg-[#0B1F3A] hover:bg-[#163866] disabled:opacity-40 text-white rounded-lg text-xs font-bold transition-colors"
                   >
                     Programar Slitter
                   </button>

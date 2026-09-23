@@ -57,7 +57,7 @@ export const MetricsBadge: React.FC<MetricsBadgeProps> = ({ type, value, size = 
     return (
       <span className={`inline-flex items-center rounded-lg border font-bold ${
         isTubo 
-          ? 'bg-blue-50 text-blue-800 border-blue-200' 
+          ? 'bg-[#0B1F3A]/10 text-[#0B1F3A] border-[#0B1F3A]/20' 
           : 'bg-purple-50 text-purple-800 border-purple-200'
       } ${sizeClasses}`}>
         {value}
@@ -101,10 +101,10 @@ export const MetricsBadge: React.FC<MetricsBadgeProps> = ({ type, value, size = 
     let bg = 'bg-emerald-50 text-emerald-800 border-emerald-300';
     let label = 'Classe A (Sempre Roda)';
     if (classe.includes('B')) {
-      bg = 'bg-blue-50 text-blue-800 border-blue-300';
+      bg = 'bg-[#0B1F3A]/10 text-[#0B1F3A] border-[#0B1F3A]/25';
       label = 'Classe B (Regular)';
     } else if (classe.includes('C')) {
-      bg = 'bg-purple-50 text-purple-800 border-purple-300';
+      bg = 'bg-orange-50 text-orange-800 border-orange-300';
       label = 'Classe C (Menos Roda)';
     }
 
@@ -122,7 +122,7 @@ export const MetricsBadge: React.FC<MetricsBadgeProps> = ({ type, value, size = 
   if (statusStr === 'Disponível' || statusStr === 'Concluída' || statusStr.includes('Ideal')) {
     statusColor = 'bg-emerald-50 text-emerald-800 border-emerald-300';
   } else if (statusStr === 'Em Produção' || statusStr === 'Em Corte' || statusStr === 'Planejada' || statusStr === 'Liberada') {
-    statusColor = 'bg-blue-50 text-blue-800 border-blue-300';
+    statusColor = 'bg-orange-50 text-orange-900 border-orange-300';
   } else if (statusStr.includes('< 10') || statusStr.includes('> 18')) {
     statusColor = 'bg-amber-50 text-amber-800 border-amber-300';
   } else if (statusStr === 'Consumida') {

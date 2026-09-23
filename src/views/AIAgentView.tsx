@@ -65,7 +65,7 @@ const SECTIONS: { key: SectionKey; mode: AIAgentMode; title: string; description
 const severityStyles: Record<string, { bg: string; icon: React.ElementType }> = {
   critico: { bg: 'bg-red-50 text-red-800 border-red-300', icon: AlertCircle },
   atencao: { bg: 'bg-amber-50 text-amber-800 border-amber-300', icon: AlertTriangle },
-  info: { bg: 'bg-blue-50 text-blue-800 border-blue-300', icon: Info }
+  info: { bg: 'bg-[#0B1F3A]/5 text-[#0B1F3A] border-[#0B1F3A]/20', icon: Info }
 };
 
 const priorityStyles: Record<string, string> = {
@@ -123,15 +123,15 @@ export const AIAgentView: React.FC<AIAgentViewProps> = ({
       {/* Header */}
       <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-1 max-w-3xl flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm shadow-indigo-500/30">
-            <Bot className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0B1F3A] to-[#163866] text-white flex items-center justify-center shrink-0 shadow-sm border border-orange-500/30">
+            <Bot className="w-5 h-5 text-orange-400" />
           </div>
           <div>
             <h2 className="text-lg font-semibold text-slate-900 tracking-tight">
               Agente de IA do PCP
             </h2>
             <p className="text-sm text-slate-500">
-              Usa Claude (Anthropic) sobre os dados já calculados pelo motor de otimização para priorizar, alertar e resumir — sem substituir a regra de refilo de 10 a 18 mm.
+              Usa inteligência sobre os dados já calculados pelo motor de otimização para priorizar, alertar e resumir — sem substituir a regra de refilo de 10 a 18 mm.
             </p>
           </div>
         </div>
@@ -154,8 +154,8 @@ export const AIAgentView: React.FC<AIAgentViewProps> = ({
               onClick={() => setActiveSection(section.key)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border transition-colors ${
                 isActive
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                  : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-700'
+                  ? 'bg-[#0B1F3A] text-white border-[#0B1F3A] shadow-sm'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-orange-300 hover:text-[#0B1F3A]'
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -175,7 +175,7 @@ export const AIAgentView: React.FC<AIAgentViewProps> = ({
           <button
             onClick={() => runAgent(activeSection, activeSectionInfo.mode)}
             disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-medium shadow-sm transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-medium shadow-sm transition-colors"
           >
             {isLoading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -202,7 +202,7 @@ export const AIAgentView: React.FC<AIAgentViewProps> = ({
         )}
 
         {result?.resumo && (
-          <div className="p-4 rounded-lg bg-indigo-50 border border-indigo-200 text-sm text-indigo-900 leading-relaxed">
+          <div className="p-4 rounded-lg bg-[#0B1F3A]/5 border border-[#0B1F3A]/15 text-sm text-[#0B1F3A] font-medium leading-relaxed">
             {result.resumo}
           </div>
         )}
@@ -225,13 +225,13 @@ export const AIAgentView: React.FC<AIAgentViewProps> = ({
                   <div className="flex gap-2 pt-1">
                     <button
                       onClick={() => handleApply(rec.programId, 'simulation')}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white border border-slate-300 hover:border-blue-400 text-xs font-semibold text-slate-700 hover:text-blue-700 transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white border border-slate-300 hover:border-[#0B1F3A] text-xs font-semibold text-slate-700 hover:text-[#0B1F3A] transition-colors"
                     >
                       Ver no Estúdio de Corte <ArrowUpRight className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => handleApply(rec.programId, 'order')}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#0B1F3A] hover:bg-[#163866] text-xs font-semibold text-white transition-colors"
                     >
                       Abrir Ordem de Produção <ArrowUpRight className="w-3.5 h-3.5" />
                     </button>

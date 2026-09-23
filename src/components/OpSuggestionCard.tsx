@@ -31,9 +31,9 @@ export const OpSuggestionCard: React.FC<OpSuggestionCardProps> = ({
   const effectiveDemandTon = item.effectiveDemandTon ?? item.totalDemandaT;
 
   return (
-    <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3 hover:border-blue-300 transition-colors">
+    <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3 hover:border-orange-300 transition-colors">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-semibold font-mono text-blue-800">{item.codigoSlitter}</span>
+        <span className="text-sm font-black font-mono text-[#0B1F3A]">{item.codigoSlitter}</span>
         {isReady ? (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-medium">
             <CheckCircle className="w-3 h-3" /> Pronto
@@ -72,12 +72,12 @@ export const OpSuggestionCard: React.FC<OpSuggestionCardProps> = ({
 
       {/* Plano sugerido pelo sistema — já pré-computado, considerando estoque intermediário */}
       {!isBlocked && !item.coveredByWipOnly && item.bestCoil && (
-        <div className="p-2.5 rounded-lg bg-blue-50/60 border border-blue-100 text-[11px] text-blue-900 space-y-1">
-          <div className="flex items-center gap-1.5 font-semibold">
-            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+        <div className="p-2.5 rounded-lg bg-orange-50/60 border border-orange-200/80 text-[11px] text-orange-950 space-y-1">
+          <div className="flex items-center gap-1.5 font-bold text-orange-900">
+            <Sparkles className="w-3.5 h-3.5 text-orange-500" />
             <span>Plano sugerido pelo sistema{hasWip ? ' (após descontar estoque)' : ''}</span>
           </div>
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-blue-800">
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-orange-950">
             <span>Bobina lote {item.bestCoil.lote}</span>
             <span>{item.bestCoil.peso}t</span>
             <span>Rendimento {item.estimatedYieldPercent}%</span>
@@ -96,7 +96,7 @@ export const OpSuggestionCard: React.FC<OpSuggestionCardProps> = ({
       <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-xs text-center">
         <div className="p-1.5 rounded-lg bg-slate-50">
           <span className="text-slate-400 block text-[10px] uppercase">Fita</span>
-          <strong className="text-blue-700 font-semibold font-mono">{item.larguraFita} mm</strong>
+          <strong className="text-[#0B1F3A] font-bold font-mono">{item.larguraFita} mm</strong>
         </div>
         <div className="p-1.5 rounded-lg bg-slate-50">
           <span className="text-slate-400 block text-[10px] uppercase">Espessura</span>
@@ -126,7 +126,7 @@ export const OpSuggestionCard: React.FC<OpSuggestionCardProps> = ({
                 ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                 : isFerramentalWaiting
                 ? 'bg-violet-100 hover:bg-violet-200 text-violet-800'
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                : 'bg-[#0B1F3A] hover:bg-[#163866] text-white'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />

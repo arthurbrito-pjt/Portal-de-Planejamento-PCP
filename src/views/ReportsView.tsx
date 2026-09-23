@@ -133,13 +133,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               onClick={onNavigateToDashboard}
               className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-xs flex items-center gap-1.5 text-xs font-bold"
             >
-              <ArrowLeft className="w-4 h-4 text-blue-600" />
+              <ArrowLeft className="w-4 h-4 text-[#0B1F3A]" />
               <span>Voltar ao Painel</span>
             </button>
           )}
           <div>
             <h2 className="text-xl font-black text-slate-900 flex items-center gap-2.5 tracking-tight">
-              <BarChart3 className="w-5 h-5 text-blue-600" />
+              <BarChart3 className="w-5 h-5 text-orange-500" />
               Relatórios Gerenciais & Histórico de Cortes
             </h2>
             <p className="text-xs text-slate-500 mt-1">
@@ -174,7 +174,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               onClick={() => setActiveReportTab(tab.id as any)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                 isActive
-                  ? 'bg-blue-600 text-white shadow-xs'
+                  ? 'bg-[#0B1F3A] text-white shadow-xs'
                   : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200'
               }`}
             >
@@ -200,7 +200,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           placeholder="Pesquisar por OP, lote, código..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-xs"
+          className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0B1F3A] shadow-xs"
         />
       </div>
 
@@ -238,13 +238,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     <tr
                       key={o.id}
                       ref={isHighlighted ? highlightRowRef : undefined}
-                      className={`transition-colors ${isHighlighted ? 'bg-blue-50 ring-1 ring-inset ring-blue-300' : 'hover:bg-slate-50'}`}
+                      className={`transition-colors ${isHighlighted ? 'bg-orange-50 ring-1 ring-inset ring-orange-300' : 'hover:bg-slate-50'}`}
                     >
                       <td className="py-3.5 px-3 font-black">
                         <button
                           type="button"
                           onClick={() => handleSelectOp(o)}
-                          className="text-blue-700 hover:text-blue-900 hover:underline"
+                          className="text-[#0B1F3A] hover:text-orange-600 hover:underline"
                           title="Ver resumo da OP"
                         >
                           {o.numeroOP || o.numeroOS}
@@ -269,7 +269,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             onClick={() => handleSelectOp(o)}
-                            className="p-2 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white border border-blue-200 transition-all shadow-xs flex items-center justify-center"
+                            className="p-2 rounded-xl bg-[#0B1F3A]/5 hover:bg-[#0B1F3A] text-[#0B1F3A] hover:text-white border border-[#0B1F3A]/20 transition-all shadow-xs flex items-center justify-center"
                             title="Visualizar Resumo da OP"
                           >
                             <Eye className="w-4 h-4" />
@@ -331,7 +331,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   .map((c) => (
                     <tr key={c.id} className="hover:bg-slate-50 transition-colors">
                       <td className="py-3 px-3 font-bold text-slate-700">{c.codigo}</td>
-                      <td className="py-3 px-3 font-black text-blue-700">{c.lote}</td>
+                      <td className="py-3 px-3 font-black text-[#0B1F3A]">{c.lote}</td>
                       <td className="py-3 px-3 text-right text-purple-700">{c.espessura}</td>
                       <td className="py-3 px-3 text-right text-slate-900 font-black">{c.largura}</td>
                       <td className="py-3 px-3 text-right text-emerald-700 font-bold">{c.peso}</td>
@@ -372,7 +372,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   .filter(p => p.codigo.toLowerCase().includes(searchTerm.toLowerCase()) || p.descricao.toLowerCase().includes(searchTerm.toLowerCase()))
                   .map((p) => (
                     <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3 px-3 font-black text-blue-700">{p.codigo}</td>
+                      <td className="py-3 px-3 font-black text-[#0B1F3A]">{p.codigo}</td>
                       <td className="py-3 px-3 font-sans text-slate-700 max-w-sm truncate font-medium">{p.descricao}</td>
                       <td className="py-3 px-3 font-sans">
                         <MetricsBadge type="familia" value={p.familia} size="sm" />
@@ -401,7 +401,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
               <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Peso Processado</span>
-              <span className="text-2xl font-black font-mono text-blue-700 mt-1.5 block">
+              <span className="text-2xl font-black font-mono text-[#0B1F3A] mt-1.5 block">
                 {totalWeightProcessed} t
               </span>
             </div>

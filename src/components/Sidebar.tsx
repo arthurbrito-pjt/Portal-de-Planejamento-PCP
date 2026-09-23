@@ -6,9 +6,10 @@ import {
   ClipboardCheck,
   BarChart3,
   Database,
-  Layers,
-  Bot
+  Bot,
+  Clock
 } from 'lucide-react';
+import { CedisaLogo } from './CedisaLogo';
 
 export type TabType = 'dashboard' | 'planning' | 'simulation' | 'order' | 'reports' | 'cotacao' | 'data' | 'ai';
 
@@ -39,6 +40,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: 'Motor'
     },
     {
+      id: 'cotacao' as TabType,
+      title: 'Gestão de Estoque',
+      icon: Clock,
+      badge: 'D+2'
+    },
+    {
       id: 'simulation' as TabType,
       title: 'Estúdio de Corte',
       icon: Scissors,
@@ -58,7 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'data' as TabType,
-      title: 'Gestão de Estoque',
+      title: 'Importador & Cadastros',
       icon: Database,
       badge: coilsCount > 0 ? `${coilsCount}` : null
     },
@@ -71,27 +78,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside className="w-full lg:w-64 bg-slate-900 text-slate-300 border-r border-slate-800 flex flex-col justify-between shrink-0 min-h-screen">
+    <aside className="w-full lg:w-64 bg-gradient-to-b from-[#0B1F3A] via-[#08182D] to-[#05101E] text-slate-200 border-r border-[#163866]/60 flex flex-col justify-between shrink-0 min-h-screen shadow-xl">
       {/* Brand Header */}
       <div>
-        <div className="p-5 border-b border-slate-800 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-sm shadow-md shadow-blue-500/20 shrink-0">
-            PCP
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-sm font-black text-white tracking-tight truncate">
-              PORTAL PCP
-            </h1>
-            <p className="text-[11px] text-slate-400 font-medium truncate">
-              Central de Planejamento Slitter
-            </p>
+        <div className="p-4 border-b border-[#163866]/60 bg-[#071527]/50">
+          <CedisaLogo variant="horizontal" theme="white" size="md" />
+          <div className="mt-2.5 pt-2 border-t border-white/5 flex items-center justify-between text-[10px] font-mono text-slate-400">
+            <span className="uppercase tracking-wider font-semibold text-slate-300">Portal PCP</span>
+            <span className="px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400 font-bold border border-orange-500/30">
+              Slitter Cedisa
+            </span>
           </div>
         </div>
 
         {/* Navigation Menu */}
         <nav className="p-3 space-y-1">
-          <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 font-mono">
-            Navegação Principal
+          <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-orange-400/90 font-mono flex items-center justify-between">
+            <span>Navegação Fabril</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
           </div>
 
           {menuItems.map((item) => {
@@ -104,20 +108,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => onSelectTab(item.id)}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all text-left text-xs font-bold ${
                   isActive
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/70'
+                    ? 'bg-[#163866] text-white shadow-md border-l-4 border-orange-500'
+                    : 'text-slate-300 hover:text-white hover:bg-[#163866]/40'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                  <Icon className={`w-4 h-4 shrink-0 transition-colors ${
+                    isActive ? 'text-orange-400' : 'text-slate-400 group-hover:text-slate-200'
+                  }`} />
                   <span className="truncate">{item.title}</span>
                 </div>
 
                 {item.badge && (
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold shrink-0 ml-2 ${
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold shrink-0 ml-2 shadow-sm ${
                     isActive 
-                      ? 'bg-white/20 text-white' 
-                      : 'bg-slate-800 text-slate-400'
+                      ? 'bg-orange-500 text-white' 
+                      : 'bg-orange-500/15 text-orange-400 border border-orange-500/30'
                   }`}>
                     {item.badge}
                   </span>
@@ -129,11 +135,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Footer Info */}
-      <div className="p-4 border-t border-slate-800 text-[11px] text-slate-500 font-mono flex items-center justify-between">
-        <span>Linha de Produção</span>
-        <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
-          Ativo Local
-        </span>
+      <div className="p-4 border-t border-[#163866]/60 bg-[#05101E]/80 text-[11px] text-slate-400 font-mono">
+        <div className="flex items-center justify-between">
+          <span className="text-slate-400 font-medium">CEDISA S/A</span>
+          <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold border border-emerald-500/30 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            Linha Ativa
+          </span>
+        </div>
+        <div className="text-[10px] text-slate-500 mt-1">
+          Central de Aço — Serra / ES
+        </div>
       </div>
     </aside>
   );

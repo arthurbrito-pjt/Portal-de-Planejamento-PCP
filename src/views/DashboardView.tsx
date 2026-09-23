@@ -69,11 +69,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-4 text-xs text-slate-500">
           <span className="flex items-center gap-1.5">
-            <Disc className="w-3.5 h-3.5 text-blue-600" />
+            <Disc className="w-3.5 h-3.5 text-orange-600" />
             <strong className="text-slate-800 font-semibold">{kpis.totalBobinasDisponiveis}</strong> bobinas ({kpis.pesoTotalEstoqueTon.toLocaleString('pt-BR')} t)
           </span>
           <span className="flex items-center gap-1.5">
-            <Scissors className="w-3.5 h-3.5 text-violet-600" />
+            <Scissors className="w-3.5 h-3.5 text-[#0B1F3A]" />
             <strong className="text-slate-800 font-semibold">{orders.length}</strong> OPs geradas
           </span>
           <span className="flex items-center gap-1.5">
@@ -84,11 +84,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         <button
           onClick={() => onNavigateToPlanning()}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium shadow-sm transition-colors"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0B1F3A] hover:bg-[#163866] text-white text-xs font-black shadow-md shadow-black/10 border border-[#163866] transition-all group"
         >
-          <Sparkles className="w-4 h-4" />
+          <Sparkles className="w-4 h-4 text-orange-400 group-hover:rotate-12 transition-transform" />
           <span>Novo Planejamento de Slitter</span>
-          <ArrowRight className="w-4 h-4" />
+          <ArrowRight className="w-4 h-4 text-orange-400" />
         </button>
       </div>
 
@@ -96,16 +96,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 pb-2">
         <button
           onClick={() => onNavigateToSubview('')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-            !activeSubview ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+            !activeSubview ? 'bg-[#0B1F3A] text-white shadow-sm ring-1 ring-orange-500/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
           }`}
         >
-          <Sparkles className="w-3.5 h-3.5" />
+          <Sparkles className={`w-3.5 h-3.5 ${!activeSubview ? 'text-orange-400' : 'text-slate-400'}`} />
           <span>O que fazer agora</span>
         </button>
 
         <span className="text-slate-300 text-xs px-1">·</span>
-        <span className="text-[11px] text-slate-400 uppercase tracking-wide px-1">Dados detalhados:</span>
+        <span className="text-[11px] text-slate-400 uppercase tracking-wide px-1 font-bold">Dados detalhados:</span>
 
         {SUBVIEW_TABS.map(tab => {
           const Icon = tab.icon;
@@ -114,11 +114,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <button
               key={tab.id}
               onClick={() => onNavigateToSubview(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                isActive ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                isActive ? 'bg-[#0B1F3A] text-white shadow-sm ring-1 ring-orange-500/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
               }`}
             >
-              <Icon className="w-3.5 h-3.5" />
+              <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-orange-400' : 'text-slate-400'}`} />
               <span>{tab.label}</span>
             </button>
           );

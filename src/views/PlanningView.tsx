@@ -41,7 +41,7 @@ interface PlanningViewProps {
   ferramentais: Ferramental[];
   intermediarySlitters?: SlitterIntermediaryItem[];
   preSelectedProductId?: string | null;
-  onProceedToSimulation: (coil: Coil, strips: SlitterStrip[], combination?: SlitterCombination) => void;
+  onProceedToSimulation: (coil: Coil, strips: SlitterStrip[], combination?: SlitterCombination, allInputs?: OrderCoilInput[]) => void;
   onOrderCreated: (order: SlitterOrder) => void;
   onNavigateToDashboard?: () => void;
 }
@@ -310,13 +310,10 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     return alerts;
   }, [selectedProduct, matchedFerramental, totalSelectedCoilsWeightTon]);
 
-  // O Estúdio de Simulação (SimulationView) só sabe editar 1 bobina por vez —
-  // com múltiplas bobinas, o operador vai direto para a Etapa 3 com o plano já
-  // calculado por bobina.
   const handleSimulate = () => {
-    if (coilCutInputs.length !== 1) return;
+    if (coilCutInputs.length === 0) return;
     const { coil, strips } = coilCutInputs[0];
-    onProceedToSimulation(coil, strips, selectedCombination || undefined);
+    onProceedToSimulation(coil, strips, selectedCombination || undefined, coilCutInputs);
   };
 
   const handleGenerateOrder = () => {
@@ -376,12 +373,12 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
               <button
                 key={f.id}
                 onClick={() => setReadinessFilter(f.id as any)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  readinessFilter === f.id ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  readinessFilter === f.id ? 'bg-[#0B1F3A] text-white shadow-xs ring-1 ring-orange-500/50' : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
                 }`}
               >
                 <span>{f.label}</span>
-                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${readinessFilter === f.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${readinessFilter === f.id ? 'bg-orange-500 text-white font-black' : 'bg-slate-100 text-slate-600'}`}>
                   {f.count}
                 </span>
               </button>
@@ -396,14 +393,14 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                 placeholder="Buscar por código ou descrição do slitter..."
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0B1F3A]/20 focus:border-[#0B1F3A]"
               />
             </div>
 
             <select
               value={thicknessFilter}
               onChange={(e) => setThicknessFilter(e.target.value)}
-              className="py-2 px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+              className="py-2 px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0B1F3A]/20 focus:border-[#0B1F3A]"
             >
               <option value="TODOS">Todas as Espessuras</option>
               {uniqueThicknesses.map(th => (
@@ -414,7 +411,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             <select
               value={familyFilter}
               onChange={(e) => setFamilyFilter(e.target.value as any)}
-              className="py-2 px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+              className="py-2 px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0B1F3A]/20 focus:border-[#0B1F3A]"
             >
               <option value="TODOS">Todas as Famílias</option>
               <option value="TUBO">TUBO</option>
@@ -474,7 +471,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                 step="0.5"
                 value={desiredQtyTon}
                 onChange={(e) => setDesiredQtyTon(parseFloat(e.target.value) || 0)}
-                className="w-24 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-sm font-mono font-semibold text-emerald-700 focus:outline-none focus:border-blue-500 text-center"
+                className="w-24 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-sm font-mono font-semibold text-emerald-700 focus:outline-none focus:border-[#0B1F3A] text-center"
               />
             </div>
           </div>
@@ -486,8 +483,8 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-3 text-sm">
-                  <div className="px-3 py-1.5 bg-blue-50 text-blue-800 rounded-lg font-medium flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                  <div className="px-3 py-1.5 bg-[#0B1F3A]/5 text-[#0B1F3A] border border-[#0B1F3A]/15 rounded-lg font-bold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-[#0B1F3A]" />
                     <span>
                       {selectedCoils.length} bobina(s) — {totalSelectedCoilsWeightTon}t
                       {coilCutInputs.length === 1 && ` · ${aggregateAproveitamentoPercent}% aproveitamento`}
@@ -539,12 +536,12 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-3 text-sm">
-                  <div className="px-3 py-1.5 bg-blue-50 text-blue-800 rounded-lg font-medium flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                  <div className="px-3 py-1.5 bg-orange-50 text-orange-950 border border-orange-200 rounded-lg font-bold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-orange-600" />
                     <span>{selectedCoils.length} de {rankedCoils.length} bobina(s) selecionada(s)</span>
                   </div>
                   <span className="text-slate-500">
-                    Demanda: <strong className="text-slate-800 font-medium">{desiredQtyTon} t</strong> · Acumulado: <strong className="text-emerald-700 font-medium">{totalSelectedCoilsWeightTon} t</strong>
+                    Demanda: <strong className="text-slate-800 font-bold">{desiredQtyTon} t</strong> · Acumulado: <strong className="text-emerald-700 font-bold">{totalSelectedCoilsWeightTon} t</strong>
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -552,7 +549,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                     <button
                       type="button"
                       onClick={handleSelectAllCoils}
-                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
+                      className="px-3 py-1.5 bg-[#0B1F3A] hover:bg-[#163866] text-white text-xs font-bold rounded-lg transition-colors shadow-xs"
                     >
                       Auto-selecionar para {desiredQtyTon}t
                     </button>
@@ -623,7 +620,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                         key={comb.id || idx}
                         onClick={() => setSelectedCombination(comb)}
                         className={`p-3 rounded-xl border transition-colors cursor-pointer bg-white text-xs ${
-                          isSelected ? 'bg-blue-50/60 border-blue-400 ring-1 ring-blue-500/20' : 'border-slate-200 hover:border-blue-300'
+                          isSelected ? 'bg-orange-50/60 border-orange-400 ring-2 ring-orange-500/20' : 'border-slate-200 hover:border-orange-300'
                         }`}
                       >
                         <div className="flex items-center justify-between gap-3">
@@ -641,17 +638,17 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
           <div className="flex items-center justify-end gap-3">
             <button
               onClick={handleSimulate}
-              disabled={coilCutInputs.length !== 1}
-              title={coilCutInputs.length > 1 ? 'O Estúdio de Simulação só edita 1 bobina por vez' : undefined}
-              className="flex items-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+              disabled={coilCutInputs.length === 0}
+              title={coilCutInputs.length === 0 ? 'Selecione pelo menos uma bobina' : undefined}
+              className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-[#0B1F3A] border border-slate-200 text-sm font-bold rounded-xl transition-all shadow-xs disabled:opacity-50"
             >
-              <Scissors className="w-4 h-4" />
-              <span>Simular no Visualizador</span>
+              <Scissors className="w-4 h-4 text-orange-500" />
+              <span>Simular no Estúdio {coilCutInputs.length > 1 ? `(${coilCutInputs.length} bobinas)` : ''}</span>
             </button>
             <button
               onClick={() => setCurrentStep(3)}
               disabled={coilCutInputs.length === 0}
-              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-sm font-black rounded-xl shadow-md shadow-orange-500/20 transition-all disabled:opacity-50"
             >
               <span>{isDemandCovered ? 'Confirmar & Avançar para Emissão' : 'Avançar mesmo com cobertura parcial'}</span>
               <ArrowRight className="w-4 h-4" />
@@ -667,7 +664,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
           <h3 className="text-base font-semibold text-slate-900">Nenhuma bobina selecionada</h3>
           <button
             onClick={() => setCurrentStep(2)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm shadow-sm transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#0B1F3A] hover:bg-[#163866] text-white font-bold rounded-xl text-sm shadow-sm transition-colors"
           >
             <span>Voltar à Etapa 2</span>
           </button>
@@ -685,7 +682,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
               <span>Voltar à Etapa 2</span>
             </button>
             <div>
-              <h3 className="text-base font-semibold text-slate-900 tracking-tight">Etapa 3: Emitir Ordem de Produção</h3>
+              <h3 className="text-base font-black text-slate-900 tracking-tight">Etapa 3: Emitir Ordem de Produção</h3>
               <p className="text-xs text-slate-500 mt-0.5">Confirme os dados operacionais antes de gerar a OP.</p>
             </div>
           </div>
@@ -693,11 +690,11 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4 max-w-2xl">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Operador *</label>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Operador *</label>
                 <select
                   value={operador}
                   onChange={(e) => setOperador(e.target.value)}
-                  className="mt-1 w-full py-2 px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                  className="mt-1 w-full py-2 px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400"
                 >
                   <option value="">Selecione...</option>
                   {OPERADORES.map(o => <option key={o} value={o}>{o}</option>)}
@@ -705,22 +702,22 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
               </div>
 
               <div>
-                <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Turno *</label>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Turno *</label>
                 <select
                   value={turno}
                   onChange={(e) => setTurno(e.target.value)}
-                  className="mt-1 w-full py-2 px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                  className="mt-1 w-full py-2 px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400"
                 >
                   {TURNOS.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
 
               <div>
-                <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Máquina / Slitter *</label>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Máquina / Slitter *</label>
                 <select
                   value={maquina}
                   onChange={(e) => setMaquina(e.target.value)}
-                  className="mt-1 w-full py-2 px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                  className="mt-1 w-full py-2 px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400"
                 >
                   <option value="">Selecione...</option>
                   {MAQUINAS.map(m => <option key={m} value={m}>{m}</option>)}
@@ -729,13 +726,13 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             </div>
 
             <div>
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Observações</label>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Observações</label>
               <textarea
                 value={observacoes}
                 onChange={(e) => setObservacoes(e.target.value)}
                 placeholder="Observações adicionais para a linha de produção (opcional)"
                 rows={3}
-                className="mt-1 w-full py-2 px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+                className="mt-1 w-full py-2 px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400"
               />
             </div>
 
@@ -749,10 +746,10 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             <button
               onClick={handleGenerateOrder}
               disabled={!operador || !maquina}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#0B1F3A] hover:bg-[#163866] text-white text-sm font-black rounded-xl shadow-md shadow-black/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-[#163866]"
             >
-              <ClipboardCheck className="w-4 h-4" />
-              <span>Gerar & Salvar OP</span>
+              <ClipboardCheck className="w-4 h-4 text-orange-400" />
+              <span>Gerar & Salvar OP — Cedisa</span>
             </button>
           </div>
         </div>

@@ -99,15 +99,15 @@ export const CotacaoView: React.FC<CotacaoViewProps> = ({
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 text-blue-800 rounded-full text-xs font-black uppercase tracking-wider mb-2">
-            <Clock className="w-3.5 h-3.5 text-blue-600" />
-            Portal da Cotação & Previsão Fabril
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-orange-50 border border-orange-200 text-orange-900 rounded-full text-xs font-black uppercase tracking-wider mb-2">
+            <Clock className="w-3.5 h-3.5 text-orange-600" />
+            Gestão de Estoque Fabril — Cedisa Central de Aço
           </div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-            Previsão de Produção & Cotações (Regra D+2)
+            Gestão de Estoque, Cotações & Previsão (Regra D+2)
           </h1>
           <p className="text-sm text-slate-500 font-medium">
-            Previsão dinâmica calculada a partir do momento em que a produção é iniciada (sempre D+2 após corte), estoque intermediário e disponibilidade de bobinas.
+            Previsão dinâmica calculada a partir do momento em que a produção é iniciada (sempre D+2 após corte), conciliação físico vs contábil e disponibilidade de bobinas.
           </p>
         </div>
       </div>
@@ -138,18 +138,18 @@ export const CotacaoView: React.FC<CotacaoViewProps> = ({
           onClick={() => setStatusFilter(statusFilter === 'EM_PRODUCAO_D2' ? 'TODOS' : 'EM_PRODUCAO_D2')}
           className={`p-4 rounded-2xl border transition-all cursor-pointer ${
             statusFilter === 'EM_PRODUCAO_D2' 
-              ? 'bg-blue-600 text-white border-blue-700 shadow-md scale-[1.02]' 
-              : 'bg-white text-slate-800 border-slate-200 hover:border-blue-300'
+              ? 'bg-[#0B1F3A] text-white border-[#163866] shadow-md scale-[1.02] ring-2 ring-orange-500/50' 
+              : 'bg-white text-slate-800 border-slate-200 hover:border-orange-300'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className={`text-xs font-bold uppercase tracking-wider ${statusFilter === 'EM_PRODUCAO_D2' ? 'text-blue-100' : 'text-slate-500'}`}>
+            <span className={`text-xs font-bold uppercase tracking-wider ${statusFilter === 'EM_PRODUCAO_D2' ? 'text-orange-400' : 'text-slate-500'}`}>
               Em Corte Hoje
             </span>
-            <Scissors className={`w-5 h-5 ${statusFilter === 'EM_PRODUCAO_D2' ? 'text-white' : 'text-blue-600'}`} />
+            <Scissors className={`w-5 h-5 ${statusFilter === 'EM_PRODUCAO_D2' ? 'text-orange-400' : 'text-[#0B1F3A]'}`} />
           </div>
           <div className="text-2xl font-black">{emProducaoCount}</div>
-          <div className={`text-xs font-medium mt-1 ${statusFilter === 'EM_PRODUCAO_D2' ? 'text-blue-100' : 'text-blue-700'}`}>
+          <div className={`text-xs font-medium mt-1 ${statusFilter === 'EM_PRODUCAO_D2' ? 'text-slate-200' : 'text-orange-700 font-bold'}`}>
             Regra Estrita D+2 (2 dias úteis)
           </div>
         </div>
@@ -204,7 +204,7 @@ export const CotacaoView: React.FC<CotacaoViewProps> = ({
             placeholder="Pesquisar código, descrição, tubo, perfil, medida..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0B1F3A]/20 focus:border-[#0B1F3A]"
           />
         </div>
 
@@ -320,7 +320,7 @@ export const CotacaoView: React.FC<CotacaoViewProps> = ({
                         <div className="flex items-center gap-1.5">
                           <span className={`inline-flex px-2 py-0.5 rounded-lg text-[11px] font-black border ${
                             item.statusAtendimento === 'PRONTA_ENTREGA' ? 'bg-emerald-50 text-emerald-800 border-emerald-300' :
-                            item.statusAtendimento === 'EM_PRODUCAO_D2' ? 'bg-blue-50 text-blue-800 border-blue-300' :
+                            item.statusAtendimento === 'EM_PRODUCAO_D2' ? 'bg-orange-50 text-orange-800 border-orange-300' :
                             item.statusAtendimento === 'PROGRAMADO_D3' ? 'bg-amber-50 text-amber-800 border-amber-300' :
                             'bg-red-50 text-red-700 border-red-200'
                           }`}>
@@ -346,7 +346,7 @@ export const CotacaoView: React.FC<CotacaoViewProps> = ({
                             className={`p-1.5 rounded-xl border transition-all text-xs font-bold flex items-center gap-1 ${
                               isCopied 
                                 ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' 
-                                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                                : 'bg-slate-50 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-300 text-slate-700 border-slate-200'
                             }`}
                           >
                             {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
@@ -357,9 +357,9 @@ export const CotacaoView: React.FC<CotacaoViewProps> = ({
                             <button
                               onClick={() => onNavigateToPlanning(p.id)}
                               title="Planejar corte no Slitter"
-                              className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold flex items-center gap-1"
+                              className="p-1.5 bg-orange-50 hover:bg-orange-100 text-orange-800 border border-orange-200 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors"
                             >
-                              <Scissors className="w-3.5 h-3.5" />
+                              <Scissors className="w-3.5 h-3.5 text-orange-600" />
                               <span className="hidden sm:inline">Planejar</span>
                             </button>
                           )}

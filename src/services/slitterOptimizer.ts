@@ -10,15 +10,14 @@ export interface OptimizationParams {
 }
 
 const STRIP_COLORS = [
-  '#2563eb', // blue-600
+  '#0B1F3A', // cedisa-navy
+  '#FF6B00', // cedisa-orange
   '#10b981', // emerald-500
   '#f59e0b', // amber-500
   '#8b5cf6', // purple-500
   '#ec4899', // pink-500
   '#06b6d4', // cyan-500
-  '#f97316', // orange-500
   '#14b8a6', // teal-500
-  '#6366f1', // indigo-500
   '#84cc16', // lime-500
 ];
 

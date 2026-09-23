@@ -28,6 +28,12 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
 }) => {
   const [hoveredStrip, setHoveredStrip] = useState<SlitterStrip | null>(null);
 
+  React.useEffect(() => {
+    if (hoveredStrip && !strips.some(s => s.id === hoveredStrip.id)) {
+      setHoveredStrip(null);
+    }
+  }, [strips, hoveredStrip]);
+
   const totalUsedWidth = strips.reduce((acc, s) => acc + s.largura, 0);
   const scrapWidth = Math.max(0, coil.largura - totalUsedWidth);
   const isOverflow = totalUsedWidth > coil.largura;
@@ -49,15 +55,15 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
       {/* Top Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
         <div className="flex items-center gap-3.5">
-          <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-md shadow-blue-500/20">
-            <Scissors className="w-5 h-5" />
+          <div className="p-3 bg-[#0B1F3A] text-white rounded-2xl shadow-md shadow-[#0B1F3A]/20">
+            <Scissors className="w-5 h-5 text-orange-400" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-base font-black text-slate-900 tracking-tight">
                 Simulação Gráfica do Corte Slitter
               </h3>
-              <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-mono font-bold">
+              <span className="px-2.5 py-0.5 rounded-full bg-[#0B1F3A]/5 text-[#0B1F3A] border border-[#0B1F3A]/20 text-[10px] font-mono font-bold">
                 Faixa Padrão: 10 a 18 mm (1,5%)
               </span>
             </div>
@@ -68,7 +74,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
               <span>•</span>
               <span>Peso: <strong className="text-emerald-700">{coil.peso} t</strong></span>
               <span>•</span>
-              <span>Lote: <strong className="text-blue-700">{coil.lote}</strong></span>
+              <span>Lote: <strong className="text-[#0B1F3A]">{coil.lote}</strong></span>
             </p>
           </div>
         </div>
@@ -98,8 +104,8 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
           )}
 
           <div className="px-3.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-mono font-black text-slate-800 flex items-center gap-1.5">
-            <Gauge className="w-3.5 h-3.5 text-blue-600" />
-            <span className={utilizationPercent >= 98.5 ? 'text-emerald-700' : 'text-blue-700'}>
+            <Gauge className="w-3.5 h-3.5 text-[#0B1F3A]" />
+            <span className={utilizationPercent >= 98.5 ? 'text-emerald-700' : 'text-[#0B1F3A]'}>
               {utilizationPercent}% Útil
             </span>
           </div>
@@ -110,7 +116,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
       <div className="space-y-2">
         <div className="flex justify-between text-xs font-mono text-slate-500 px-1 font-bold">
           <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+            <span className="w-2 h-2 rounded-full bg-[#0B1F3A]"></span>
             0 mm (Origem)
           </span>
           <span className="text-slate-700 bg-slate-100 px-3 py-0.5 rounded-lg border border-slate-200">
@@ -118,7 +124,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
           </span>
           <span className="flex items-center gap-1 font-black text-slate-900">
             {coil.largura} mm (Largura Total)
-            <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+            <span className="w-2 h-2 rounded-full bg-[#0B1F3A]"></span>
           </span>
         </div>
 
@@ -138,7 +144,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
                 onMouseEnter={() => setHoveredStrip(strip)}
                 onMouseLeave={() => setHoveredStrip(null)}
                 className={`relative group h-full flex flex-col justify-between p-2 border-r-2 border-white rounded-lg transition-all duration-150 cursor-pointer coil-texture strip-shadow ${
-                  isHovered ? 'brightness-125 ring-2 ring-blue-500 z-20 scale-[1.02]' : 'hover:brightness-110'
+                  isHovered ? 'brightness-125 ring-2 ring-orange-500 z-20 scale-[1.02]' : 'hover:brightness-110'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -226,7 +232,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
       </div>
 
       {/* Floating Strip Inspection Card on Hover */}
-      {hoveredStrip && (() => {
+      {hoveredStrip && strips.some(s => s.id === hoveredStrip.id) && (() => {
         const sltInfo = SlitterCatalogService.getSlitterInfo(hoveredStrip.largura, hoveredStrip.espessura);
         return (
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4 text-xs animate-fadeIn">
@@ -238,7 +244,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-black text-slate-900 font-mono">Fita #{hoveredStrip.stripNumber}</span>
-                  <span className="text-xs px-2.5 py-0.5 rounded bg-blue-600 text-white font-mono font-black border border-blue-700 shadow-xs">
+                  <span className="text-xs px-2.5 py-0.5 rounded bg-[#0B1F3A] text-white font-mono font-black border border-[#163866] shadow-xs">
                     ✂️ {sltInfo.code}
                   </span>
                   <span className="text-[10px] px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold border border-purple-200">
@@ -265,7 +271,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
               </div>
               <div className="p-2 rounded-xl bg-white border border-slate-200 text-center">
                 <span className="text-[10px] text-slate-400 block font-bold">METROS LINEARES</span>
-                <strong className="text-blue-700 text-sm font-black">{hoveredStrip.metrosLineares} m</strong>
+                <strong className="text-[#0B1F3A] text-sm font-black">{hoveredStrip.metrosLineares} m</strong>
               </div>
             </div>
           </div>
@@ -276,7 +282,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
           <div className="text-xs text-slate-500 flex items-center gap-1.5 font-bold uppercase">
-            <Layers className="w-3.5 h-3.5 text-blue-600" />
+            <Layers className="w-3.5 h-3.5 text-[#0B1F3A]" />
             Fitas Programadas
           </div>
           <div className="text-xl font-black text-slate-900 font-mono mt-1">
@@ -293,7 +299,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
             Aproveitamento Útil
           </div>
           <div className={`text-xl font-black font-mono mt-1 ${
-            utilizationPercent >= 98.5 ? 'text-emerald-700' : 'text-blue-700'
+            utilizationPercent >= 98.5 ? 'text-emerald-700' : 'text-[#0B1F3A]'
           }`}>
             {utilizationPercent}%
           </div>

@@ -11,6 +11,7 @@ import { AIAgentView } from './views/AIAgentView';
 import { CotacaoView } from './views/CotacaoView';
 import { StorageService } from './services/storageService';
 import { SlitterOptimizer } from './services/slitterOptimizer';
+import { OrderBuilderService, OrderCoilInput } from './services/orderBuilderService';
 import { Product, Coil, SlitterStrip, SlitterOrder, SlitterCombination, Ferramental, SlitterIntermediaryItem } from './types/pcp';
 import { SlitterProductionProgram } from './services/readinessService';
 
@@ -63,6 +64,37 @@ const parseHashRoute = (): ParsedRoute => {
   return { hash, tab, subAction, paramId };
 };
 
+const buildInputsFromOrder = (order: SlitterOrder): OrderCoilInput[] => {
+  if (order.bobinas && order.bobinas.length > 0) {
+    return order.bobinas.map(b => ({
+      coil: {
+        id: b.coilId,
+        codigo: b.bobinaCodigo,
+        lote: b.bobinaLote,
+        largura: b.bobinaLargura,
+        espessura: b.bobinaEspessura,
+        peso: b.bobinaPesoOriginal,
+        quantidade: 1,
+        status: 'Consumida' as const
+      },
+      strips: b.fitas
+    }));
+  }
+  return [{
+    coil: {
+      id: order.bobinaId,
+      codigo: order.bobinaCodigo,
+      lote: order.bobinaLote,
+      largura: order.bobinaLargura,
+      espessura: order.bobinaEspessura,
+      peso: order.bobinaPesoOriginal,
+      quantidade: 1,
+      status: 'Consumida' as const
+    },
+    strips: order.fitas
+  }];
+};
+
 export const App: React.FC = () => {
   const [currentRoute, setCurrentRoute] = useState<ParsedRoute>(parseHashRoute);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -81,6 +113,7 @@ export const App: React.FC = () => {
   const [preSelectedProductId, setPreSelectedProductId] = useState<string | null>(null);
   const [activeCoil, setActiveCoil] = useState<Coil | null>(null);
   const [activeStrips, setActiveStrips] = useState<SlitterStrip[]>([]);
+  const [activeCoilInputs, setActiveCoilInputs] = useState<OrderCoilInput[]>([]);
   const [activeOrder, setActiveOrder] = useState<SlitterOrder | null>(null);
   const [selectedOpIdSummary, setSelectedOpIdSummary] = useState<string | null>(null);
   const [orderDraft, setOrderDraft] = useState<{ operador?: string; turno?: string; maquina?: string; observacoes?: string }>({});
@@ -127,18 +160,11 @@ export const App: React.FC = () => {
           o => o.id === parsed.paramId || o.numeroOP === parsed.paramId || o.numeroOS === parsed.paramId
         );
         if (found) {
+          const inputs = buildInputsFromOrder(found);
           setActiveOrder(found);
-          setActiveCoil({
-            id: found.bobinaId,
-            codigo: found.bobinaCodigo,
-            lote: found.bobinaLote,
-            largura: found.bobinaLargura,
-            espessura: found.bobinaEspessura,
-            peso: found.bobinaPesoOriginal,
-            quantidade: 1,
-            status: 'Consumida'
-          });
-          setActiveStrips(found.fitas);
+          setActiveCoilInputs(inputs);
+          setActiveCoil(inputs[0]?.coil || null);
+          setActiveStrips(inputs[0]?.strips || []);
         }
       }
     };
@@ -187,6 +213,7 @@ export const App: React.FC = () => {
   const handleClearActiveWorkspace = () => {
     setActiveCoil(null);
     setActiveStrips([]);
+    setActiveCoilInputs([]);
     setActiveOrder(null);
     setPreSelectedProductId(null);
     setSelectedOpIdSummary(null);
@@ -202,6 +229,16 @@ export const App: React.FC = () => {
     navigateToRoute('planning');
   };
 
+  const handleCancelSimulation = () => {
+    handleClearActiveWorkspace();
+    navigateToRoute('planning');
+  };
+
+  const handleNavigateToDashboardFromSimulation = () => {
+    handleClearActiveWorkspace();
+    navigateToRoute('dashboard');
+  };
+
   const handleFinishOrder = () => {
     handleClearActiveWorkspace();
     loadData();
@@ -210,6 +247,8 @@ export const App: React.FC = () => {
 
   const handleOpenProgramInSimulation = (program: SlitterProductionProgram) => {
     const strips = SlitterOptimizer.generateStripsFromCombination(program.combination, program.coil);
+    const inputs: OrderCoilInput[] = [{ coil: program.coil, strips }];
+    setActiveCoilInputs(inputs);
     setActiveCoil(program.coil);
     setActiveStrips(strips);
     setActiveOrder(null);
@@ -218,6 +257,8 @@ export const App: React.FC = () => {
 
   const handleOpenProgramInOrder = (program: SlitterProductionProgram) => {
     const strips = SlitterOptimizer.generateStripsFromCombination(program.combination, program.coil);
+    const inputs: OrderCoilInput[] = [{ coil: program.coil, strips }];
+    setActiveCoilInputs(inputs);
     setActiveCoil(program.coil);
     setActiveStrips(strips);
     setActiveOrder(null);
@@ -225,16 +266,30 @@ export const App: React.FC = () => {
     navigateToRoute('order');
   };
 
-  const handleProceedToSimulation = (coil: Coil, strips: SlitterStrip[], combination?: SlitterCombination) => {
-    setActiveCoil(coil);
-    setActiveStrips(strips);
+  const handleProceedToSimulation = (
+    coil: Coil,
+    strips: SlitterStrip[],
+    combination?: SlitterCombination,
+    allInputs?: OrderCoilInput[]
+  ) => {
+    const inputs = (allInputs && allInputs.length > 0) ? allInputs : [{ coil, strips }];
+    setActiveCoilInputs(inputs);
+    setActiveCoil(inputs[0].coil);
+    setActiveStrips(inputs[0].strips);
     setActiveOrder(null);
     navigateToRoute('simulation');
   };
 
-  const handleProceedToOrder = (coil: Coil, strips: SlitterStrip[], combination?: SlitterCombination) => {
-    setActiveCoil(coil);
-    setActiveStrips(strips);
+  const handleProceedToOrder = (
+    coil: Coil,
+    strips: SlitterStrip[],
+    combination?: SlitterCombination,
+    allInputs?: OrderCoilInput[]
+  ) => {
+    const inputs = (allInputs && allInputs.length > 0) ? allInputs : [{ coil, strips }];
+    setActiveCoilInputs(inputs);
+    setActiveCoil(inputs[0].coil);
+    setActiveStrips(inputs[0].strips);
     setActiveOrder(null);
     setOrderDraft({});
     navigateToRoute('order');
@@ -243,18 +298,11 @@ export const App: React.FC = () => {
   // A OP já vem salva do wizard de Planejamento (Etapa 3) — só precisamos
   // refletir o estado e abrir o documento já pronto para revisão/impressão.
   const handleOrderCreatedFromPlanning = (order: SlitterOrder) => {
+    const inputs = buildInputsFromOrder(order);
     setActiveOrder(order);
-    setActiveCoil({
-      id: order.bobinaId,
-      codigo: order.bobinaCodigo,
-      lote: order.bobinaLote,
-      largura: order.bobinaLargura,
-      espessura: order.bobinaEspessura,
-      peso: order.bobinaPesoOriginal,
-      quantidade: 1,
-      status: 'Consumida'
-    });
-    setActiveStrips(order.fitas);
+    setActiveCoilInputs(inputs);
+    setActiveCoil(inputs[0]?.coil || null);
+    setActiveStrips(inputs[0]?.strips || []);
     setOrderDraft({});
     setOrderJustCreated(true);
     setHighlightOrderId(order.id);
@@ -264,18 +312,11 @@ export const App: React.FC = () => {
 
   const handleViewOrderDetails = (order: SlitterOrder) => {
     const opId = order.numeroOP || order.numeroOS || order.id;
+    const inputs = buildInputsFromOrder(order);
     setActiveOrder(order);
-    setActiveCoil({
-      id: order.bobinaId,
-      codigo: order.bobinaCodigo,
-      lote: order.bobinaLote,
-      largura: order.bobinaLargura,
-      espessura: order.bobinaEspessura,
-      peso: order.bobinaPesoOriginal,
-      quantidade: 1,
-      status: 'Consumida'
-    });
-    setActiveStrips(order.fitas);
+    setActiveCoilInputs(inputs);
+    setActiveCoil(inputs[0]?.coil || null);
+    setActiveStrips(inputs[0]?.strips || []);
     setOrderJustCreated(false);
     navigateToRoute('order', null, opId);
   };
@@ -310,14 +351,14 @@ export const App: React.FC = () => {
     planning: 'Planejamento de Corte (3 Etapas)',
     simulation: 'Estúdio de Corte & Ajuste de Facas',
     order: 'Ordem de Produção (OP)',
-    cotacao: 'Portal da Cotação — Previsão D+2 & Lote Mínimo',
+    cotacao: 'Gestão de Estoque — Previsão D+2, Físico vs Contábil & Lote Mínimo',
     reports: 'Relatórios & Histórico',
-    data: 'Gestão de Estoque & Importador Excel',
+    data: 'Importador Excel & Base de Cadastros',
     ai: 'Agente de IA — Recomendações, Alertas & Resumo'
   };
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-slate-100 text-slate-900 selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-slate-100 text-slate-900 selection:bg-orange-500 selection:text-white">
       {/* Docked Left Sidebar */}
       <Sidebar
         activeTab={activeTab}
@@ -385,11 +426,14 @@ export const App: React.FC = () => {
             <SimulationView
               coil={activeCoil}
               strips={activeStrips}
+              coilInputs={activeCoilInputs}
               products={products}
               onUpdateStrips={setActiveStrips}
-              onProceedToOrder={handleProceedToOrder}
-              onNavigateToPlanning={() => handleSelectTab('planning')}
-              onNavigateToDashboard={() => handleSelectTab('dashboard')}
+              onUpdateCoilInputs={setActiveCoilInputs}
+              onProceedToOrder={(c, s, all) => handleProceedToOrder(c, s, undefined, all)}
+              onNavigateToPlanning={handleNavigateToPlanning}
+              onNavigateToDashboard={handleNavigateToDashboardFromSimulation}
+              onCancelSimulation={handleCancelSimulation}
             />
           )}
 
@@ -398,6 +442,7 @@ export const App: React.FC = () => {
               order={activeOrder}
               coil={activeCoil}
               strips={activeStrips}
+              coilInputs={activeCoilInputs}
               operadorInicial={orderDraft.operador}
               turnoInicial={orderDraft.turno}
               maquinaInicial={orderDraft.maquina}

@@ -86,36 +86,36 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
           const isIdeal = prog.sobraMm >= 10 && prog.sobraMm <= 18;
 
           return (
-            <div key={prog.id || idx} className="bg-white p-5 rounded-xl border border-slate-200 hover:border-blue-300 transition-colors shadow-sm space-y-4">
+            <div key={prog.id || idx} className="bg-white p-5 rounded-xl border border-slate-200 hover:border-orange-300 transition-colors shadow-sm space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-3.5">
                 <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-blue-50 text-blue-600 rounded-lg">
+                  <div className="p-2.5 bg-orange-50 text-orange-600 rounded-lg">
                     <Disc className="w-5 h-5" />
                   </div>
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Bobina Matriz</span>
-                      <span className="text-sm font-semibold text-slate-900">Lote: {coil.lote}</span>
-                      <span className="text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-mono">{coil.codigo}</span>
-                      <span className="text-xs px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-mono">{coil.largura} x {coil.espessura} mm</span>
+                      <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Bobina Matriz</span>
+                      <span className="text-sm font-black text-slate-900 font-mono">Lote: {coil.lote}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-mono font-bold">{coil.codigo}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-md bg-orange-50 text-orange-800 border border-orange-200 font-mono font-bold">{coil.largura} x {coil.espessura} mm</span>
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Estoque de matéria-prima: <strong className="text-emerald-700 font-medium">{coil.peso} t</strong> disponível
+                      Estoque de matéria-prima: <strong className="text-emerald-700 font-bold">{coil.peso} t</strong> disponível
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3">
                   <div className="text-right pr-2">
-                    <div className="text-xs text-slate-400">Aproveitamento Slitter</div>
-                    <div className={`text-sm font-semibold ${isIdeal ? 'text-emerald-700' : 'text-slate-700'}`}>
+                    <div className="text-xs text-slate-400 font-bold">Aproveitamento Slitter</div>
+                    <div className={`text-sm font-black ${isIdeal ? 'text-emerald-700' : 'text-slate-700'}`}>
                       {prog.aproveitamentoPercent}% ({prog.sobraMm}mm refilo)
                     </div>
                   </div>
 
                   <button
                     onClick={() => onOpenProgramSimulation(prog)}
-                    className="flex items-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors"
+                    className="flex items-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors"
                   >
                     <Scissors className="w-4 h-4" />
                     <span>Simular Slitter</span>
@@ -123,21 +123,21 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
 
                   <button
                     onClick={() => onOpenProgramOrder(prog)}
-                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-xs font-black rounded-lg shadow-sm shadow-orange-500/20 transition-all"
                   >
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Emitir Ordem de Produção (OP)</span>
+                    <span>Emitir OP</span>
                   </button>
                 </div>
               </div>
 
               <div className="space-y-1.5 bg-slate-50 p-4 rounded-lg border border-slate-200">
                 <div className="flex flex-wrap justify-between gap-1.5 text-xs text-slate-600">
-                  <span className="flex items-center gap-1.5 font-medium text-slate-700">
-                    <Scissors className="w-3.5 h-3.5 text-blue-600" />
+                  <span className="flex items-center gap-1.5 font-bold text-slate-700">
+                    <Scissors className="w-3.5 h-3.5 text-orange-600" />
                     Produção no slitter — montagem de facas ({prog.totalFitas} fitas):
                   </span>
-                  <span className="font-mono text-slate-700">
+                  <span className="font-mono font-bold text-slate-700 text-[11px]">
                     {prog.materialsProduced.map(m => `${m.quantidadeFitas}x fita ${m.fitaLargura}mm`).join(' + ')}
                     {prog.sobraMm > 0 ? ` + [${prog.sobraMm}mm refilo]` : ''} = {coil.largura}mm
                   </span>
@@ -152,13 +152,13 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
                       <div
                         key={mIdx}
                         style={{ width: `${widthPct}%` }}
-                        className={`h-full flex items-center justify-between px-3 text-white font-mono text-xs font-medium border-r-2 border-white rounded-md transition-colors ${
-                          isMain ? 'bg-blue-600 hover:bg-blue-700' : 'bg-violet-600 hover:bg-violet-700'
+                        className={`h-full flex items-center justify-between px-3 text-white font-mono text-xs font-bold border-r-2 border-white rounded-md transition-colors ${
+                          isMain ? 'bg-[#0B1F3A] hover:bg-[#163866]' : 'bg-orange-600 hover:bg-orange-700'
                         }`}
                         title={`${m.quantidadeFitas}x ${m.codigoSlitter} - ${m.nomeSlitter} (${m.fitaLargura}mm)`}
                       >
                         <span className="truncate">{m.quantidadeFitas}x {m.codigoSlitter} ({m.fitaLargura}mm)</span>
-                        <span className="text-[11px] opacity-90 shrink-0 ml-1 bg-black/20 px-1.5 py-0.5 rounded">{m.pesoAlocadoTon}t</span>
+                        <span className="text-[11px] opacity-90 shrink-0 ml-1 bg-black/30 px-1.5 py-0.5 rounded font-bold">{m.pesoAlocadoTon}t</span>
                       </div>
                     );
                   })}
@@ -183,7 +183,7 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
                   className="w-full text-xs font-medium text-slate-600 flex flex-wrap items-center justify-between gap-1 hover:text-slate-900"
                 >
                   <span className="flex items-center gap-2">
-                    <Layers className="w-3.5 h-3.5 text-blue-600" />
+                    <Layers className="w-3.5 h-3.5 text-[#0B1F3A]" />
                     Fitas de slitter produzidas & materiais de destino ({prog.materialsProduced.length})
                   </span>
                   {expandedIds.has(prog.id || String(idx)) ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -194,7 +194,7 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
                     {prog.materialsProduced.map((mat, matIdx) => (
                       <span
                         key={matIdx}
-                        className={`text-[11px] font-mono px-2 py-1 rounded-md ${mat.finalidade === 'PRINCIPAL' ? 'bg-blue-50 text-blue-800' : 'bg-violet-50 text-violet-800'}`}
+                        className={`text-[11px] font-mono px-2 py-1 rounded-md ${mat.finalidade === 'PRINCIPAL' ? 'bg-[#0B1F3A]/10 text-[#0B1F3A] font-bold' : 'bg-orange-50 text-orange-800 font-bold border border-orange-200'}`}
                       >
                         {mat.quantidadeFitas}x {mat.codigoSlitter} → {mat.product.codigo} ({mat.pesoAlocadoTon}t)
                       </span>
@@ -207,21 +207,21 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
                   {prog.materialsProduced.map((mat, matIdx) => {
                     const isMain = mat.finalidade === 'PRINCIPAL';
                     return (
-                      <div key={matIdx} className={`p-3.5 rounded-lg border space-y-3 ${isMain ? 'bg-blue-50/60 border-blue-200' : 'bg-violet-50/60 border-violet-200'}`}>
+                      <div key={matIdx} className={`p-3.5 rounded-lg border space-y-3 ${isMain ? 'bg-[#0B1F3A]/5 border-[#0B1F3A]/20' : 'bg-orange-50/60 border-orange-200'}`}>
                         <div className="bg-white p-3 rounded-lg border border-slate-200">
                           <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wide flex items-center gap-1">
-                            <Scissors className="w-3 h-3" />
+                            <Scissors className="w-3 h-3 text-orange-500" />
                             Slitter a produzir
                           </span>
                           <div className="flex items-center justify-between gap-2 mt-1">
-                            <span className="text-sm font-semibold font-mono text-blue-800">{mat.codigoSlitter}</span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${isMain ? 'bg-blue-100 text-blue-700' : 'bg-violet-100 text-violet-700'}`}>
+                            <span className="text-sm font-black font-mono text-[#0B1F3A]">{mat.codigoSlitter}</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${isMain ? 'bg-[#0B1F3A]/10 text-[#0B1F3A]' : 'bg-orange-100 text-orange-800'}`}>
                               {mat.finalidade}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-700 mt-1">{mat.nomeSlitter}</p>
+                          <p className="text-xs text-slate-700 mt-1 font-medium">{mat.nomeSlitter}</p>
                           <div className="text-[11px] font-mono text-slate-500 mt-1">
-                            Fita: <span className="text-slate-700">{mat.fitaLargura} x {coil.espessura} mm</span>
+                            Fita: <span className="text-slate-700 font-bold">{mat.fitaLargura} x {coil.espessura} mm</span>
                           </div>
                         </div>
 
@@ -231,7 +231,7 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
                             Material de destino
                           </span>
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs font-semibold text-slate-800 font-mono">{mat.product.codigo}</span>
+                            <span className="text-xs font-black text-slate-800 font-mono">{mat.product.codigo}</span>
                             <MetricsBadge type="familia" value={mat.product.familia} size="sm" />
                           </div>
                           <p className="text-xs text-slate-600 mt-1 line-clamp-1">{mat.product.descricao}</p>
@@ -240,15 +240,15 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
                         <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-200/80 text-xs">
                           <div className="text-center bg-white p-2 rounded-lg border border-slate-200/60">
                             <span className="text-slate-400 block text-[10px]">Qtd rolos</span>
-                            <strong className="text-slate-800 font-semibold font-mono">{mat.quantidadeFitas}x</strong>
+                            <strong className="text-slate-800 font-black font-mono">{mat.quantidadeFitas}x</strong>
                           </div>
                           <div className="text-center bg-white p-2 rounded-lg border border-slate-200/60">
                             <span className="text-slate-400 block text-[10px]">Peso total</span>
-                            <strong className="text-emerald-700 font-semibold font-mono">{mat.pesoAlocadoTon} t</strong>
+                            <strong className="text-emerald-700 font-black font-mono">{mat.pesoAlocadoTon} t</strong>
                           </div>
                           <div className="text-center bg-white p-2 rounded-lg border border-slate-200/60">
                             <span className="text-slate-400 block text-[10px]">Metragem</span>
-                            <strong className="text-blue-700 font-semibold font-mono">{mat.metrosEstimados} m</strong>
+                            <strong className="text-[#0B1F3A] font-black font-mono">{mat.metrosEstimados} m</strong>
                           </div>
                         </div>
                       </div>

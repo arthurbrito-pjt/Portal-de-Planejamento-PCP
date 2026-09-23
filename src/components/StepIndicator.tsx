@@ -32,18 +32,22 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({
               key={st.num}
               onClick={() => enabled && onStepClick && onStepClick(st.num)}
               disabled={!enabled}
-              className={`flex items-center justify-center gap-2.5 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl text-xs font-black transition-all ${
                 isCurrent
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-[#0B1F3A] text-white shadow-md ring-2 ring-orange-500/50'
                   : isCompleted
-                  ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                  : 'bg-slate-50 text-slate-400 opacity-70 cursor-not-allowed'
+                  ? 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+                  : 'bg-slate-50 text-slate-400 opacity-70 cursor-not-allowed border border-slate-100'
               }`}
             >
-              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0 ${
-                isCompleted ? 'bg-emerald-600 text-white' : isCurrent ? 'bg-white text-blue-700' : 'bg-slate-200 text-slate-500'
+              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
+                isCompleted 
+                  ? 'bg-emerald-600 text-white' 
+                  : isCurrent 
+                  ? 'bg-orange-500 text-white shadow-sm' 
+                  : 'bg-slate-200 text-slate-500'
               }`}>
-                {isCompleted ? <Check className="w-3 h-3" /> : st.num}
+                {isCompleted ? <Check className="w-3 h-3 stroke-[3]" /> : st.num}
               </div>
               <span className="truncate">Etapa {st.num}: {st.title}</span>
             </button>

@@ -71,31 +71,31 @@ export const SlitterTagModal: React.FC<SlitterTagModalProps> = ({
       <div className="bg-white w-full max-w-5xl rounded-2xl shadow-xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] print:max-h-none print:shadow-none print:border-none print:rounded-none">
         
         {/* Top Header Bar (Hidden on Print) */}
-        <div className="bg-slate-900 text-white p-4 flex flex-wrap items-center justify-between gap-4 print:hidden shrink-0">
+        <div className="bg-[#0B1F3A] text-white p-4 flex flex-wrap items-center justify-between gap-4 print:hidden shrink-0 border-b border-[#163866]">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-600 text-white rounded-xl shadow-xs">
+            <div className="p-2 bg-[#163866] text-orange-400 rounded-xl shadow-xs border border-orange-500/30">
               <Tag className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-sm font-black tracking-tight flex items-center gap-2">
                 <span>IMPRESSÃO DE ETIQUETAS DE SLITTER</span>
-                <span className="px-2.5 py-0.5 rounded-full bg-blue-500/30 text-blue-200 text-xs font-mono font-bold">
+                <span className="px-2.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 text-xs font-mono font-bold border border-orange-500/30">
                   {strips.length} etiquetas
                 </span>
               </h3>
-              <p className="text-[11px] text-slate-400 mt-0.5 font-medium">
-                Etiquetas industriais com QR Code e código de cores (Tubo = Azul | Perfil = Roxo).
+              <p className="text-[11px] text-slate-300 mt-0.5 font-medium">
+                Etiquetas industriais com QR Code e código de cores (Tubo = Azul Cedisa | Perfil = Roxo).
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             {/* Filter Buttons */}
-            <div className="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700">
+            <div className="flex items-center bg-[#05101E] p-1 rounded-xl border border-[#163866]">
               <button
                 onClick={() => setFamilyFilter('TODOS')}
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                  familyFilter === 'TODOS' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+                  familyFilter === 'TODOS' ? 'bg-[#163866] text-white shadow-xs border border-orange-500/40' : 'text-slate-400 hover:text-white'
                 }`}
               >
                 Todas ({strips.length})
@@ -104,10 +104,10 @@ export const SlitterTagModal: React.FC<SlitterTagModalProps> = ({
               <button
                 onClick={() => setFamilyFilter('TUBO')}
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  familyFilter === 'TUBO' ? 'bg-blue-600 text-white shadow-xs' : 'text-blue-400 hover:text-blue-300'
+                  familyFilter === 'TUBO' ? 'bg-[#163866] text-white shadow-xs border border-orange-500/40' : 'text-slate-300 hover:text-white'
                 }`}
               >
-                <span className="w-2 h-2 rounded-full bg-blue-400" />
+                <span className="w-2 h-2 rounded-full bg-orange-400" />
                 Tubos ({tuboCount})
               </button>
 
@@ -157,13 +157,13 @@ export const SlitterTagModal: React.FC<SlitterTagModalProps> = ({
                   key={strip.id || idx}
                   className={`print-tag-card bg-white rounded-2xl border-2 shadow-xs overflow-hidden flex flex-col justify-between transition-all print:shadow-none print:break-inside-avoid print:mb-4 ${
                     isTubo 
-                      ? 'border-blue-600 hover:border-blue-700' 
+                      ? 'border-[#0B1F3A] hover:border-[#163866]' 
                       : 'border-purple-600 hover:border-purple-700'
                   }`}
                 >
                   {/* Tag Header with Color Coding */}
                   <div className={`px-4 py-3 flex items-center justify-between text-white ${
-                    isTubo ? 'bg-blue-700' : 'bg-purple-700'
+                    isTubo ? 'bg-[#0B1F3A]' : 'bg-purple-700'
                   }`}>
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center text-[10px] font-black font-mono">
@@ -182,10 +182,10 @@ export const SlitterTagModal: React.FC<SlitterTagModalProps> = ({
                     <div className="text-right">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold font-mono border ${
                         isTubo 
-                          ? 'bg-blue-100 text-blue-900 border-blue-300' 
+                          ? 'bg-white/15 text-white border-white/30' 
                           : 'bg-purple-100 text-purple-900 border-purple-300'
                       }`}>
-                        <span className={`w-2 h-2 rounded-full ${isTubo ? 'bg-blue-600' : 'bg-purple-600'}`} />
+                        <span className={`w-2 h-2 rounded-full ${isTubo ? 'bg-orange-400' : 'bg-purple-600'}`} />
                         {strip.productFamily}
                       </span>
                     </div>
@@ -200,7 +200,7 @@ export const SlitterTagModal: React.FC<SlitterTagModalProps> = ({
                         <span className="text-[9px] font-bold text-slate-500 uppercase block tracking-wider">
                           SLITTER A PRODUZIR:
                         </span>
-                        <span className={`text-base font-black ${isTubo ? 'text-blue-900' : 'text-purple-900'}`}>
+                        <span className={`text-base font-black ${isTubo ? 'text-[#0B1F3A]' : 'text-purple-900'}`}>
                           {sltInfo.code}
                         </span>
                         <p className="text-[11px] text-slate-700 font-bold font-sans line-clamp-1 mt-0.5">
@@ -219,7 +219,7 @@ export const SlitterTagModal: React.FC<SlitterTagModalProps> = ({
                     {/* Row 2: Destination Material (Produto Final) */}
                     <div className={`p-2.5 rounded-xl border ${
                       isTubo 
-                        ? 'bg-blue-50/70 border-blue-200 text-blue-950' 
+                        ? 'bg-[#0B1F3A]/5 border-[#0B1F3A]/15 text-[#0B1F3A]' 
                         : 'bg-purple-50/70 border-purple-200 text-purple-950'
                     }`}>
                       <span className="text-[9px] font-bold uppercase tracking-wider block opacity-75">
@@ -228,7 +228,7 @@ export const SlitterTagModal: React.FC<SlitterTagModalProps> = ({
                       <div className="flex items-center gap-2 mt-0.5">
                         <strong className="text-xs font-black">{strip.productCode}</strong>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
-                          isTubo ? 'bg-blue-200/60 border-blue-300' : 'bg-purple-200/60 border-purple-300'
+                          isTubo ? 'bg-[#0B1F3A]/10 border-[#0B1F3A]/20 text-[#0B1F3A]' : 'bg-purple-200/60 border-purple-300'
                         }`}>
                           {strip.productFamily}
                         </span>
@@ -242,7 +242,7 @@ export const SlitterTagModal: React.FC<SlitterTagModalProps> = ({
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div className="p-2 rounded-lg bg-slate-50 border border-slate-200">
                         <span className="text-[9px] font-bold text-slate-400 uppercase block">Largura Fita</span>
-                        <strong className={`text-xs font-black ${isTubo ? 'text-blue-800' : 'text-purple-800'}`}>
+                        <strong className={`text-xs font-black ${isTubo ? 'text-[#0B1F3A]' : 'text-purple-800'}`}>
                           {strip.largura} mm
                         </strong>
                       </div>
@@ -301,7 +301,7 @@ export const SlitterTagModal: React.FC<SlitterTagModalProps> = ({
                     <button
                       onClick={() => handlePrintSingle(strip.id)}
                       className={`px-3 py-1 text-xs font-bold rounded-lg text-white shadow-xs transition-all ${
-                        isTubo ? 'bg-blue-600 hover:bg-blue-700' : 'bg-purple-600 hover:bg-purple-700'
+                        isTubo ? 'bg-[#0B1F3A] hover:bg-[#163866]' : 'bg-purple-600 hover:bg-purple-700'
                       }`}
                     >
                       Imprimir Esta Etiqueta

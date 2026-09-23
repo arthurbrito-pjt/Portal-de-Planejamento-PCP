@@ -24,14 +24,14 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
           placeholder="Buscar por código ou slitter..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+          className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0B1F3A]/20 focus:border-[#0B1F3A]"
         />
       </div>
 
       <select
         value={thicknessFilter}
         onChange={(e) => setThicknessFilter(e.target.value)}
-        className="py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400"
+        className="py-1.5 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0B1F3A]/20 focus:border-[#0B1F3A]"
       >
         <option value="TODOS">Todas as Bitolas</option>
         {uniqueThicknesses.map(t => (
