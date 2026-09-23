@@ -6,6 +6,7 @@ export const INITIAL_FERRAMENTAL: Ferramental[] = [
     codigo: 'SLT11000',
     nome: 'SLITTER 45 x 17 x 1,80MM',
     classe: 'A',
+    familia: 'PERFIL',
     larguraFita: 71.0,
     espessura: 1.8,
     capacidadeMinimaT: 10,
@@ -18,6 +19,7 @@ export const INITIAL_FERRAMENTAL: Ferramental[] = [
     codigo: 'SLT11005',
     nome: 'SLITTER 50 x 25 x 1,80MM',
     classe: 'A',
+    familia: 'PERFIL',
     larguraFita: 91.0,
     espessura: 1.8,
     capacidadeMinimaT: 12,
@@ -30,6 +32,7 @@ export const INITIAL_FERRAMENTAL: Ferramental[] = [
     codigo: 'SLT11020',
     nome: 'SLITTER 75 x 40 x 1,80MM',
     classe: 'A',
+    familia: 'PERFIL',
     larguraFita: 146.0,
     espessura: 1.8,
     capacidadeMinimaT: 15,
@@ -42,6 +45,7 @@ export const INITIAL_FERRAMENTAL: Ferramental[] = [
     codigo: 'SLT11025',
     nome: 'SLITTER 75 x 40 x 15 x 1,80MM',
     classe: 'B',
+    familia: 'PERFIL',
     larguraFita: 165.0,
     espessura: 1.8,
     capacidadeMinimaT: 10,
@@ -54,6 +58,7 @@ export const INITIAL_FERRAMENTAL: Ferramental[] = [
     codigo: 'SLT11040',
     nome: 'SLITTER 100 x 40 x 1,80MM',
     classe: 'A',
+    familia: 'PERFIL',
     larguraFita: 173.0,
     espessura: 1.8,
     capacidadeMinimaT: 15,
@@ -68,6 +73,7 @@ export const INITIAL_FERRAMENTAL: Ferramental[] = [
     codigo: 'SLT11145',
     nome: 'SLITTER 100 x 50 x 17 x 2,00MM',
     classe: 'B',
+    familia: 'PERFIL',
     larguraFita: 215.0,
     espessura: 2.0,
     capacidadeMinimaT: 10,
@@ -80,6 +86,7 @@ export const INITIAL_FERRAMENTAL: Ferramental[] = [
     codigo: 'SLT11310',
     nome: 'SLITTER 100 x 40 x 2,65MM',
     classe: 'B',
+    familia: 'PERFIL',
     larguraFita: 171.0,
     espessura: 2.65,
     capacidadeMinimaT: 12,
@@ -94,6 +101,7 @@ export const INITIAL_FERRAMENTAL: Ferramental[] = [
     codigo: 'SLT11335',
     nome: 'SLITTER 127 x 50 x 17 x 2,65MM',
     classe: 'C',
+    familia: 'PERFIL',
     larguraFita: 236.0,
     espessura: 2.65,
     capacidadeMinimaT: 15,
@@ -109,6 +117,7 @@ export const INITIAL_FERRAMENTAL: Ferramental[] = [
     codigo: 'SLT11500',
     nome: 'SLITTER 200 x 75 x 25 x 4,75MM',
     classe: 'C',
+    familia: 'PERFIL',
     larguraFita: 356.0,
     espessura: 4.75,
     capacidadeMinimaT: 20,
@@ -117,46 +126,68 @@ export const INITIAL_FERRAMENTAL: Ferramental[] = [
     descricaoUso: 'Chapa pesada 4.75mm (Menos roda / Setup demorado)'
   },
   {
+    // Ferramentais de TUBO: um único slitter atende toda a família de espessuras
+    // de uma bitola (a largura da fita cai conforme a espessura sobe, dentro da
+    // mesma bitola — ver "Largura dos slitters de Tubo"). O campo `espessura`
+    // registra a espessura de referência (a mais fina, que dá a fita mais larga);
+    // o casamento por bitola em SlitterCatalogService ignora a espessura exata.
+    id: 'FRM_SLT10158',
+    codigo: 'SLT10158',
+    nome: 'SLITTER 158 x 2,00MM',
+    classe: 'B',
+    familia: 'TUBO',
+    larguraFita: 158.0,
+    espessura: 2.0,
+    capacidadeMinimaT: 12,
+    capacidadeIdealT: 28,
+    capacidadeMaximaT: 55,
+    descricaoUso: 'Tubo 40x40mm e 30x50mm LQ (bitola 154 a 158mm, médio giro)'
+  },
+  {
     id: 'FRM_SLT10199',
     codigo: 'SLT10199',
     nome: 'SLITTER 199 x 1,25MM',
     classe: 'A',
+    familia: 'TUBO',
     larguraFita: 199.0,
     espessura: 1.25,
     capacidadeMinimaT: 15,
     capacidadeIdealT: 35,
     capacidadeMaximaT: 60,
-    descricaoUso: 'Tubo 63.50mm / 50x50mm ZC (Sempre roda)'
+    descricaoUso: 'Tubo 63.50mm / 50x50mm ZC (bitola 194 a 199mm, sempre roda)'
   },
   {
     id: 'FRM_SLT10238',
     codigo: 'SLT10238',
     nome: 'SLITTER 238 x 1,50MM',
     classe: 'A',
+    familia: 'TUBO',
     larguraFita: 238.0,
     espessura: 1.5,
     capacidadeMinimaT: 20,
     capacidadeIdealT: 45,
     capacidadeMaximaT: 90,
-    descricaoUso: 'Tubo 60x60 e 40x80mm LQ (Sempre roda)'
+    descricaoUso: 'Tubo 60x60, 40x80 e 76,20mm (bitola 234 a 238mm, sempre roda)'
   },
   {
     id: 'FRM_SLT10318',
     codigo: 'SLT10318',
     nome: 'SLITTER 318 x 1,50MM',
     classe: 'B',
+    familia: 'TUBO',
     larguraFita: 318.0,
     espessura: 1.5,
     capacidadeMinimaT: 15,
     capacidadeIdealT: 30,
     capacidadeMaximaT: 60,
-    descricaoUso: 'Tubo 80x80mm LQ médio giro'
+    descricaoUso: 'Tubo 80x80mm e 101,60mm LQ (bitola 316 a 318mm, médio giro)'
   },
   {
     id: 'FRM_SLT10364',
     codigo: 'SLT10364',
     nome: 'SLITTER 364 x 1,50MM',
     classe: 'C',
+    familia: 'TUBO',
     larguraFita: 364.0,
     espessura: 1.5,
     capacidadeMinimaT: 10,

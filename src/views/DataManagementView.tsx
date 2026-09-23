@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Coil, Product, Ferramental, FerramentalClasse, GrauDificuldade, StatusContabil } from '../types/pcp';
+import { Coil, Product, Ferramental, FerramentalClasse, ProductFamily, GrauDificuldade, StatusContabil } from '../types/pcp';
 import { ExcelService } from '../services/excelService';
 import { StorageService } from '../services/storageService';
 import { MetricsBadge } from '../components/MetricsBadge';
@@ -65,6 +65,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
     codigo: '',
     nome: '',
     classe: 'A',
+    familia: 'PERFIL',
     larguraFita: undefined,
     espessura: undefined,
     capacidadeMinimaT: undefined,
@@ -166,6 +167,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
       codigo: newFerramental.codigo,
       nome: newFerramental.nome,
       classe: (newFerramental.classe as FerramentalClasse) || 'A',
+      familia: (newFerramental.familia as ProductFamily) || 'PERFIL',
       larguraFita: newFerramental.larguraFita !== undefined ? Number(newFerramental.larguraFita) : undefined,
       espessura: newFerramental.espessura !== undefined ? Number(newFerramental.espessura) : undefined,
       capacidadeMinimaT: Number(newFerramental.capacidadeMinimaT || 0),
@@ -676,6 +678,18 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
               </div>
 
               <div>
+                <label className="block text-[11px] text-slate-600 uppercase font-black">Família</label>
+                <select
+                  value={newFerramental.familia || 'PERFIL'}
+                  onChange={(e) => setNewFerramental({ ...newFerramental, familia: e.target.value as ProductFamily })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-bold"
+                >
+                  <option value="PERFIL">Perfil</option>
+                  <option value="TUBO">Tubo</option>
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-[11px] text-slate-600 uppercase font-black">Largura Fita (mm)</label>
                 <input
                   type="number"
@@ -688,7 +702,9 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] text-slate-600 uppercase font-black">Espessura (mm)</label>
+                <label className="block text-[11px] text-slate-600 uppercase font-black">
+                  {newFerramental.familia === 'TUBO' ? 'Espessura Ref. (mm)' : 'Espessura (mm)'}
+                </label>
                 <input
                   type="number"
                   step="0.01"
@@ -753,7 +769,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
             </div>
 
             <p className="text-[11px] text-slate-500 font-medium">
-              Dica: Largura Fita + Espessura são o que associa este ferramental ao tubo/perfil correto no planejamento — sem esses dois campos preenchidos, o sistema não consegue casar a demanda com o código certo e o item aparece como "Ferramental não cadastrado". Use o mesmo código do catálogo de slitters (ex: SLT11000). Ferramentais Classe C alertam sobre acúmulo de lote mínimo antes de programar o setup.
+              Dica: Família + Largura Fita + Espessura são o que associam este ferramental ao tubo/perfil correto no planejamento — sem esses campos preenchidos, o sistema não consegue casar a demanda com o código certo e o item aparece como "Ferramental não cadastrado". Em Perfil, largura e espessura precisam casar exatamente com o produto. Em Tubo, um único ferramental corta toda a faixa de espessuras de uma mesma bitola (a fita fica mais estreita quanto mais espessa a chapa) — cadastre a espessura mais fina da bitola como referência. Use o mesmo código do catálogo de slitters (ex: SLT11000). Ferramentais Classe C alertam sobre acúmulo de lote mínimo antes de programar o setup.
             </p>
 
             <div className="flex justify-end">
@@ -774,6 +790,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                     <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-mono text-[11px] font-bold">
                       <th className="py-2.5 px-3">Código</th>
                       <th className="py-2.5 px-3">Nome</th>
+                      <th className="py-2.5 px-3 text-center">Família</th>
                       <th className="py-2.5 px-3 text-right">Fita x Esp.</th>
                       <th className="py-2.5 px-3 text-center">Classe</th>
                       <th className="py-2.5 px-3 text-right">Mín. (t)</th>
@@ -786,8 +803,11 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                       <tr key={f.id} className="hover:bg-slate-50">
                         <td className="py-2.5 px-3 font-black text-slate-900">{f.codigo}</td>
                         <td className="py-2.5 px-3 font-sans text-slate-700">{f.nome}</td>
+                        <td className="py-2.5 px-3 text-center">
+                          <MetricsBadge type="familia" value={f.familia || 'PERFIL'} size="sm" />
+                        </td>
                         <td className="py-2.5 px-3 text-right">
-                          {typeof f.larguraFita === 'number' && typeof f.espessura === 'number' ? (
+                          {typeof f.larguraFita === 'number' && (f.familia === 'TUBO' || typeof f.espessura === 'number') ? (
                             <span className="text-slate-600">{f.larguraFita} x {f.espessura} mm</span>
                           ) : (
                             <span className="text-red-700 bg-red-50 border border-red-200 rounded px-1.5 py-0.5 text-[10px] font-sans font-bold">

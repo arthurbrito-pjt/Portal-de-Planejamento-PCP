@@ -639,13 +639,28 @@ export const PERFIL_SLITTERS_CATALOG: { code: string; desc: string; blank: numbe
 const WIDTH_TOLERANCE_MM = 0.6;
 const THICKNESS_TOLERANCE_MM = 0.03;
 
+// Ferramentais de TUBO atendem toda a família de espessuras de uma mesma bitola:
+// a largura da fita cai conforme a espessura sobe (ver planilha "Largura dos
+// slitters de Tubo"), mas é o MESMO conjunto de facas que corta. O ferramental é
+// cadastrado com a espessura de referência (a mais fina, que dá a fita mais
+// larga) — produtos mais espessos da mesma bitola têm fita até este tanto mais
+// estreita e ainda usam o mesmo ferramental.
+const TUBO_WIDTH_SPAN_BELOW_MM = 7;
+
+// Fallback do catálogo oficial de perfis: além do casamento exato (0.6mm), aceita
+// a entrada de blank mais próxima dentro desta tolerância maior — cobre desvios
+// de arredondamento do cadastro de produtos em relação à planilha de engenharia.
+const PERFIL_CATALOG_FALLBACK_TOLERANCE_MM = 3.5;
+
 export class SlitterCatalogService {
   /**
    * Returns the real Slitter Code and Name for a given strip width and thickness.
    *
    * Ordem de resolução:
    * 1. Cadastro mestre de Ferramentais (Importador & Cadastros) — fonte de
-   *    verdade editável pelo usuário, casada por largura de fita + espessura reais.
+   *    verdade editável pelo usuário. Perfis casam por largura + espessura
+   *    exatas; Tubos casam por bitola (largura), pois um ferramental atende
+   *    toda a faixa de espessuras da família.
    * 2. Catálogo oficial de slitters de perfil (planilhas de engenharia,
    *    `PERFIL_SLITTERS_CATALOG`), usado como referência quando o ferramental
    *    ainda não foi cadastrado individualmente.
@@ -653,25 +668,45 @@ export class SlitterCatalogService {
    *    vez de inventar um código plausível — evita códigos genéricos incorretos.
    */
   static getSlitterInfo(larguraFita: number, espessura: number, product?: Product): SlitterInfoResult {
-    // 1. Cadastro mestre de Ferramentais (largura/espessura reais do produto)
+    // 1. Cadastro mestre de Ferramentais
     const ferramentais = StorageService.getFerramentais();
-    const registrado = ferramentais.find(f =>
-      typeof f.larguraFita === 'number' &&
-      typeof f.espessura === 'number' &&
-      Math.abs(f.larguraFita - larguraFita) < WIDTH_TOLERANCE_MM &&
-      Math.abs(f.espessura - espessura) < THICKNESS_TOLERANCE_MM
-    );
+    const registrado = ferramentais.find(f => {
+      if (typeof f.larguraFita !== 'number') return false;
+
+      if (f.familia === 'TUBO') {
+        return larguraFita <= f.larguraFita + WIDTH_TOLERANCE_MM &&
+               larguraFita >= f.larguraFita - TUBO_WIDTH_SPAN_BELOW_MM;
+      }
+
+      return typeof f.espessura === 'number' &&
+        Math.abs(f.larguraFita - larguraFita) < WIDTH_TOLERANCE_MM &&
+        Math.abs(f.espessura - espessura) < THICKNESS_TOLERANCE_MM;
+    });
     if (registrado) {
       return { code: registrado.codigo, name: registrado.nome, cadastrado: true };
     }
 
     // 2. Catálogo oficial de perfis (fallback para larguras ainda não cadastradas)
     if (product?.familia === 'PERFIL' || !product) {
-      const match = PERFIL_SLITTERS_CATALOG.find(
-        s => Math.abs(s.blank - larguraFita) < WIDTH_TOLERANCE_MM && s.desc.includes(`${espessura.toFixed(2).replace('.', ',')}MM`)
+      const espLabel = `${espessura.toFixed(2).replace('.', ',')}MM`;
+
+      const exact = PERFIL_SLITTERS_CATALOG.find(
+        s => Math.abs(s.blank - larguraFita) < WIDTH_TOLERANCE_MM && s.desc.includes(espLabel)
       );
-      if (match) {
-        return { code: match.code, name: match.desc, cadastrado: true };
+      if (exact) {
+        return { code: exact.code, name: exact.desc, cadastrado: true };
+      }
+
+      // Nenhuma correspondência exata: tenta o blank mais próximo dentro de uma
+      // tolerância maior (cobre desvio de arredondamento do cadastro de produtos).
+      const candidates = PERFIL_SLITTERS_CATALOG.filter(
+        s => Math.abs(s.blank - larguraFita) < PERFIL_CATALOG_FALLBACK_TOLERANCE_MM && s.desc.includes(espLabel)
+      );
+      if (candidates.length > 0) {
+        const nearest = candidates.reduce((best, c) =>
+          Math.abs(c.blank - larguraFita) < Math.abs(best.blank - larguraFita) ? c : best
+        );
+        return { code: nearest.code, name: nearest.desc, cadastrado: true };
       }
     }
 

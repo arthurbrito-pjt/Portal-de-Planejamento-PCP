@@ -24,8 +24,9 @@ export interface Ferramental {
   codigo: string; // livre; pode coincidir com um código de slitter do catálogo
   nome: string;
   classe: FerramentalClasse; // 'A' | 'B' | 'C'
+  familia?: ProductFamily; // TUBO ou PERFIL — define a regra de casamento em SlitterCatalogService
   larguraFita?: number; // mm — largura da fita cortada por este ferramental (associação com Product.larguraFita)
-  espessura?: number; // mm — espessura da fita cortada por este ferramental (associação com Product.espessura)
+  espessura?: number; // mm — espessura de referência (menor espessura da família, para TUBO — ver SlitterCatalogService)
   capacidadeMinimaT: number;
   capacidadeIdealT: number;
   capacidadeMaximaT: number;
