@@ -1,5 +1,6 @@
-import { Product, Coil, SlitterOrder, PCPKPIs, CutHistoryItem, Ferramental, SlitterIntermediaryItem, AIAgentResult, AIProvider } from '../types/pcp';
+import { Product, Coil, SlitterOrder, PCPKPIs, CutHistoryItem, Ferramental, SlitterIntermediaryItem, AIAgentResult, AIProvider, AIRecommendationFeedback } from '../types/pcp';
 import { ReadinessService } from './readinessService';
+import { StorageService } from './storageService';
 
 export type AIAgentMode = 'recommendations' | 'planning' | 'alerts' | 'summary';
 
@@ -44,6 +45,14 @@ function buildContext({ products, coils, orders, kpis, history, ferramentais = [
   const semCadastro = ReadinessService
     .analyzeSlitters(products, coils, intermediarySlitters)
     .filter(d => !d.ferramentalCadastrado && d.totalDemandaT > 0);
+
+  // Loop de feedback: histórico real de aceitação das sugestões anteriores
+  // da IA, para calibrar prioridade/confiança nesta chamada — nunca inventa
+  // dados, só resume o que o próprio usuário já aceitou ou ignorou antes.
+  const feedbackHistorico = StorageService.getAIFeedback();
+  const feedbackComDesfecho = feedbackHistorico.slice(0, 30);
+  const totalSugeridas = feedbackHistorico.length;
+  const totalAceitas = feedbackHistorico.filter(f => f.status === 'ACEITA').length;
 
   return {
     kpis,
@@ -109,7 +118,17 @@ function buildContext({ products, coils, orders, kpis, history, ferramentais = [
       aproveitamentoPercent: o.aproveitamentoPercent,
       dataCriacao: o.dataCriacao
     })),
-    historicoRecente: history.slice(-15)
+    historicoRecente: history.slice(-15),
+    historicoFeedbackIA: {
+      taxaAceitacaoRecentePercent: totalSugeridas > 0 ? Math.round((totalAceitas / totalSugeridas) * 1000) / 10 : null,
+      totalSugestoesRegistradas: totalSugeridas,
+      ultimasSugestoes: feedbackComDesfecho.map(f => ({
+        titulo: f.titulo,
+        prioridadeDada: f.prioridade,
+        statusReal: f.status,
+        aproveitamentoPrevistoPercent: f.aproveitamentoPrevistoPercent
+      }))
+    }
   };
 }
 
@@ -147,11 +166,48 @@ export class AIAgentService {
       const message = data?.message || 'Falha ao consultar o agente de IA.';
       throw new Error(message);
     }
-    return data as AIAgentResult;
+    const result = data as AIAgentResult;
+
+    if (result.recomendacoes?.length) {
+      this.logRecommendations(mode, result, context.programasSugeridos as { id: string; aproveitamentoPercent: number }[]);
+    }
+
+    return result;
   }
 
   /** Encontra o programa de corte sugerido (para "Aplicar") a partir do id retornado pela IA. */
   static findProgramById(products: Product[], coils: Coil[], programId: string) {
     return ReadinessService.generateSlitterPrograms(products, coils).find(p => p.id === programId) || null;
+  }
+
+  /** Registra cada recomendação gerada como "SUGERIDA" — base do loop de feedback. */
+  private static logRecommendations(
+    mode: AIAgentMode,
+    result: AIAgentResult,
+    programasSugeridos: { id: string; aproveitamentoPercent: number }[]
+  ): void {
+    const provider = result.provider || this.getStoredProvider();
+    result.recomendacoes?.forEach(r => {
+      const program = r.programId ? programasSugeridos.find(p => p.id === r.programId) : undefined;
+      const entry: AIRecommendationFeedback = {
+        id: `AIFB_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        criadoEm: new Date().toISOString(),
+        mode,
+        provider,
+        titulo: r.titulo,
+        programId: r.programId,
+        prioridade: r.prioridade,
+        justificativa: r.justificativa,
+        aproveitamentoPrevistoPercent: program?.aproveitamentoPercent,
+        status: 'SUGERIDA'
+      };
+      StorageService.addAIFeedback(entry);
+    });
+  }
+
+  /** Chamar quando o usuário efetivamente age sobre uma recomendação (abre no Estúdio de Corte ou na OP). */
+  static markRecommendationAccepted(programId: string | undefined): void {
+    if (!programId) return;
+    StorageService.markAIFeedbackAccepted(programId);
   }
 }

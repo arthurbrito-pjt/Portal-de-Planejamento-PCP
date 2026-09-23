@@ -28,10 +28,13 @@
 
 const CLAUDE_MODEL = 'claude-sonnet-4-5';
 const ANTHROPIC_VERSION = '2023-06-01';
-const GEMINI_MODEL = 'gemini-3.8-flash';
+// Modelos "-lite" por escolha explícita do usuário (cota diária maior que os
+// modelos "cheios" no plano gratuito). São mais lentos (10-30s de resposta),
+// então o loading da tela precisa suportar essa espera.
+const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 // Usado só quando GEMINI_MODEL esgota as tentativas com erro de sobrecarga —
-// modelo estável, com cota bem maior, como rede de segurança.
-const GEMINI_FALLBACK_MODEL = 'gemini-3.6-flash';
+// geração "-lite" anterior, cota separada, como rede de segurança.
+const GEMINI_FALLBACK_MODEL = 'gemini-3.1-flash-lite';
 const OPENAI_MODEL = 'gpt-4o-mini';
 
 const BASE_CONTEXT = [
@@ -43,7 +46,14 @@ const BASE_CONTEXT = [
   'otimização combinatória (respeitando a regra de refilo), a curva ABC de',
   'ferramentais e o histórico recente de produção. Baseie sua análise SOMENTE',
   'nos dados fornecidos — nunca invente códigos, lotes ou números que não',
-  'estejam no JSON recebido.'
+  'estejam no JSON recebido. Quando o JSON incluir "historicoFeedbackIA", use a',
+  '"taxaAceitacaoRecentePercent" e o padrão de "ultimasSugestoes" (quais foram',
+  'aceitas de fato pelo usuário, "statusReal": "ACEITA", vs. apenas sugeridas e',
+  'ignoradas, "statusReal": "SUGERIDA") como sinal real de calibração — se um',
+  'tipo de recomendação historicamente tem baixa aceitação, seja mais',
+  'conservador na prioridade ou explique melhor a justificativa; se a taxa de',
+  'aceitação for alta para um padrão (ex: mesma classe de ferramental ou',
+  'mesma faixa de aproveitamento), reforce esse padrão nas próximas sugestões.'
 ].join(' ');
 
 const PROMPTS = {
@@ -198,12 +208,13 @@ async function callAnthropic(apiKey, systemPrompt, userContent) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// gemini-3.8-flash é um modelo preview com cota diária bem mais baixa que os
-// modelos estáveis. 503 = sobrecarga passageira do modelo (vale re-tentar);
-// 429 = cota do dia já esgotada (re-tentar o mesmo modelo não resolve, é
-// direto para o fallback).
-const GEMINI_MAX_ATTEMPTS = 3;
-const GEMINI_RETRY_DELAYS_MS = [1000, 2000];
+// 503 = sobrecarga passageira do modelo (vale re-tentar); 429 = cota do dia
+// já esgotada (re-tentar o mesmo modelo não resolve, é direto para o
+// fallback). Modelos "-lite" já são lentos por requisição (10-30s), então
+// menos tentativas por modelo evita empilhar espera — preferimos cair pro
+// fallback logo.
+const GEMINI_MAX_ATTEMPTS = 2;
+const GEMINI_RETRY_DELAYS_MS = [1500];
 
 async function callGeminiModel(apiKey, model, systemPrompt, userContent) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
@@ -212,11 +223,7 @@ async function callGeminiModel(apiKey, model, systemPrompt, userContent) {
     contents: [{ role: 'user', parts: [{ text: userContent }] }],
     generationConfig: {
       maxOutputTokens: 8000,
-      responseMimeType: 'application/json',
-      // Modelos gemini-3.x fazem "thinking" interno que consome parte do
-      // budget de maxOutputTokens antes de escrever a resposta — desligamos
-      // para deixar todo o limite disponível para o JSON de saída.
-      thinkingConfig: { thinkingBudget: 0 }
+      responseMimeType: 'application/json'
     }
   });
 
@@ -329,19 +336,6 @@ export default {
       return new Response(null, { status: 204, headers: corsHeaders(origin) });
     }
 
-    if (request.method === 'GET' && new URL(request.url).pathname === '/debug-model-check') {
-      const model = new URL(request.url).searchParams.get('model') || GEMINI_MODEL;
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`;
-      const t0 = Date.now();
-      const r = await fetch(url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'diga apenas "ok"' }] }] })
-      });
-      const text = await r.text();
-      return json({ model, status: r.status, ms: Date.now() - t0, body: text.slice(0, 200) }, 200, origin);
-    }
-
     if (request.method !== 'POST') {
       return json({ error: 'method-not-allowed' }, 405, origin);
     }
@@ -388,23 +382,39 @@ export default {
     const contextJson = JSON.stringify(context).slice(0, 60000);
     const userContent = `Dados atuais do portal (JSON):\n${contextJson}\n\nResponda SOMENTE com o JSON no formato especificado, sem texto adicional antes ou depois.`;
 
-    let rawText;
-    try {
-      rawText = await providerConfig.call(apiKey, systemPrompt, userContent);
-    } catch (err) {
-      if (err instanceof HttpError) {
-        return json({ error: err.code, message: err.message }, err.status, origin);
+    // Modelos preview ocasionalmente devolvem um JSON malformado/truncado
+    // mesmo com responseMimeType: "application/json" — uma segunda tentativa
+    // resolve a grande maioria desses casos sem incomodar o usuário.
+    const PARSE_RETRY_ATTEMPTS = 2;
+    let parsed;
+    let lastNetworkErr = null;
+
+    for (let attempt = 0; attempt < PARSE_RETRY_ATTEMPTS; attempt++) {
+      let rawText;
+      try {
+        rawText = await providerConfig.call(apiKey, systemPrompt, userContent);
+      } catch (err) {
+        if (err instanceof HttpError) {
+          return json({ error: err.code, message: err.message }, err.status, origin);
+        }
+        console.error(`Falha de rede ao chamar a API (${providerKey})`, err);
+        lastNetworkErr = err;
+        break;
       }
-      console.error(`Falha de rede ao chamar a API (${providerKey})`, err);
-      return json({ error: 'unavailable', message: 'Não foi possível contatar o serviço de IA. Tente novamente.' }, 503, origin);
+
+      try {
+        parsed = extractJson(rawText);
+        break;
+      } catch {
+        console.error(`Resposta da IA não pôde ser interpretada como JSON (tentativa ${attempt + 1}/${PARSE_RETRY_ATTEMPTS})`, rawText);
+      }
     }
 
-    let parsed;
-    try {
-      parsed = extractJson(rawText);
-    } catch {
-      console.error('Resposta da IA não pôde ser interpretada como JSON', rawText);
-      return json({ error: 'internal', message: 'A resposta do agente de IA não pôde ser interpretada.' }, 502, origin);
+    if (lastNetworkErr) {
+      return json({ error: 'unavailable', message: 'Não foi possível contatar o serviço de IA. Tente novamente.' }, 503, origin);
+    }
+    if (!parsed) {
+      return json({ error: 'internal', message: 'A resposta do agente de IA não pôde ser interpretada. Tente novamente.' }, 502, origin);
     }
 
     return json({ geradoEm: new Date().toISOString(), mode, provider: providerKey, ...parsed }, 200, origin);

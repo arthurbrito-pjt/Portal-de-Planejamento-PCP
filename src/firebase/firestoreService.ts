@@ -12,7 +12,7 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { db } from './config';
-import { Coil, Product, SlitterOrder, CutHistoryItem, Ferramental } from '../types/pcp';
+import { Coil, Product, SlitterOrder, CutHistoryItem, Ferramental, AIRecommendationFeedback } from '../types/pcp';
 
 export class FirestoreService {
   private static isFirestoreAvailable = true;
@@ -158,6 +158,15 @@ export class FirestoreService {
       await setDoc(doc(db, 'historico_cortes', item.id), item);
     } catch (e) {
       console.warn('Firestore addCutHistoryItem error', e);
+    }
+  }
+
+  // Feedback do Agente de IA
+  static async addAIFeedbackItem(item: AIRecommendationFeedback): Promise<void> {
+    try {
+      await setDoc(doc(db, 'ai_feedback', item.id), item);
+    } catch (e) {
+      console.warn('Firestore addAIFeedbackItem error', e);
     }
   }
 }

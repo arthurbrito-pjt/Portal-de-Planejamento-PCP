@@ -285,3 +285,25 @@ export interface AIAgentResult {
   insights?: AIInsight[];
   recomendacoes?: AIRecommendation[];
 }
+
+// ---------------------------------------------------------------------------
+// Loop de feedback do Agente de IA — registra cada recomendação gerada e se o
+// usuário efetivamente agiu sobre ela (abriu no Estúdio de Corte ou na OP),
+// para alimentar a próxima chamada com um sinal real de acerto/aceitação.
+// ---------------------------------------------------------------------------
+
+export type AIFeedbackStatus = 'SUGERIDA' | 'ACEITA';
+
+export interface AIRecommendationFeedback {
+  id: string;
+  criadoEm: string;
+  mode: 'recommendations' | 'planning' | 'alerts' | 'summary';
+  provider: AIProvider;
+  titulo: string;
+  programId?: string;
+  prioridade: AIPriority;
+  justificativa: string;
+  aproveitamentoPrevistoPercent?: number;
+  status: AIFeedbackStatus;
+  aceitaEm?: string;
+}

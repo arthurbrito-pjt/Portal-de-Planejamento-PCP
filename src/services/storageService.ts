@@ -1,4 +1,4 @@
-import { Product, Coil, SlitterOrder, CutHistoryItem, PCPKPIs, Ferramental, SlitterIntermediaryItem } from '../types/pcp';
+import { Product, Coil, SlitterOrder, CutHistoryItem, PCPKPIs, Ferramental, SlitterIntermediaryItem, AIRecommendationFeedback } from '../types/pcp';
 import { INITIAL_PRODUCTS, INITIAL_COILS, INITIAL_FERRAMENTAL, INITIAL_INTERMEDIARY_SLITTERS } from '../data/initialData';
 import { FirestoreService } from '../firebase/firestoreService';
 
@@ -9,8 +9,13 @@ const STORAGE_KEYS = {
   CUT_HISTORY: 'pcp_cut_history_v1',
   FERRAMENTAL: 'pcp_ferramental_v1',
   SLITTER_INTERMEDIARY: 'pcp_slitter_intermediary_v1',
+  AI_FEEDBACK: 'pcp_ai_feedback_v1',
   LAST_SYNC: 'pcp_last_sync_v1'
 };
+
+// Máximo de registros de feedback da IA guardados — histórico recente é o
+// que importa para calibrar a próxima sugestão, não retenção ilimitada.
+const AI_FEEDBACK_MAX_ENTRIES = 200;
 
 export class StorageService {
   private static productsCache: Product[] | null = null;
@@ -19,6 +24,7 @@ export class StorageService {
   private static historyCache: CutHistoryItem[] | null = null;
   private static ferramentaisCache: Ferramental[] | null = null;
   private static intermediaryCache: SlitterIntermediaryItem[] | null = null;
+  private static aiFeedbackCache: AIRecommendationFeedback[] | null = null;
 
   // Initialize data from local or initial seeds
   static initialize(): void {
@@ -172,6 +178,40 @@ export class StorageService {
     const items = this.getIntermediarySlitters();
     items.unshift(item);
     this.saveIntermediarySlitters(items);
+  }
+
+  // Feedback do Agente de IA (loop de aprendizado por aceitação real)
+  static getAIFeedback(): AIRecommendationFeedback[] {
+    if (this.aiFeedbackCache) return this.aiFeedbackCache;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.AI_FEEDBACK);
+      this.aiFeedbackCache = raw ? JSON.parse(raw) : [];
+      return this.aiFeedbackCache || [];
+    } catch {
+      return [];
+    }
+  }
+
+  static saveAIFeedback(items: AIRecommendationFeedback[]): void {
+    this.aiFeedbackCache = items;
+    localStorage.setItem(STORAGE_KEYS.AI_FEEDBACK, JSON.stringify(items));
+  }
+
+  static addAIFeedback(item: AIRecommendationFeedback): void {
+    const items = this.getAIFeedback();
+    items.unshift(item);
+    this.saveAIFeedback(items.slice(0, AI_FEEDBACK_MAX_ENTRIES));
+    FirestoreService.addAIFeedbackItem(item).catch(() => {});
+  }
+
+  /** Marca a sugestão mais recente daquele programId como aceita (usuário abriu no Estúdio de Corte ou na OP). */
+  static markAIFeedbackAccepted(programId: string): void {
+    const items = this.getAIFeedback();
+    const idx = items.findIndex(f => f.programId === programId && f.status === 'SUGERIDA');
+    if (idx === -1) return;
+    items[idx] = { ...items[idx], status: 'ACEITA', aceitaEm: new Date().toISOString() };
+    this.saveAIFeedback(items);
+    FirestoreService.addAIFeedbackItem(items[idx]).catch(() => {});
   }
 
   // Coils

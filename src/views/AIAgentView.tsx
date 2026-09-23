@@ -136,6 +136,7 @@ export const AIAgentView: React.FC<AIAgentViewProps> = ({
     if (!programId) return;
     const program = AIAgentService.findProgramById(products, coils, programId);
     if (!program) return;
+    AIAgentService.markRecommendationAccepted(programId);
     if (target === 'simulation') onOpenProgramSimulation(program);
     else onOpenProgramOrder(program);
   };
