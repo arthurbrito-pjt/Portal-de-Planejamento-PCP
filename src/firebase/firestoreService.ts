@@ -169,4 +169,14 @@ export class FirestoreService {
       console.warn('Firestore addAIFeedbackItem error', e);
     }
   }
+
+  /** Apaga todos os documentos de uma coleção do Firestore — usado pelos resets de base/OPs. */
+  static async clearCollection(collectionName: string): Promise<void> {
+    try {
+      const snap = await getDocs(collection(db, collectionName));
+      await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+    } catch (e) {
+      console.warn(`Firestore clearCollection(${collectionName}) error`, e);
+    }
+  }
 }

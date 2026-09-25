@@ -36,6 +36,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
   const [importStatus, setImportStatus] = useState<string>('');
   const [isImporting, setIsImporting] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [isClearing, setIsClearing] = useState<boolean>(false);
 
   const EMPTY_COIL: Partial<Coil> = {
     codigo: '',
@@ -188,11 +189,14 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
     onDataUpdated();
   };
 
-  const handleResetAllOrders = () => {
-    if (window.confirm('Deseja realmente apagar TODAS as Ordens de Produção (OP) e o histórico de corte? As bobinas consumidas por elas voltarão para o estoque como "Disponível". Esta ação não pode ser desfeita.')) {
-      StorageService.resetAllOrders();
+  const handleResetAllOrders = async () => {
+    if (window.confirm('Deseja realmente apagar TODAS as Ordens de Produção (OP) e o histórico de corte — inclusive no Firebase? As bobinas consumidas por elas voltarão para o estoque como "Disponível". Esta ação não pode ser desfeita.')) {
+      setIsClearing(true);
+      setImportStatus('Apagando Ordens de Produção e histórico (local e Firebase)...');
+      await StorageService.resetAllOrders();
+      setIsClearing(false);
       onDataUpdated();
-      setImportStatus('Todas as Ordens de Produção foram apagadas e as bobinas consumidas voltaram ao estoque.');
+      setImportStatus('Todas as Ordens de Produção foram apagadas (local e Firebase) e as bobinas consumidas voltaram ao estoque.');
     }
   };
 
@@ -204,17 +208,20 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
     }
   };
 
-  const handleClearForRealTesting = () => {
+  const handleClearForRealTesting = async () => {
     if (window.confirm(
-      'Isso vai apagar TODA a base de demonstração: bobinas, produtos/demanda (inclusive os valores de ' +
-      'demanda_t fictícios das planilhas de exemplo), fitas intermediárias, Ordens de Produção, histórico de ' +
-      'corte e feedback da IA — para você importar/cadastrar dados reais e testar o sistema de verdade. ' +
-      'Apenas o cadastro de Ferramentais (equipamento físico real, já corrigido com os códigos oficiais) ' +
-      'NÃO será apagado. Esta ação não pode ser desfeita. Continuar?'
+      'Isso vai apagar TODA a base de demonstração — local E no Firebase: bobinas, produtos/demanda ' +
+      '(inclusive os valores de demanda_t fictícios das planilhas de exemplo), fitas intermediárias, Ordens ' +
+      'de Produção, histórico de corte e feedback da IA — para você importar/cadastrar dados reais e testar ' +
+      'o sistema de verdade. Apenas o cadastro de Ferramentais (equipamento físico real, já corrigido com os ' +
+      'códigos oficiais) NÃO será apagado. Esta ação não pode ser desfeita. Continuar?'
     )) {
-      StorageService.clearForRealTesting();
+      setIsClearing(true);
+      setImportStatus('Apagando base de demonstração (local e Firebase)...');
+      await StorageService.clearForRealTesting();
+      setIsClearing(false);
       onDataUpdated();
-      setImportStatus('Base de demonstração apagada por completo. Importe sua planilha real de produtos/demanda e bobinas para começar a testar.');
+      setImportStatus('Base de demonstração apagada por completo (local e Firebase). Importe sua planilha real de produtos/demanda e bobinas para começar a testar.');
     }
   };
 
@@ -255,17 +262,19 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
 
           <button
             onClick={handleClearForRealTesting}
-            className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-red-50 text-red-700 border border-red-200 text-xs font-black rounded-xl transition-all shadow-sm"
+            disabled={isClearing}
+            className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-red-50 disabled:opacity-50 text-red-700 border border-red-200 text-xs font-black rounded-xl transition-all shadow-sm"
           >
-            <Database className="w-3.5 h-3.5 text-red-600" />
+            <Database className={`w-3.5 h-3.5 text-red-600 ${isClearing ? 'animate-pulse' : ''}`} />
             <span>Limpar Dados de Teste (Preparar Dados Reais)</span>
           </button>
 
           <button
             onClick={handleResetAllOrders}
-            className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-red-50 text-red-700 border border-red-200 text-xs font-black rounded-xl transition-all shadow-sm"
+            disabled={isClearing}
+            className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-red-50 disabled:opacity-50 text-red-700 border border-red-200 text-xs font-black rounded-xl transition-all shadow-sm"
           >
-            <RotateCcw className="w-3.5 h-3.5 text-red-600" />
+            <RotateCcw className={`w-3.5 h-3.5 text-red-600 ${isClearing ? 'animate-spin' : ''}`} />
             <span>Resetar Ordens de Produção (OPs)</span>
           </button>
 

@@ -356,11 +356,12 @@ export class StorageService {
   }
 
   /**
-   * Apaga todas as Ordens de Produção e o histórico de corte, devolvendo ao
-   * estoque (status 'Disponível') as bobinas que haviam sido consumidas por
-   * essas OPs — como se o corte nunca tivesse acontecido.
+   * Apaga todas as Ordens de Produção e o histórico de corte — local e no
+   * Firestore —, devolvendo ao estoque (status 'Disponível') as bobinas que
+   * haviam sido consumidas por essas OPs, como se o corte nunca tivesse
+   * acontecido.
    */
-  static resetAllOrders(): void {
+  static async resetAllOrders(): Promise<void> {
     const orders = this.getOrders();
     const consumedCoilIds = new Set(
       orders.flatMap(o => (o.bobinas?.length ? o.bobinas.map(b => b.coilId) : [o.bobinaId]))
@@ -374,6 +375,11 @@ export class StorageService {
     this.saveOrders([]);
     this.historyCache = [];
     localStorage.setItem(STORAGE_KEYS.CUT_HISTORY, JSON.stringify([]));
+
+    await Promise.all([
+      FirestoreService.clearCollection('slitters'),
+      FirestoreService.clearCollection('historico_cortes')
+    ]);
   }
 
   /**
@@ -386,9 +392,11 @@ export class StorageService {
    * de demanda" e não mudam a cada pedido.
    * Uso: preparar o ambiente para receber dados reais de produtos/demanda e
    * estoque via Importador Excel ou cadastro manual, e testar o sistema em
-   * condições reais, sem nenhum número inventado misturado.
+   * condições reais, sem nenhum número inventado misturado. Limpa tanto o
+   * localStorage quanto as coleções espelhadas no Firestore (bobinas,
+   * produtos, slitters/OPs, histórico de cortes e feedback da IA).
    */
-  static clearForRealTesting(): void {
+  static async clearForRealTesting(): Promise<void> {
     this.productsCache = [];
     this.coilsCache = [];
     this.ordersCache = [];
@@ -401,6 +409,14 @@ export class StorageService {
     localStorage.setItem(STORAGE_KEYS.CUT_HISTORY, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.SLITTER_INTERMEDIARY, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.AI_FEEDBACK, JSON.stringify([]));
+
+    await Promise.all([
+      FirestoreService.clearCollection('bobinas'),
+      FirestoreService.clearCollection('produtos'),
+      FirestoreService.clearCollection('slitters'),
+      FirestoreService.clearCollection('historico_cortes'),
+      FirestoreService.clearCollection('ai_feedback')
+    ]);
   }
 
   // Reset to initial demo database
