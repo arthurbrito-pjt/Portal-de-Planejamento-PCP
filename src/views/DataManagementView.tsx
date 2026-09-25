@@ -90,9 +90,8 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
       if (type === 'coils') {
         const importedCoils = ExcelService.parseCoilsFile(buffer);
         if (importedCoils.length > 0) {
-          const current = StorageService.getCoils();
-          StorageService.saveCoils([...importedCoils, ...current]);
-          setImportStatus(`Sucesso! ${importedCoils.length} bobinas importadas.`);
+          importedCoils.forEach(c => StorageService.addCoil(c));
+          setImportStatus(`Sucesso! ${importedCoils.length} bobinas importadas/atualizadas.`);
           onDataUpdated();
         } else {
           setImportStatus('Nenhuma bobina válida identificada no arquivo.');

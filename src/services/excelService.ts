@@ -39,6 +39,20 @@ function extractTuboTipo(desc: string): 'RD' | 'QD' | 'RT' | null {
   return m ? (m[1].toUpperCase() as 'RD' | 'QD' | 'RT') : null;
 }
 
+// Extrai espessura + largura de descrições de bobina/slitter do ERP, ex:
+// "BOB 1010 1.20 X 1000MM NAC." -> [1.20, 1000]
+// "BOB LQ 250/350MPa 1.50X1200MM-LISTA" -> [1.50, 1200]
+// "SLITTER 1,50 X 298" -> [1.50, 298]
+// Aceita "." ou "," como separador decimal e "X" com ou sem espaços.
+function extractCoilDims(desc: string): [number, number] | null {
+  const m = desc.match(/(\d+(?:[.,]\d+)?)\s*[Xx]\s*(\d+(?:[.,]\d+)?)/);
+  if (!m) return null;
+  const espessura = parseFloat(m[1].replace(',', '.'));
+  const largura = parseFloat(m[2].replace(',', '.'));
+  if (Number.isNaN(espessura) || Number.isNaN(largura)) return null;
+  return [espessura, largura];
+}
+
 function inferFamilia(codigo: string, descricao: string): 'TUBO' | 'PERFIL' | null {
   const c = codigo.toUpperCase();
   if (c.startsWith('PRF') || c.startsWith('PMG')) return 'PERFIL';
@@ -53,6 +67,16 @@ export class ExcelService {
   /**
    * Parse uploaded Excel file for Coils
    */
+  /**
+   * Parse uploaded Excel file for Coils.
+   *
+   * O ERP exporta o estoque de bobinas em formatos diferentes dependendo do
+   * relatório do BI usado ("LOTE.xlsx": um lote/batch físico por linha;
+   * "ESTOQUE.xlsx": mesmo dado agregado por item+subinventário, sem lote;
+   * "data(N).xlsx": catálogo completo do item com saldo total da planta) —
+   * nenhum deles tem colunas separadas de Espessura/Largura, essas dimensões
+   * vêm embutidas no texto da Descrição (ex: "BOB 1010 1.20 X 1000MM NAC.").
+   */
   static parseCoilsFile(fileBuffer: ArrayBuffer): Coil[] {
     const workbook = XLSX.read(fileBuffer, { type: 'array' });
     const sheetName = workbook.SheetNames[0];
@@ -62,38 +86,53 @@ export class ExcelService {
     if (rows.length < 2) return [];
 
     const coils: Coil[] = [];
-    const header = (rows[0] as any[]).map(c => String(c).toLowerCase().trim());
-    
-    // Find column indexes
+    const header = (rows[0] as any[]).map(c => String(c ?? '').toLowerCase().trim());
+
     const idxCodigo = header.findIndex(h => h.includes('item') || h.includes('codigo') || h.includes('cód'));
+    const idxDesc = header.findIndex(h => h.includes('descr'));
     const idxLote = header.findIndex(h => h.includes('lote'));
-    const idxEsp = header.findIndex(h => h.includes('esp'));
-    const idxLarg = header.findIndex(h => h.includes('larg') || h.includes('bobina'));
-    const idxPeso = header.findIndex(h => h.includes('peso') || h.includes('saldo') || h.includes('ton'));
+    const idxSubinv = header.findIndex(h => h.includes('subinv'));
+    // "Saldo disponível/disponivel" é o quanto realmente pode ser usado (já
+    // descontando reservas); prioriza sobre "Saldo Em Estoque"/"Contábil".
+    const idxPesoFinal = header.findIndex(h => h.includes('dispon')) >= 0
+      ? header.findIndex(h => h.includes('dispon'))
+      : header.findIndex(h => h.includes('saldo') || h.includes('contáb') || h.includes('contab'));
+
+    if (idxCodigo < 0 || idxPesoFinal < 0) return [];
 
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i] as any[];
       if (!row || row.length === 0) continue;
 
-      const codigo = idxCodigo >= 0 ? String(row[idxCodigo] || '').trim() : `BOB-${i}`;
-      const lote = idxLote >= 0 ? String(row[idxLote] || '').trim() : `LOTE-${i}`;
-      const espessura = idxEsp >= 0 ? Number(parseFloat(String(row[idxEsp]).replace(',', '.')) || 0) : 0;
-      const largura = idxLarg >= 0 ? Number(parseFloat(String(row[idxLarg]).replace(',', '.')) || 0) : 0;
-      const peso = idxPeso >= 0 ? Number(parseFloat(String(row[idxPeso]).replace(',', '.')) || 0) : 0;
+      const codigo = String(row[idxCodigo] ?? '').trim();
+      if (!codigo || !/^[A-Za-z]{2,6}\d/.test(codigo)) continue;
 
-      if (largura > 0 && espessura > 0) {
-        coils.push({
-          id: `COIL_IMP_${Date.now()}_${i}`,
-          codigo: codigo || `BQN-${Math.round(espessura * 1000)}`,
-          lote: lote || `LOT-${i}`,
-          espessura,
-          largura,
-          peso: peso || 10.0,
-          quantidade: 1,
-          status: 'Disponível',
-          dataRecebimento: new Date().toISOString().split('T')[0]
-        });
-      }
+      const descricao = idxDesc >= 0 ? String(row[idxDesc] ?? '').trim() : '';
+      const peso = Number(parseFloat(String(row[idxPesoFinal] ?? '0').replace(',', '.')) || 0);
+      if (peso <= 0) continue;
+
+      const dims = extractCoilDims(descricao);
+      if (!dims) continue;
+      const [espessura, largura] = dims;
+      if (espessura <= 0 || largura <= 0) continue;
+
+      const lote = idxLote >= 0
+        ? String(row[idxLote] ?? '').trim() || `LOTE-${i}`
+        : idxSubinv >= 0
+          ? `${codigo}-${String(row[idxSubinv] ?? '').trim() || i}`
+          : codigo;
+
+      coils.push({
+        id: `COIL_IMP_${codigo}_${lote}`,
+        codigo,
+        lote,
+        espessura,
+        largura,
+        peso,
+        quantidade: 1,
+        status: 'Disponível',
+        dataRecebimento: new Date().toISOString().split('T')[0]
+      });
     }
 
     return coils;
