@@ -2,6 +2,53 @@ import * as XLSX from 'xlsx';
 import { Coil, Product, SlitterOrder } from '../types/pcp';
 import { SlitterCatalogService } from './slitterCatalogService';
 
+export interface ProductImportResult {
+  products: Product[]; // produtos novos ou com demanda atualizada, prontos para StorageService.addProduct
+  naoEncontrados: { codigo: string; descricao: string; qtd: number }[]; // sem espessura/largura reconhecível — precisam de cadastro manual
+}
+
+// Nome da aba de demanda varia entre as planilhas recebidas mensalmente
+// ("prog im", "Prog_IM", "prog_im", "prog, IM"...) mas é sempre a mesma sigla.
+// Normaliza removendo acentos, espaços e pontuação para casar qualquer variação.
+function normalizeSheetName(name: string): string {
+  return name
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z]/g, '');
+}
+
+function findProgImSheet(sheetNames: string[]): string | null {
+  return sheetNames.find(n => normalizeSheetName(n) === 'progim') || null;
+}
+
+// Extrai espessura + dimensões de uma descrição de produto, ex:
+// "PERFIL U ENRIJ LQ 2,00 X 100 X 40 X 17 MM" -> [2.00, 100, 40, 17]
+// "TUBO IND LQ RD 1,50 X 48,30 NBR6591" -> [1.50, 48.30]
+// O primeiro número é sempre a espessura; os demais são as dimensões do perfil/tubo.
+function extractDimsSegment(desc: string): number[] | null {
+  const m = desc.match(/(\d+(?:,\d+)?(?:\s*[Xx]\s*\d+(?:,\d+)?)+)/);
+  if (!m) return null;
+  const tokens = m[1].split(/[Xx]/).map(t => parseFloat(t.trim().replace(',', '.')));
+  return tokens.some(Number.isNaN) ? null : tokens;
+}
+
+// Formato do tubo (RD=redondo, QD=quadrado, RT=retangular), indicado na
+// descrição logo antes da espessura, ex: "TUBO IND LQ RD 1,50 X 48,30 NBR6591".
+function extractTuboTipo(desc: string): 'RD' | 'QD' | 'RT' | null {
+  const m = desc.match(/\b(RD|QD|RT)\b/i);
+  return m ? (m[1].toUpperCase() as 'RD' | 'QD' | 'RT') : null;
+}
+
+function inferFamilia(codigo: string, descricao: string): 'TUBO' | 'PERFIL' | null {
+  const c = codigo.toUpperCase();
+  if (c.startsWith('PRF') || c.startsWith('PMG')) return 'PERFIL';
+  if (c.startsWith('TBI') || c.startsWith('TBZ')) return 'TUBO';
+  const d = descricao.toUpperCase();
+  if (d.includes('PERFIL')) return 'PERFIL';
+  if (d.includes('TUBO')) return 'TUBO';
+  return null;
+}
+
 export class ExcelService {
   /**
    * Parse uploaded Excel file for Coils
@@ -53,54 +100,91 @@ export class ExcelService {
   }
 
   /**
-   * Parse uploaded Excel file for Products & Demand
+   * Parse uploaded Excel file for Products & Demand.
+   *
+   * Lê especificamente a aba "PROG IM" (nome varia entre planilhas: "prog im",
+   * "Prog_IM", "prog_im", "prog, IM"...), que traz a demanda mensal com colunas
+   * Item / Descrição / Data / Fornecedor / Qtd — Qtd já em toneladas.
+   *
+   * Itens cujo código já existe no cadastro (`existingProducts`) têm a demanda
+   * atualizada mantendo os demais dados cadastrados. Itens novos têm espessura
+   * e largura de fita derivadas da própria descrição via catálogo oficial de
+   * slitters (perfil); quando não é possível derivar com segurança (ex: tubos
+   * ainda sem o catálogo de blanks digitalizado), o item vai para
+   * `naoEncontrados` em vez de entrar com dados inventados.
    */
-  static parseProductsFile(fileBuffer: ArrayBuffer): Product[] {
+  static parseProductsFile(fileBuffer: ArrayBuffer, existingProducts: Product[] = []): ProductImportResult {
     const workbook = XLSX.read(fileBuffer, { type: 'array' });
-    const sheetName = workbook.SheetNames[0];
+    const sheetName = findProgImSheet(workbook.SheetNames);
+    if (!sheetName) return { products: [], naoEncontrados: [] };
+
     const worksheet = workbook.Sheets[sheetName];
     const rows = XLSX.utils.sheet_to_json<any>(worksheet, { header: 1 });
+    if (rows.length < 2) return { products: [], naoEncontrados: [] };
 
-    if (rows.length < 2) return [];
+    const header = (rows[0] as any[]).map(c => String(c ?? '').toLowerCase().trim());
+    const idxItem = header.findIndex(h => h.includes('item') || h.includes('cód') || h.includes('cod'));
+    const idxDesc = header.findIndex(h => h.includes('descr'));
+    const idxQtd = header.findIndex(h => h.includes('qtd') || h.includes('quant'));
+    if (idxItem < 0 || idxQtd < 0) return { products: [], naoEncontrados: [] };
 
     const products: Product[] = [];
-    const header = (rows[0] as any[]).map(c => String(c).toLowerCase().trim());
-
-    const idxTipo = header.findIndex(h => h.includes('tipo') || h.includes('fam'));
-    const idxCodigo = header.findIndex(h => h.includes('cód') || h.includes('item') || h.includes('cod'));
-    const idxDesc = header.findIndex(h => h.includes('desc') || h.includes('prod'));
-    const idxEsp = header.findIndex(h => h.includes('esp'));
-    const idxLarg = header.findIndex(h => h.includes('larg') || h.includes('fita') || h.includes('blank'));
-    const idxDem = header.findIndex(h => h.includes('dem') || h.includes('ton') || h.includes('qtd') || h.includes('prog'));
+    const naoEncontrados: ProductImportResult['naoEncontrados'] = [];
 
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i] as any[];
       if (!row || row.length === 0) continue;
 
-      const tipoStr = idxTipo >= 0 ? String(row[idxTipo] || '').toUpperCase() : '';
-      const codigo = idxCodigo >= 0 ? String(row[idxCodigo] || '').trim() : `PRD-${i}`;
-      const desc = idxDesc >= 0 ? String(row[idxDesc] || '').trim() : `Produto ${i}`;
-      const espessura = idxEsp >= 0 ? Number(parseFloat(String(row[idxEsp]).replace(',', '.')) || 0) : 0;
-      const larguraFita = idxLarg >= 0 ? Number(parseFloat(String(row[idxLarg]).replace(',', '.')) || 0) : 0;
-      const demandaT = idxDem >= 0 ? Number(parseFloat(String(row[idxDem]).replace(',', '.')) || 0) : 0;
+      const codigo = String(row[idxItem] ?? '').trim();
+      if (!codigo) continue;
+      const descricao = idxDesc >= 0 ? String(row[idxDesc] ?? '').trim() : '';
+      const qtd = Number(parseFloat(String(row[idxQtd] ?? '0').replace(',', '.')) || 0);
 
-      const familia = tipoStr.includes('PERFIL') || desc.toUpperCase().includes('PERFIL') ? 'PERFIL' : 'TUBO';
+      const existing = existingProducts.find(p => p.codigo === codigo);
 
-      if (larguraFita > 0 && espessura > 0) {
+      // Algumas planilhas têm um bloco de totais/resumo logo abaixo da tabela
+      // de itens (ex: "Total solicitações...", "Máquina/Ferramental", contagem
+      // por ferramental) que cai nas mesmas colunas — não é um código de item
+      // real (letras+números) e/ou não tem quantidade, então é seguro descartar.
+      if (!existing && (!descricao || qtd === 0 || !/^[A-Za-z]{2,6}\d/.test(codigo))) continue;
+
+      if (existing) {
+        products.push({ ...existing, descricao: descricao || existing.descricao, demandaT: qtd });
+        continue;
+      }
+
+      const familia = inferFamilia(codigo, descricao);
+      const dims = descricao ? extractDimsSegment(descricao) : null;
+      const espessura = dims && dims.length > 0 ? dims[0] : 0;
+      let larguraFita: number | null = null;
+      if (dims && dims.length > 1 && espessura > 0) {
+        if (familia === 'PERFIL') {
+          larguraFita = SlitterCatalogService.findPerfilBlankByDims(dims.slice(1), espessura);
+        } else if (familia === 'TUBO') {
+          const tipo = extractTuboTipo(descricao);
+          if (tipo) {
+            larguraFita = SlitterCatalogService.findTuboBlankByDims(tipo, dims.slice(1), espessura);
+          }
+        }
+      }
+
+      if (familia && espessura > 0 && larguraFita) {
         products.push({
-          id: `PROD_IMP_${Date.now()}_${i}`,
+          id: `PROD_IMP_${codigo}`,
           codigo,
-          descricao: desc,
+          descricao: descricao || codigo,
           tipo: familia,
           espessura,
           larguraFita,
-          demandaT: demandaT || 0,
+          demandaT: qtd,
           familia
         });
+      } else {
+        naoEncontrados.push({ codigo, descricao, qtd });
       }
     }
 
-    return products;
+    return { products, naoEncontrados };
   }
 
   /**

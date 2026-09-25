@@ -26,8 +26,14 @@
  * Veja o README.md na raiz do projeto para instruções completas.
  */
 
-const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
+const admin = require('firebase-admin');
+
+if (!admin.apps.length) {
+  admin.initializeApp();
+  admin.firestore().settings({ ignoreUndefinedProperties: true });
+}
 const logger = require('firebase-functions/logger');
 
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
@@ -315,3 +321,175 @@ exports.aiAgentAssistant = onCall(
     return { geradoEm: new Date().toISOString(), mode, provider: providerKey, ...parsed };
   }
 );
+
+/**
+ * ---------------------------------------------------------------------------
+ * Ingestão automática de dados — Portal de Planejamento PCP
+ * ---------------------------------------------------------------------------
+ * Duas APIs HTTP que substituem o upload manual de planilha: a fonte de dados
+ * chama diretamente esse endpoint (via macro VBA na planilha de programação,
+ * ou via Power Automate lendo o dataset do Power BI) e os dados já aparecem
+ * no Portal, sem passar por e-mail nem por tela de importação.
+ *
+ * Autenticação: header "x-api-key" comparado contra o secret IMPORT_API_KEY.
+ * Configure com:
+ *   firebase functions:secrets:set IMPORT_API_KEY
+ * (gere uma chave aleatória longa, ex: openssl rand -hex 32, e guarde uma
+ * cópia seja no cofre de senhas da empresa — ela vai para dentro da macro do
+ * Excel e do fluxo do Power Automate).
+ */
+
+const { resolveProgImItem } = require('./shared/progImParser');
+
+const IMPORT_API_KEY = defineSecret('IMPORT_API_KEY');
+
+function checkApiKey(req, res) {
+  const provided = req.get('x-api-key');
+  if (!provided || provided !== IMPORT_API_KEY.value()) {
+    res.status(401).json({ error: 'API key ausente ou inválida (header x-api-key).' });
+    return false;
+  }
+  return true;
+}
+
+async function commitInChunks(db, buildOps, refs) {
+  const CHUNK = 400; // margem de segurança abaixo do limite de 500 do Firestore
+  for (let i = 0; i < refs.length; i += CHUNK) {
+    const batch = db.batch();
+    refs.slice(i, i + CHUNK).forEach(ref => buildOps(batch, ref));
+    await batch.commit();
+  }
+}
+
+/**
+ * POST /importProgIm
+ * Body: { "linha": "PERFIL_3MM" | "PERFIL_475MM" | "TUBO_MARAFON" | "TUBO_ZIKELI",
+ *         "itens": [{ "codigo": "PRF10005", "descricao": "...", "qtd": 16 }, ...] }
+ *
+ * Espelha a lógica de src/services/excelService.ts::parseProductsFile: item já
+ * cadastrado só tem a demanda atualizada; item novo tem espessura/largura de
+ * fita derivadas da descrição via catálogo oficial (perfil ou tubo); o que não
+ * dá pra resolver com segurança vai para "importPendencias" em vez de entrar
+ * com dado inventado.
+ */
+exports.importProgIm = onRequest({ secrets: [IMPORT_API_KEY], region: 'us-central1', cors: true }, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST' });
+  if (!checkApiKey(req, res)) return;
+
+  const { linha, itens } = req.body || {};
+  if (!Array.isArray(itens)) return res.status(400).json({ error: 'Campo "itens" deve ser um array' });
+
+  const db = admin.firestore();
+
+  const codigos = [...new Set(itens.map(i => String(i.codigo || '').trim()).filter(Boolean))];
+  const existingByCodigo = {};
+  for (let i = 0; i < codigos.length; i += 10) {
+    const chunk = codigos.slice(i, i + 10);
+    if (chunk.length === 0) continue;
+    const snap = await db.collection('produtos').where('codigo', 'in', chunk).get();
+    snap.forEach(d => { existingByCodigo[d.data().codigo] = { ...d.data(), id: d.id }; });
+  }
+
+  const resolved = [];
+  const pendentes = [];
+  let atualizados = 0;
+  let novos = 0;
+
+  for (const raw of itens) {
+    const codigo = String(raw.codigo || '').trim();
+    if (!codigo) continue;
+    const descricao = String(raw.descricao || '').trim();
+    const qtd = Number(raw.qtd) || 0;
+    const existing = existingByCodigo[codigo] || null;
+
+    const { product, pendente } = resolveProgImItem(codigo, descricao, qtd, existing);
+    if (product) {
+      resolved.push(product);
+      existing ? atualizados++ : novos++;
+    } else if (pendente) {
+      pendentes.push(pendente);
+    }
+  }
+
+  await commitInChunks(db, (batch, product) => batch.set(db.collection('produtos').doc(product.id), product, { merge: true }), resolved);
+
+  if (pendentes.length > 0) {
+    await db.collection('importPendencias').add({
+      linha: linha || 'DESCONHECIDA',
+      recebidoEm: admin.firestore.FieldValue.serverTimestamp(),
+      itens: pendentes
+    });
+  }
+
+  res.status(200).json({ atualizados, novos, pendentes: pendentes.length, pendentesDetalhe: pendentes });
+});
+
+/**
+ * POST /importEstoque
+ * Body: { "tipo": "bobina", "itens": [{ "codigo", "lote", "espessura", "largura", "peso", "fornecedor"?, "localizacao"? }, ...] }
+ *   ou: { "tipo": "slitter", "itens": [{ "codigoSlitter", "nomeSlitter"?, "larguraFita", "espessura", "pesoDisponivelTon", "metrosLineares", "dataCorte"?, "loteOrigem"?, "localizacao"?, "familiaDestino"? }, ...] }
+ *
+ * Assume que cada envio é o SNAPSHOT COMPLETO do estoque atual (como o BI/ERP
+ * normalmente exporta) — substitui inteiramente a coleção correspondente em
+ * vez de mesclar, para que itens já consumidos no ERP não fiquem "fantasmas"
+ * no Portal. Se a origem passar a enviar deltas em vez de snapshot completo,
+ * essa semântica precisa mudar.
+ */
+exports.importEstoque = onRequest({ secrets: [IMPORT_API_KEY], region: 'us-central1', cors: true }, async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST' });
+  if (!checkApiKey(req, res)) return;
+
+  const { tipo, itens } = req.body || {};
+  if (tipo !== 'bobina' && tipo !== 'slitter') return res.status(400).json({ error: 'Campo "tipo" deve ser "bobina" ou "slitter"' });
+  if (!Array.isArray(itens)) return res.status(400).json({ error: 'Campo "itens" deve ser um array' });
+
+  const db = admin.firestore();
+  const collectionName = tipo === 'bobina' ? 'bobinas' : 'estoque_slitter_intermediario';
+
+  const existingSnap = await db.collection(collectionName).get();
+  await commitInChunks(db, (batch, ref) => batch.delete(ref), existingSnap.docs.map(d => d.ref));
+
+  const docs = [];
+  let seq = 0;
+  for (const raw of itens) {
+    if (tipo === 'bobina') {
+      const codigo = String(raw.codigo || '').trim();
+      const lote = String(raw.lote || '').trim();
+      if (!codigo || !lote) continue;
+      docs.push({
+        id: `COIL_${codigo}_${lote}`,
+        codigo,
+        lote,
+        espessura: Number(raw.espessura) || 0,
+        largura: Number(raw.largura) || 0,
+        peso: Number(raw.peso) || 0,
+        quantidade: Number(raw.quantidade) || 1,
+        status: raw.status || 'Disponível',
+        dataRecebimento: raw.dataRecebimento || new Date().toISOString().split('T')[0],
+        fornecedor: raw.fornecedor,
+        localizacao: raw.localizacao
+      });
+    } else {
+      const codigoSlitter = String(raw.codigoSlitter || '').trim();
+      if (!codigoSlitter) continue;
+      seq++;
+      docs.push({
+        id: `SLTWIP_${codigoSlitter}_${seq}`,
+        codigoSlitter,
+        nomeSlitter: raw.nomeSlitter || codigoSlitter,
+        larguraFita: Number(raw.larguraFita) || 0,
+        espessura: Number(raw.espessura) || 0,
+        pesoDisponivelTon: Number(raw.pesoDisponivelTon) || 0,
+        metrosLineares: Number(raw.metrosLineares) || 0,
+        dataCorte: raw.dataCorte || new Date().toISOString().split('T')[0],
+        loteOrigem: raw.loteOrigem || '',
+        localizacao: raw.localizacao,
+        familiaDestino: raw.familiaDestino
+      });
+    }
+  }
+
+  await commitInChunks(db, (batch, doc) => batch.set(db.collection(collectionName).doc(doc.id), doc), docs);
+
+  res.status(200).json({ importados: docs.length, tipo });
+});

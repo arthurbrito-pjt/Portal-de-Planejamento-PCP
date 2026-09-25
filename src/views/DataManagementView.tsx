@@ -98,14 +98,19 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
           setImportStatus('Nenhuma bobina válida identificada no arquivo.');
         }
       } else {
-        const importedProducts = ExcelService.parseProductsFile(buffer);
+        const current = StorageService.getProducts();
+        const { products: importedProducts, naoEncontrados } = ExcelService.parseProductsFile(buffer, current);
         if (importedProducts.length > 0) {
-          const current = StorageService.getProducts();
-          StorageService.saveProducts([...importedProducts, ...current]);
-          setImportStatus(`Sucesso! ${importedProducts.length} produtos importados.`);
-          onDataUpdated();
+          importedProducts.forEach(p => StorageService.addProduct(p));
+        }
+        if (importedProducts.length === 0 && naoEncontrados.length === 0) {
+          setImportStatus('Aba "PROG IM" não encontrada ou vazia no arquivo.');
         } else {
-          setImportStatus('Nenhum produto válido identificado no arquivo.');
+          const avisoNaoEncontrados = naoEncontrados.length > 0
+            ? ` ${naoEncontrados.length} item(ns) sem largura/espessura reconhecível (cadastre em Ferramentais): ${naoEncontrados.slice(0, 5).map(n => n.codigo).join(', ')}${naoEncontrados.length > 5 ? '...' : ''}.`
+            : '';
+          setImportStatus(`Sucesso! ${importedProducts.length} produtos importados/atualizados.${avisoNaoEncontrados}`);
+          onDataUpdated();
         }
       }
     } catch (err: any) {

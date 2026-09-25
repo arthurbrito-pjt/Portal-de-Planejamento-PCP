@@ -1,5 +1,6 @@
 import { Product } from '../types/pcp';
 import { StorageService } from './storageService';
+import { TUBO_WIDTH_TABLE } from '../data/tuboWidthTable';
 
 export interface SlitterCatalogItem {
   code: string;
@@ -888,7 +889,75 @@ function findInCatalog<T extends { blank: number; espessura?: number; desc: stri
   return candidates.reduce((best, c) => Math.abs(c.blank - larguraFita) < Math.abs(best.blank - larguraFita) ? c : best);
 }
 
+// Extrai dimensões + espessura de uma descrição de catálogo de slitter, ex:
+// "SLITTER 75 x 40 x 15 x 1,80MM" -> { dims: [75, 40, 15], espessura: 1.8 }
+// A espessura é sempre o último token (contém "MM" colado ou não) e os
+// demais tokens, na ordem, são as dimensões do blank (largura x aba x ...).
+function parseCatalogDesc(desc: string): { dims: number[]; espessura: number } | null {
+  // Usa \S+ (não "SLITTER" literal) no prefixo porque o catálogo tem entradas
+  // com erro de digitação (ex: "SLIITTER 75 x 40 x 1,95MM").
+  const m = desc.match(/^\S+\s+([\d,\sXx]+)MM/i);
+  if (!m) return null;
+  const tokens = m[1].split(/[Xx]/).map(t => t.trim()).filter(Boolean);
+  if (tokens.length < 2) return null;
+  const espessura = parseFloat(tokens[tokens.length - 1].replace(',', '.'));
+  const dims = tokens.slice(0, -1).map(t => parseFloat(t.replace(',', '.')));
+  if (Number.isNaN(espessura) || dims.some(Number.isNaN)) return null;
+  return { dims, espessura };
+}
+
 export class SlitterCatalogService {
+  /**
+   * Deriva a largura de fita (blank) de um PERFIL a partir das dimensões do
+   * produto (ex: [75, 40, 15] para "75 X 40 X 15 MM") e da espessura, casando
+   * contra PERFIL_SLITTERS_CATALOG. Usado pelo importador (ExcelService) para
+   * completar produtos novos vindos da aba PROG IM, que só trazem a descrição
+   * — nunca inventa um valor: retorna null quando não há correspondência.
+   */
+  static findPerfilBlankByDims(dims: number[], espessura: number): number | null {
+    for (const item of PERFIL_SLITTERS_CATALOG) {
+      const parsed = parseCatalogDesc(item.desc);
+      if (!parsed) continue;
+      if (Math.abs(parsed.espessura - espessura) > THICKNESS_TOLERANCE_MM) continue;
+      if (parsed.dims.length !== dims.length) continue;
+      const same = parsed.dims.every((d, i) => Math.abs(d - dims[i]) < WIDTH_TOLERANCE_MM);
+      if (same) return item.blank;
+    }
+    return null;
+  }
+
+  /**
+   * Deriva a largura de fita (blank) de um TUBO a partir do formato (RD =
+   * redondo, QD = quadrado, RT = retangular) e das dimensões lidas da
+   * descrição do produto, casando contra TUBO_WIDTH_TABLE ("Lagura dos
+   * slitters de Tubo"). RD casa pelo diâmetro; QD pelo par quadrado (lado a
+   * lado, ordem livre); RT por qualquer um dos pares retangulares da linha
+   * (uma mesma linha pode ter vários formatos retangulares equivalentes).
+   * Nunca inventa um valor: retorna null quando não há linha/espessura compatível.
+   */
+  static findTuboBlankByDims(tipo: 'RD' | 'QD' | 'RT', dims: number[], espessura: number): number | null {
+    const pairMatches = (pair: [number, number], target: number[]) =>
+      target.length === 2 &&
+      ((Math.abs(pair[0] - target[0]) < WIDTH_TOLERANCE_MM && Math.abs(pair[1] - target[1]) < WIDTH_TOLERANCE_MM) ||
+       (Math.abs(pair[0] - target[1]) < WIDTH_TOLERANCE_MM && Math.abs(pair[1] - target[0]) < WIDTH_TOLERANCE_MM));
+
+    for (const row of TUBO_WIDTH_TABLE) {
+      let rowMatches = false;
+      if (tipo === 'RD' && dims.length === 1) {
+        rowMatches = Math.abs(row.diamMm - dims[0]) < WIDTH_TOLERANCE_MM;
+      } else if (tipo === 'QD' && row.quadrado) {
+        rowMatches = pairMatches(row.quadrado, dims);
+      } else if (tipo === 'RT') {
+        rowMatches = row.retangular.some(p => pairMatches(p, dims));
+      }
+      if (!rowMatches) continue;
+
+      const espMatch = row.blanks.find(([esp]) => Math.abs(esp - espessura) < THICKNESS_TOLERANCE_MM);
+      if (espMatch) return espMatch[1];
+    }
+    return null;
+  }
+
   /**
    * Returns the real Slitter Code and Name for a given strip width and thickness.
    *
