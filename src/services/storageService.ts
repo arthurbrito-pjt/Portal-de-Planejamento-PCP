@@ -376,6 +376,33 @@ export class StorageService {
     localStorage.setItem(STORAGE_KEYS.CUT_HISTORY, JSON.stringify([]));
   }
 
+  /**
+   * Zera TODA a base operacional e de demanda de demonstração (bobinas de
+   * exemplo, catálogo de produtos/demanda de exemplo — com valores de
+   * demandaT fictícios das planilhas originais —, fitas intermediárias de
+   * exemplo, OPs, histórico de corte e feedback da IA acumulados em testes).
+   * Preserva apenas os Ferramentais (cadastro de equipamento físico real,
+   * já corrigido com os códigos oficiais das planilhas), que não são "dados
+   * de demanda" e não mudam a cada pedido.
+   * Uso: preparar o ambiente para receber dados reais de produtos/demanda e
+   * estoque via Importador Excel ou cadastro manual, e testar o sistema em
+   * condições reais, sem nenhum número inventado misturado.
+   */
+  static clearForRealTesting(): void {
+    this.productsCache = [];
+    this.coilsCache = [];
+    this.ordersCache = [];
+    this.historyCache = [];
+    this.intermediaryCache = [];
+    this.aiFeedbackCache = [];
+    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.COILS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.SLITTER_ORDERS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.CUT_HISTORY, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.SLITTER_INTERMEDIARY, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.AI_FEEDBACK, JSON.stringify([]));
+  }
+
   // Reset to initial demo database
   static resetToInitial(): void {
     this.productsCache = INITIAL_PRODUCTS;

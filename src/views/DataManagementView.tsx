@@ -204,6 +204,20 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
     }
   };
 
+  const handleClearForRealTesting = () => {
+    if (window.confirm(
+      'Isso vai apagar TODA a base de demonstração: bobinas, produtos/demanda (inclusive os valores de ' +
+      'demanda_t fictícios das planilhas de exemplo), fitas intermediárias, Ordens de Produção, histórico de ' +
+      'corte e feedback da IA — para você importar/cadastrar dados reais e testar o sistema de verdade. ' +
+      'Apenas o cadastro de Ferramentais (equipamento físico real, já corrigido com os códigos oficiais) ' +
+      'NÃO será apagado. Esta ação não pode ser desfeita. Continuar?'
+    )) {
+      StorageService.clearForRealTesting();
+      onDataUpdated();
+      setImportStatus('Base de demonstração apagada por completo. Importe sua planilha real de produtos/demanda e bobinas para começar a testar.');
+    }
+  };
+
   return (
     <div className="space-y-6 pb-16 animate-fadeIn">
       {/* Top Header */}
@@ -237,6 +251,14 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
             <span>Sincronizar Firebase</span>
+          </button>
+
+          <button
+            onClick={handleClearForRealTesting}
+            className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-red-50 text-red-700 border border-red-200 text-xs font-black rounded-xl transition-all shadow-sm"
+          >
+            <Database className="w-3.5 h-3.5 text-red-600" />
+            <span>Limpar Dados de Teste (Preparar Dados Reais)</span>
           </button>
 
           <button
