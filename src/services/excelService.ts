@@ -122,8 +122,16 @@ export class ExcelService {
           ? `${codigo}-${String(row[idxSubinv] ?? '').trim() || i}`
           : codigo;
 
+      // Um mesmo número de lote pode aparecer dividido entre subinventários
+      // diferentes (ex: parte em CALOGI/quarentena, parte já em PRODUCAO) —
+      // sem o subinventário no id, a segunda linha sobrescreveria a primeira
+      // no Firestore e perderíamos peso de estoque silenciosamente.
+      const idSuffix = idxLote >= 0 && idxSubinv >= 0
+        ? `${lote}_${String(row[idxSubinv] ?? '').trim() || i}`
+        : lote;
+
       coils.push({
-        id: `COIL_IMP_${codigo}_${lote}`,
+        id: `COIL_IMP_${codigo}_${idSuffix}`,
         codigo,
         lote,
         espessura,

@@ -115,6 +115,9 @@ export class StorageService {
     }
   }
 
+  // Grava só o produto alterado (local + Firestore) em vez de resalvar a
+  // lista inteira — importante ao adicionar em lote (ex: import de Excel com
+  // uma chamada por item), onde resalvar tudo a cada item vira O(n²).
   static addProduct(product: Product): void {
     const prods = this.getProducts();
     const existingIdx = prods.findIndex(p => p.id === product.id || p.codigo === product.codigo);
@@ -123,7 +126,9 @@ export class StorageService {
     } else {
       prods.unshift(product);
     }
-    this.saveProducts(prods);
+    this.productsCache = prods;
+    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(prods));
+    FirestoreService.saveProduct(product).catch(() => {});
   }
 
   // Ferramentais
@@ -154,7 +159,9 @@ export class StorageService {
     } else {
       items.unshift(item);
     }
-    this.saveFerramentais(items);
+    this.ferramentaisCache = items;
+    localStorage.setItem(STORAGE_KEYS.FERRAMENTAL, JSON.stringify(items));
+    FirestoreService.saveFerramental(item).catch(() => {});
   }
 
   // Estoque Intermediário de Slitter (fitas cortadas)
@@ -242,7 +249,9 @@ export class StorageService {
     } else {
       coils.unshift(coil);
     }
-    this.saveCoils(coils);
+    this.coilsCache = coils;
+    localStorage.setItem(STORAGE_KEYS.COILS, JSON.stringify(coils));
+    FirestoreService.saveCoil(coil).catch(() => {});
   }
 
   static updateCoilStatus(coilId: string, status: Coil['status']): void {
