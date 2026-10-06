@@ -9,7 +9,7 @@ import {
   SlitterIntermediaryItem
 } from '../types/pcp';
 import { SlitterOptimizer } from '../services/slitterOptimizer';
-import { ReadinessService } from '../services/readinessService';
+import { ReadinessService, SlitterProductionProgram } from '../services/readinessService';
 import { SlitterCatalogService } from '../services/slitterCatalogService';
 import { CoilCompatibilityService } from '../services/coilCompatibilityService';
 import { OrderBuilderService, OrderCoilInput } from '../services/orderBuilderService';
@@ -19,10 +19,9 @@ import { CoilCompatibilityBadge } from '../components/CoilCompatibilityBadge';
 import { MetricsBadge } from '../components/MetricsBadge';
 import { SlitterVisualizer } from '../components/SlitterVisualizer';
 import { StepIndicator } from '../components/StepIndicator';
-import { OpSuggestionCard } from '../components/OpSuggestionCard';
 import { PolicyAlertBar, PolicyAlert } from '../components/PolicyAlertBar';
+import { ProgramasSlitter } from './dashboard/ProgramasSlitter';
 import {
-  Search,
   CheckCircle2,
   AlertCircle,
   ArrowRight,
@@ -44,6 +43,8 @@ interface PlanningViewProps {
   onProceedToSimulation: (coil: Coil, strips: SlitterStrip[], combination?: SlitterCombination, allInputs?: OrderCoilInput[]) => void;
   onOrderCreated: (order: SlitterOrder) => void;
   onNavigateToDashboard?: () => void;
+  onOpenProgramSimulation: (program: SlitterProductionProgram) => void;
+  onOpenProgramOrder: (program: SlitterProductionProgram) => void;
 }
 
 const OPERADORES = ['João Silva', 'Maria Santos', 'Carlos Oliveira', 'Ana Pereira'];
@@ -58,16 +59,15 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   preSelectedProductId,
   onProceedToSimulation,
   onOrderCreated,
-  onNavigateToDashboard
+  onNavigateToDashboard,
+  onOpenProgramSimulation,
+  onOpenProgramOrder
 }) => {
   const [currentStep, setCurrentStep] = useState<number>(1);
 
   // Etapa A: Escolher o que produzir
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [productSearch, setProductSearch] = useState<string>('');
-  const [readinessFilter, setReadinessFilter] = useState<'PRONTO' | 'PARCIAL' | 'TODOS' | 'BLOQUEADO'>('PRONTO');
-  const [familyFilter, setFamilyFilter] = useState<'TODOS' | 'TUBO' | 'PERFIL'>('TODOS');
-  const [thicknessFilter, setThicknessFilter] = useState<string>('TODOS');
+  const [selectedDemandGroup, setSelectedDemandGroup] = useState<{ product: Product; demandaT: number }[]>([]);
 
   const [desiredQtyTon, setDesiredQtyTon] = useState<number>(10);
   const [showManualCoilPicker, setShowManualCoilPicker] = useState<boolean>(false);
@@ -88,13 +88,19 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   const [maquina, setMaquina] = useState<string>('');
   const [observacoes, setObservacoes] = useState<string>('');
 
-  const slitterDemands = useMemo(() => {
-    const list = ReadinessService.analyzeSlitters(products, coils, intermediarySlitters);
-    return ReadinessService.sortSlittersByReadiness(list);
-  }, [products, coils, intermediarySlitters]);
+  // "Combinações Otimizadas" — mesmo motor usado no Painel Geral: já cruza
+  // demanda (agrupada por ferramental), estoque de bobina e o melhor corte
+  // (dentre várias bobinas candidatas), em vez de só pré-visualizar a
+  // "melhor OP" de uma única bobina. Isso é mais correto porque mostra
+  // exatamente o que vai ser produzido — todos os materiais de destino já
+  // rateados por fita, não só o produto principal.
+  const slitterPrograms = useMemo(
+    () => ReadinessService.generateSlitterPrograms(products, coils, intermediarySlitters),
+    [products, coils, intermediarySlitters]
+  );
 
   const toolingAbc = useMemo(
-    () => ReadinessService.analyzeToolingABC(ferramentais, products),
+    () => ReadinessService.analyzeToolingABC(ferramentais, products, StorageService.getFerramentalHistorico()),
     [ferramentais, products]
   );
 
@@ -104,68 +110,23 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     return map;
   }, [toolingAbc]);
 
-  const prontoCount = slitterDemands.filter(r => r.status === 'PRONTO').length;
-  const parcialCount = slitterDemands.filter(r => r.status === 'PARCIAL').length;
-  const bloqueadoCount = slitterDemands.filter(r => r.status === 'BLOQUEADO').length;
-
   useEffect(() => {
     if (preSelectedProductId) {
       const p = products.find(prod => prod.id === preSelectedProductId || prod.codigo === preSelectedProductId);
       if (p) {
-        const item = slitterDemands.find(s => s.larguraFita === p.larguraFita && s.espessura === p.espessura);
+        const prog = slitterPrograms.find(sp => sp.mainProduct.id === p.id || sp.materialsProduced.some(m => m.product.id === p.id));
         setSelectedProduct(p);
-        setDesiredQtyTon(item?.effectiveDemandTon ?? item?.totalDemandaT ?? p.demandaT ?? 10);
-        if (item) {
-          setSelectedCoils(item.recommendedCoils || []);
-          setSelectedCombination(item.bestCombination || null);
+        setDesiredQtyTon(prog ? Number(prog.demandGroup.reduce((acc, g) => acc + g.demandaT, 0).toFixed(2)) : (p.demandaT ?? 10));
+        if (prog) {
+          setSelectedDemandGroup(prog.demandGroup);
+          setSelectedCoils([prog.coil]);
+          setSelectedCombination(prog.combination);
         }
         setCurrentStep(2);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preSelectedProductId, products, slitterDemands]);
-
-  const uniqueThicknesses = useMemo(() => {
-    const set = new Set<number>();
-    products.forEach(p => set.add(p.espessura));
-    return Array.from(set).sort((a, b) => a - b);
-  }, [products]);
-
-  const filteredSlitterDemands = useMemo(() => {
-    let list = slitterDemands;
-    if (readinessFilter !== 'TODOS') list = list.filter(r => r.status === readinessFilter);
-    if (familyFilter !== 'TODOS') list = list.filter(r => r.mainProduct.familia === familyFilter);
-    if (thicknessFilter !== 'TODOS') list = list.filter(r => r.espessura === Number(thicknessFilter));
-    if (productSearch.trim()) {
-      const q = productSearch.toLowerCase();
-      list = list.filter(r =>
-        r.codigoSlitter.toLowerCase().includes(q) ||
-        r.nomeSlitter.toLowerCase().includes(q) ||
-        `${r.larguraFita}`.includes(q)
-      );
-    }
-    return ReadinessService.sortSlittersByReadiness(list);
-  }, [slitterDemands, readinessFilter, familyFilter, thicknessFilter, productSearch]);
-
-  const handleAcceptSuggestion = (item: (typeof slitterDemands)[number]) => {
-    const effectiveQty = item.effectiveDemandTon ?? item.totalDemandaT ?? item.mainProduct.demandaT ?? 10;
-    const coilsToUse = item.recommendedCoils || [];
-    setSelectedProduct(item.mainProduct);
-    setDesiredQtyTon(effectiveQty);
-    setSelectedCoils(coilsToUse);
-    setSelectedCombination(item.bestCombination || null);
-    setShowManualCoilPicker(coilsToUse.length === 0 && !item.coveredByWipOnly);
-    setCurrentStep(2);
-  };
-
-  const handleCustomize = (item: (typeof slitterDemands)[number]) => {
-    setSelectedProduct(item.mainProduct);
-    setDesiredQtyTon(item.effectiveDemandTon ?? item.totalDemandaT ?? item.mainProduct.demandaT ?? 10);
-    setSelectedCoils([]);
-    setSelectedCombination(null);
-    setShowManualCoilPicker(true);
-    setCurrentStep(2);
-  };
+  }, [preSelectedProductId, products, slitterPrograms]);
 
   const rankedCoils = useMemo(() => {
     if (!selectedProduct) return [];
@@ -205,9 +166,10 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
       selectedCoil,
       compatibleProducts: products,
       minScrapMm: 10,
-      maxScrapAllowedMm: 18
+      maxScrapAllowedMm: 18,
+      demandSplitGroup: selectedDemandGroup
     });
-  }, [selectedProduct, selectedCoil, desiredQtyTon, products]);
+  }, [selectedProduct, selectedCoil, desiredQtyTon, products, selectedDemandGroup]);
 
   useEffect(() => {
     if (combinations.length > 0 && !selectedCombination) {
@@ -232,11 +194,12 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         selectedCoil: coil,
         compatibleProducts: products,
         minScrapMm: 10,
-        maxScrapAllowedMm: 18
+        maxScrapAllowedMm: 18,
+        demandSplitGroup: selectedDemandGroup
       });
       return combos[0] || null;
     });
-  }, [selectedProduct, selectedCoils, selectedCombination, desiredQtyTon, products]);
+  }, [selectedProduct, selectedCoils, selectedCombination, desiredQtyTon, products, selectedDemandGroup]);
 
   const coilCutInputs = useMemo((): OrderCoilInput[] => {
     return selectedCoils
@@ -282,8 +245,9 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     }
 
     if (matchedFerramental) {
+      const classeGiro = abcByFerramentalCodigo.get(matchedFerramental.codigo)?.classeGiro ?? matchedFerramental.classe;
       const foraDaPolitica = totalSelectedCoilsWeightTon < matchedFerramental.capacidadeMinimaT || totalSelectedCoilsWeightTon > matchedFerramental.capacidadeMaximaT;
-      if (matchedFerramental.classe === 'C' && totalSelectedCoilsWeightTon < matchedFerramental.capacidadeMinimaT) {
+      if (classeGiro === 'C' && totalSelectedCoilsWeightTon < matchedFerramental.capacidadeMinimaT) {
         alerts.push({
           id: 'abc-classe-c',
           tone: 'violet',
@@ -308,7 +272,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     }
 
     return alerts;
-  }, [selectedProduct, matchedFerramental, totalSelectedCoilsWeightTon]);
+  }, [selectedProduct, matchedFerramental, totalSelectedCoilsWeightTon, abcByFerramentalCodigo]);
 
   const handleSimulate = () => {
     if (coilCutInputs.length === 0) return;
@@ -338,106 +302,36 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         isStepEnabled={(num) => (num === 2 && !!selectedProduct) || (num === 3 && coilCutInputs.length > 0)}
       />
 
-      {/* ETAPA 1: Escolher o que Produzir */}
+      {/* ETAPA 1: Escolher o que Produzir — mesma tela de "Combinações Otimizadas" do Painel Geral */}
       {currentStep === 1 && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              {onNavigateToDashboard && (
-                <button
-                  onClick={onNavigateToDashboard}
-                  className="px-3 py-2 rounded-lg bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1.5 text-sm font-medium transition-colors"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>Voltar ao Painel</span>
-                </button>
-              )}
-              <div>
-                <h3 className="text-base font-semibold text-slate-900 tracking-tight">
-                  Etapa 1: Escolher o que Produzir
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  O sistema já calcula a melhor bobina e o melhor plano de corte — aceite em 1 clique ou personalize.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
-            {[
-              { id: 'PRONTO', label: 'Prontos para Produzir', count: prontoCount },
-              { id: 'PARCIAL', label: 'Parciais', count: parcialCount },
-              { id: 'TODOS', label: 'Todos os Slitters', count: slitterDemands.length },
-              { id: 'BLOQUEADO', label: 'Sem Bobina', count: bloqueadoCount }
-            ].map((f) => (
+          <div className="flex items-center gap-3">
+            {onNavigateToDashboard && (
               <button
-                key={f.id}
-                onClick={() => setReadinessFilter(f.id as any)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  readinessFilter === f.id ? 'bg-[#0B1F3A] text-white shadow-xs ring-1 ring-orange-500/50' : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
-                }`}
+                onClick={onNavigateToDashboard}
+                className="px-3 py-2 rounded-lg bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1.5 text-sm font-medium transition-colors"
               >
-                <span>{f.label}</span>
-                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${readinessFilter === f.id ? 'bg-orange-500 text-white font-black' : 'bg-slate-100 text-slate-600'}`}>
-                  {f.count}
-                </span>
+                <ArrowLeft className="w-4 h-4" />
+                <span>Voltar ao Painel</span>
               </button>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="relative sm:col-span-1">
-              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Buscar por código ou descrição do slitter..."
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0B1F3A]/20 focus:border-[#0B1F3A]"
-              />
+            )}
+            <div>
+              <h3 className="text-base font-semibold text-slate-900 tracking-tight">
+                Combinações Otimizadas por Ferramental
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Melhor bobina e plano de corte já calculados para cada ferramental, com todos os materiais de destino.
+              </p>
             </div>
-
-            <select
-              value={thicknessFilter}
-              onChange={(e) => setThicknessFilter(e.target.value)}
-              className="py-2 px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0B1F3A]/20 focus:border-[#0B1F3A]"
-            >
-              <option value="TODOS">Todas as Espessuras</option>
-              {uniqueThicknesses.map(th => (
-                <option key={th} value={th}>{th} mm</option>
-              ))}
-            </select>
-
-            <select
-              value={familyFilter}
-              onChange={(e) => setFamilyFilter(e.target.value as any)}
-              className="py-2 px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0B1F3A]/20 focus:border-[#0B1F3A]"
-            >
-              <option value="TODOS">Todas as Famílias</option>
-              <option value="TUBO">TUBO</option>
-              <option value="PERFIL">PERFIL</option>
-            </select>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[560px] overflow-y-auto pr-1">
-            {filteredSlitterDemands.map((item) => {
-              const abc = abcByFerramentalCodigo.get(item.codigoSlitter);
-              const wipTon = CoilCompatibilityService.getIntermediaryStockTon(item.mainProduct, intermediarySlitters);
-
-              return (
-                <OpSuggestionCard
-                  key={item.id}
-                  item={item}
-                  wipAvailableTon={wipTon}
-                  ferramentalClasse={abc?.ferramental.classe}
-                  ferramentalPronta={abc?.prontaParaSetup}
-                  ferramentalStatusAcumulo={abc?.statusAcumulo}
-                  onAccept={() => handleAcceptSuggestion(item)}
-                  onCustomize={() => handleCustomize(item)}
-                />
-              );
-            })}
-          </div>
+          <ProgramasSlitter
+            products={products}
+            coils={coils}
+            intermediarySlitters={intermediarySlitters}
+            onOpenProgramSimulation={onOpenProgramSimulation}
+            onOpenProgramOrder={onOpenProgramOrder}
+          />
         </div>
       )}
 
@@ -493,7 +387,13 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                   {selectedCoils.map(c => (
                     <span key={c.id} className="text-xs text-slate-500 font-mono">Lote {c.lote} ({c.peso}t)</span>
                   ))}
-                  {matchedFerramental && <MetricsBadge type="ferramental_abc" value={matchedFerramental.classe} size="sm" />}
+                  {matchedFerramental && (
+                    <MetricsBadge
+                      type="ferramental_abc"
+                      value={abcByFerramentalCodigo.get(matchedFerramental.codigo)?.classeGiro ?? matchedFerramental.classe}
+                      size="sm"
+                    />
+                  )}
                 </div>
                 <button
                   type="button"

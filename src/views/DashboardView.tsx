@@ -20,11 +20,10 @@ import {
 import { SlitterProductionProgram } from '../services/readinessService';
 import { DashboardHome } from './dashboard/DashboardHome';
 import { AgendaTresDias } from './dashboard/AgendaTresDias';
-import { ProgramasSlitter } from './dashboard/ProgramasSlitter';
 import { FerramentalAbc } from './dashboard/FerramentalAbc';
 import { ProntidaoDemanda } from './dashboard/ProntidaoDemanda';
 
-export type DashboardSubview = 'agenda-3-dias' | 'programas-slitter' | 'ferramental-abc' | 'prontidao-demanda';
+export type DashboardSubview = 'agenda-3-dias' | 'ferramental-abc' | 'prontidao-demanda';
 
 interface DashboardViewProps {
   kpis: PCPKPIs;
@@ -45,7 +44,6 @@ interface DashboardViewProps {
 
 const SUBVIEW_TABS: { id: DashboardSubview; label: string; icon: React.ElementType }[] = [
   { id: 'agenda-3-dias', label: 'Horizonte 3 Dias', icon: Calendar },
-  { id: 'programas-slitter', label: 'Combinações Otimizadas', icon: Scissors },
   { id: 'ferramental-abc', label: 'Curva ABC Ferramentais', icon: Wrench },
   { id: 'prontidao-demanda', label: 'Carteira Consolidada', icon: Boxes }
 ];
@@ -147,16 +145,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           products={products}
           coils={coils}
           orders={orders}
-          intermediarySlitters={intermediarySlitters}
-          onOpenProgramSimulation={onOpenProgramSimulation}
-          onOpenProgramOrder={onOpenProgramOrder}
-        />
-      )}
-
-      {activeSubview === 'programas-slitter' && (
-        <ProgramasSlitter
-          products={products}
-          coils={coils}
           intermediarySlitters={intermediarySlitters}
           onOpenProgramSimulation={onOpenProgramSimulation}
           onOpenProgramOrder={onOpenProgramOrder}

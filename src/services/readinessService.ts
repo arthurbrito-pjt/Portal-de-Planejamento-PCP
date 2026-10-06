@@ -7,6 +7,8 @@ import {
   DayProductionMetrics,
   SlitterOrder,
   Ferramental,
+  FerramentalClasse,
+  FerramentalHistoricoItem,
   SlitterIntermediaryItem
 } from '../types/pcp';
 import { SlitterOptimizer } from './slitterOptimizer';
@@ -50,6 +52,10 @@ export interface SlitterProductionProgram {
   aproveitamentoPercent: number;
   sobraPesoTon: number;
   status: 'Conforme (10 a 18 mm)' | 'Sobra Excedente (> 18 mm)';
+  // Todos os produtos que compartilham este mesmo ferramental, com sua
+  // demanda individual — usado para re-otimizar o corte (ex: ao ajustar a
+  // quantidade desejada na Etapa 2) sem perder o rateio por material.
+  demandGroup: { product: Product; demandaT: number }[];
 }
 
 export class ReadinessService {
@@ -60,7 +66,13 @@ export class ReadinessService {
   static analyzeSlitters(products: Product[], coils: Coil[], intermediarySlitters: SlitterIntermediaryItem[] = []): SlitterDemandItem[] {
     const availableCoils = coils.filter(c => c.status === 'Disponível');
 
-    // Group products by unique Slitter dimensions (larguraFita + espessura)
+    // Agrupa produtos pelo FERRAMENTAL FÍSICO real (cadastro em Importador &
+    // Cadastros, casado com tolerância via SlitterCatalogService), não por uma
+    // chave exata de largura/espessura — produtos com pequena variação de
+    // arredondamento (ex: 173 vs 173.4mm) que pertencem ao MESMO ferramental
+    // caíam em grupos diferentes, fragmentando a demanda e somando errado.
+    // Produtos sem ferramental cadastrado continuam agrupados por dimensão
+    // exata (não há como juntá-los com segurança sem o cadastro).
     const slitterMap = new Map<string, {
       larguraFita: number;
       espessura: number;
@@ -68,11 +80,12 @@ export class ReadinessService {
     }>();
 
     for (const p of products) {
-      const key = `${p.larguraFita}_${p.espessura}`;
+      const registrado = SlitterCatalogService.findRegisteredFerramental(p.larguraFita, p.espessura);
+      const key = registrado ? `FRM_${registrado.codigo}` : `DIM_${p.larguraFita}_${p.espessura}`;
       if (!slitterMap.has(key)) {
         slitterMap.set(key, {
-          larguraFita: p.larguraFita,
-          espessura: p.espessura,
+          larguraFita: registrado?.larguraFita ?? p.larguraFita,
+          espessura: registrado?.espessura ?? p.espessura,
           produtos: []
         });
       }
@@ -118,7 +131,8 @@ export class ReadinessService {
         totalDemandaT,
         compatibleProducts: produtos.map(p => p.product),
         availableCoils,
-        intermediarySlitters
+        intermediarySlitters,
+        demandSplitGroup: produtos.map(p => ({ product: p.product, demandaT: p.demandaT }))
       });
 
       const coveragePercent = plan.coveragePercent;
@@ -224,6 +238,8 @@ export class ReadinessService {
       let bestCoil: Coil | null = null;
       let bestCombination: SlitterCombination | null = null;
 
+      const demandSplitGroup = slitterItem.produtos.map(p => ({ product: p.product, demandaT: p.demandaT }));
+
       for (const coil of matchingCoils.slice(0, 8)) {
         const combList = SlitterOptimizer.optimize({
           mainProduct: prod,
@@ -231,7 +247,8 @@ export class ReadinessService {
           selectedCoil: coil,
           compatibleProducts: products,
           minScrapMm: 10,
-          maxScrapAllowedMm: 18
+          maxScrapAllowedMm: 18,
+          demandSplitGroup
         });
 
         // Filter out any combination with scrap < 10mm
@@ -301,7 +318,8 @@ export class ReadinessService {
           sobraMm: bestCombination.sobraMm,
           aproveitamentoPercent: bestCombination.aproveitamentoPercent,
           sobraPesoTon: bestCombination.pesoSobraTon,
-          status: bestCombination.sobraMm <= 18 ? 'Conforme (10 a 18 mm)' : 'Sobra Excedente (> 18 mm)'
+          status: bestCombination.sobraMm <= 18 ? 'Conforme (10 a 18 mm)' : 'Sobra Excedente (> 18 mm)',
+          demandGroup: demandSplitGroup
         });
       }
     }
@@ -526,18 +544,58 @@ export class ReadinessService {
   }
 
   /**
-   * Análise da Matriz ABC de Ferramentais
+   * Análise da Matriz ABC de Ferramentais.
+   *
+   * Classificação real de giro ("quanto o ferramental roda"): quando há
+   * histórico de faturamento importado (aba "Faturamento" das planilhas PROG),
+   * a classe A/B/C é CALCULADA pela Curva de Pareto do volume real faturado
+   * por ferramental nos últimos meses (A = até 80% do acumulado, B = até 95%,
+   * C = o restante) — substitui a classe manual cadastrada. Sem histórico
+   * importado, usa `ferramental.classe` (cadastro manual) como fallback.
    */
   static analyzeToolingABC(
     ferramentais: Ferramental[],
-    products: Product[]
+    products: Product[],
+    historico: FerramentalHistoricoItem[] = []
   ): {
     ferramental: Ferramental;
+    classeGiro: FerramentalClasse;
+    classeOrigem: 'HISTORICO' | 'MANUAL';
+    pesoHistoricoT: number;
+    mesesComMovimento: number;
+    percentualAcumuladoHistorico: number;
     demandaAcumuladaT: number;
     percentualAcumulado: number;
     statusAcumulo: string;
     prontaParaSetup: boolean;
   }[] {
+    const histMap = new Map(historico.map(h => [h.codigoFerramental, h]));
+    const temHistorico = historico.length > 0;
+
+    // Curva de Pareto por histórico real, só quando há dado importado.
+    const classeGiroPorCodigo = new Map<string, FerramentalClasse>();
+    const percentualAcumuladoHistPorCodigo = new Map<string, number>();
+    if (temHistorico) {
+      const totalHistorico = historico.reduce((acc, h) => acc + h.pesoTotalT, 0);
+      const ordenado = [...ferramentais].sort(
+        (a, b) => (histMap.get(b.codigo)?.pesoTotalT || 0) - (histMap.get(a.codigo)?.pesoTotalT || 0)
+      );
+      let acumulado = 0;
+      for (const f of ordenado) {
+        const peso = histMap.get(f.codigo)?.pesoTotalT || 0;
+        acumulado += peso;
+        const percentualAcumulado = totalHistorico > 0 ? Math.round((acumulado / totalHistorico) * 100) : 0;
+        percentualAcumuladoHistPorCodigo.set(f.codigo, percentualAcumulado);
+
+        let classe: FerramentalClasse = 'C';
+        if (peso > 0) {
+          if (percentualAcumulado <= 80) classe = 'A';
+          else if (percentualAcumulado <= 95) classe = 'B';
+        }
+        classeGiroPorCodigo.set(f.codigo, classe);
+      }
+    }
+
     return ferramentais.map(f => {
       const matchingProds = products.filter(p => {
         const slt = SlitterCatalogService.getSlitterInfo(p.larguraFita, p.espessura, p);
@@ -552,13 +610,17 @@ export class ReadinessService {
         ? Math.min(100, Math.round((demandaAcumuladaT / f.capacidadeMinimaT) * 100))
         : 100;
 
+      const hist = histMap.get(f.codigo);
+      const classeGiro: FerramentalClasse = temHistorico ? (classeGiroPorCodigo.get(f.codigo) || 'C') : f.classe;
+      const classeOrigem: 'HISTORICO' | 'MANUAL' = temHistorico ? 'HISTORICO' : 'MANUAL';
+
       let statusAcumulo = '';
       let prontaParaSetup = false;
 
-      if (f.classe === 'A') {
+      if (classeGiro === 'A') {
         statusAcumulo = 'Liberado Contínuo (Sempre Roda)';
         prontaParaSetup = true;
-      } else if (f.classe === 'B') {
+      } else if (classeGiro === 'B') {
         if (demandaAcumuladaT >= f.capacidadeMinimaT * 0.7) {
           statusAcumulo = 'Liberado para Campanha Regular';
           prontaParaSetup = true;
@@ -579,6 +641,11 @@ export class ReadinessService {
 
       return {
         ferramental: f,
+        classeGiro,
+        classeOrigem,
+        pesoHistoricoT: hist?.pesoTotalT || 0,
+        mesesComMovimento: hist?.mesesComMovimento || 0,
+        percentualAcumuladoHistorico: percentualAcumuladoHistPorCodigo.get(f.codigo) || 0,
         demandaAcumuladaT,
         percentualAcumulado,
         statusAcumulo,
@@ -586,8 +653,9 @@ export class ReadinessService {
       };
     }).sort((a, b) => {
       const classWeight: Record<string, number> = { 'A': 3, 'B': 2, 'C': 1 };
-      const diff = (classWeight[b.ferramental.classe] || 0) - (classWeight[a.ferramental.classe] || 0);
+      const diff = (classWeight[b.classeGiro] || 0) - (classWeight[a.classeGiro] || 0);
       if (diff !== 0) return diff;
+      if (b.pesoHistoricoT !== a.pesoHistoricoT) return b.pesoHistoricoT - a.pesoHistoricoT;
       return b.demandaAcumuladaT - a.demandaAcumuladaT;
     });
   }

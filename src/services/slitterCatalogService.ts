@@ -1,4 +1,4 @@
-import { Product } from '../types/pcp';
+import { Product, Ferramental } from '../types/pcp';
 import { StorageService } from './storageService';
 import { TUBO_WIDTH_TABLE } from '../data/tuboWidthTable';
 
@@ -971,15 +971,28 @@ export class SlitterCatalogService {
    * 3. Sem correspondência: retorna um rótulo explícito de "não cadastrado" em
    *    vez de inventar um código plausível — evita códigos genéricos incorretos.
    */
-  static getSlitterInfo(larguraFita: number, espessura: number, product?: Product): SlitterInfoResult {
-    // 1. Cadastro mestre de Ferramentais
+  /**
+   * Resolve o Ferramental cadastrado (Importador & Cadastros) para uma largura
+   * de fita + espessura, com a mesma tolerância usada em getSlitterInfo —
+   * fonte única de verdade para "este produto pertence a qual ferramental
+   * físico", usada tanto para exibir o código quanto para AGRUPAR demanda
+   * (ReadinessService.analyzeSlitters) pelo ferramental real, não por uma
+   * chave exata de largura/espessura que fragmentaria produtos com pequenas
+   * variações de arredondamento do mesmo ferramental em grupos diferentes.
+   */
+  static findRegisteredFerramental(larguraFita: number, espessura: number): Ferramental | null {
     const ferramentais = StorageService.getFerramentais();
-    const registrado = ferramentais.find(f =>
+    return ferramentais.find(f =>
       typeof f.larguraFita === 'number' &&
       typeof f.espessura === 'number' &&
       Math.abs(f.larguraFita - larguraFita) < WIDTH_TOLERANCE_MM &&
       Math.abs(f.espessura - espessura) < THICKNESS_TOLERANCE_MM
-    );
+    ) || null;
+  }
+
+  static getSlitterInfo(larguraFita: number, espessura: number, product?: Product): SlitterInfoResult {
+    // 1. Cadastro mestre de Ferramentais
+    const registrado = this.findRegisteredFerramental(larguraFita, espessura);
     if (registrado) {
       return { code: registrado.codigo, name: registrado.nome, cadastrado: true };
     }

@@ -1,4 +1,4 @@
-import { Product, Coil, SlitterOrder, CutHistoryItem, PCPKPIs, Ferramental, SlitterIntermediaryItem, AIRecommendationFeedback } from '../types/pcp';
+import { Product, Coil, SlitterOrder, CutHistoryItem, PCPKPIs, Ferramental, SlitterIntermediaryItem, AIRecommendationFeedback, FerramentalHistoricoItem, FerramentalProdutividadeItem } from '../types/pcp';
 import { INITIAL_PRODUCTS, INITIAL_COILS, INITIAL_FERRAMENTAL, INITIAL_INTERMEDIARY_SLITTERS } from '../data/initialData';
 import { FirestoreService } from '../firebase/firestoreService';
 
@@ -10,6 +10,8 @@ const STORAGE_KEYS = {
   FERRAMENTAL: 'pcp_ferramental_v1',
   SLITTER_INTERMEDIARY: 'pcp_slitter_intermediary_v1',
   AI_FEEDBACK: 'pcp_ai_feedback_v1',
+  FERRAMENTAL_HISTORICO: 'pcp_ferramental_historico_v1',
+  FERRAMENTAL_PRODUTIVIDADE: 'pcp_ferramental_produtividade_v1',
   LAST_SYNC: 'pcp_last_sync_v1'
 };
 
@@ -25,6 +27,8 @@ export class StorageService {
   private static ferramentaisCache: Ferramental[] | null = null;
   private static intermediaryCache: SlitterIntermediaryItem[] | null = null;
   private static aiFeedbackCache: AIRecommendationFeedback[] | null = null;
+  private static ferramentalHistoricoCache: FerramentalHistoricoItem[] | null = null;
+  private static ferramentalProdutividadeCache: FerramentalProdutividadeItem[] | null = null;
 
   // Initialize data from local or initial seeds
   static initialize(): void {
@@ -162,6 +166,67 @@ export class StorageService {
     this.ferramentaisCache = items;
     localStorage.setItem(STORAGE_KEYS.FERRAMENTAL, JSON.stringify(items));
     FirestoreService.saveFerramental(item).catch(() => {});
+  }
+
+  // Histórico real de faturamento por ferramental (Curva ABC real)
+  static getFerramentalHistorico(): FerramentalHistoricoItem[] {
+    if (this.ferramentalHistoricoCache) return this.ferramentalHistoricoCache;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.FERRAMENTAL_HISTORICO);
+      this.ferramentalHistoricoCache = raw ? JSON.parse(raw) : [];
+      return this.ferramentalHistoricoCache || [];
+    } catch {
+      return [];
+    }
+  }
+
+  private static saveFerramentalHistorico(items: FerramentalHistoricoItem[]): void {
+    this.ferramentalHistoricoCache = items;
+    localStorage.setItem(STORAGE_KEYS.FERRAMENTAL_HISTORICO, JSON.stringify(items));
+    FirestoreService.saveMultipleFerramentalHistorico(items).catch(() => {});
+  }
+
+  /**
+   * Mescla o resultado de uma importação (uma planilha PROG por vez — Perfis
+   * 3mm/4,75mm, Tubo Marafon/Zikeli) no histórico já salvo: ferramentais já
+   * presentes têm o total substituído (reimportação atualiza o número),
+   * ferramentais novos são adicionados.
+   */
+  static mergeFerramentalHistorico(novosItens: FerramentalHistoricoItem[]): void {
+    const atual = this.getFerramentalHistorico();
+    const porCodigo = new Map(atual.map(i => [i.codigoFerramental, i]));
+    for (const item of novosItens) {
+      porCodigo.set(item.codigoFerramental, item);
+    }
+    this.saveFerramentalHistorico(Array.from(porCodigo.values()));
+  }
+
+  // Capacidade real (ton/h) por ferramental (abas Velocidade/Produtividade)
+  static getFerramentalProdutividade(): FerramentalProdutividadeItem[] {
+    if (this.ferramentalProdutividadeCache) return this.ferramentalProdutividadeCache;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.FERRAMENTAL_PRODUTIVIDADE);
+      this.ferramentalProdutividadeCache = raw ? JSON.parse(raw) : [];
+      return this.ferramentalProdutividadeCache || [];
+    } catch {
+      return [];
+    }
+  }
+
+  private static saveFerramentalProdutividade(items: FerramentalProdutividadeItem[]): void {
+    this.ferramentalProdutividadeCache = items;
+    localStorage.setItem(STORAGE_KEYS.FERRAMENTAL_PRODUTIVIDADE, JSON.stringify(items));
+    FirestoreService.saveMultipleFerramentalProdutividade(items).catch(() => {});
+  }
+
+  /** Mescla o resultado de uma importação de "Produtividade" (uma planilha PROG por vez) no cadastro já salvo. */
+  static mergeFerramentalProdutividade(novosItens: FerramentalProdutividadeItem[]): void {
+    const atual = this.getFerramentalProdutividade();
+    const porCodigo = new Map(atual.map(i => [i.codigoFerramental, i]));
+    for (const item of novosItens) {
+      porCodigo.set(item.codigoFerramental, item);
+    }
+    this.saveFerramentalProdutividade(Array.from(porCodigo.values()));
   }
 
   // Estoque Intermediário de Slitter (fitas cortadas)
@@ -412,19 +477,25 @@ export class StorageService {
     this.historyCache = [];
     this.intermediaryCache = [];
     this.aiFeedbackCache = [];
+    this.ferramentalHistoricoCache = [];
+    this.ferramentalProdutividadeCache = [];
     localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.COILS, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.SLITTER_ORDERS, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.CUT_HISTORY, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.SLITTER_INTERMEDIARY, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.AI_FEEDBACK, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.FERRAMENTAL_HISTORICO, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.FERRAMENTAL_PRODUTIVIDADE, JSON.stringify([]));
 
     await Promise.all([
       FirestoreService.clearCollection('bobinas'),
       FirestoreService.clearCollection('produtos'),
       FirestoreService.clearCollection('slitters'),
       FirestoreService.clearCollection('historico_cortes'),
-      FirestoreService.clearCollection('ai_feedback')
+      FirestoreService.clearCollection('ai_feedback'),
+      FirestoreService.clearCollection('ferramental_historico'),
+      FirestoreService.clearCollection('ferramental_produtividade')
     ]);
   }
 

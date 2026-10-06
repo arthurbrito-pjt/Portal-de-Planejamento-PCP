@@ -23,6 +23,10 @@ export interface PlanOpParams {
   compatibleProducts: Product[];
   availableCoils: Coil[]; // já filtrado por status 'Disponível'
   intermediarySlitters?: SlitterIntermediaryItem[];
+  // Outros produtos do mesmo ferramental (ver SlitterOptimizer.demandSplitGroup)
+  // — repassado ao otimizador para que a demanda de CADA produto do grupo
+  // apareça no plano de corte, não só a do mainProduct.
+  demandSplitGroup?: { product: Product; demandaT: number }[];
 }
 
 /**
@@ -43,7 +47,8 @@ export class OpPlannerService {
       totalDemandaT,
       compatibleProducts,
       availableCoils,
-      intermediarySlitters = []
+      intermediarySlitters = [],
+      demandSplitGroup
     } = params;
 
     const wipAvailableTon = Number(
@@ -100,7 +105,8 @@ export class OpPlannerService {
         selectedCoil: coil,
         compatibleProducts,
         minScrapMm: 10,
-        maxScrapAllowedMm: 18
+        maxScrapAllowedMm: 18,
+        demandSplitGroup
       });
       const top = combos[0];
       if (top && (!bestSingle || top.aproveitamentoPercent > bestSingle.combination.aproveitamentoPercent)) {
@@ -147,7 +153,8 @@ export class OpPlannerService {
         selectedCoil: coil,
         compatibleProducts,
         minScrapMm: 10,
-        maxScrapAllowedMm: 18
+        maxScrapAllowedMm: 18,
+        demandSplitGroup
       });
       return combos[0] || null;
     });

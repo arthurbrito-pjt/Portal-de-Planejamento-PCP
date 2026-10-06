@@ -34,7 +34,7 @@ function buildContext({ products, coils, orders, kpis, history, ferramentais = [
   const demandItems = ReadinessService
     .sortSlittersByReadiness(ReadinessService.analyzeSlitters(products, coils, intermediarySlitters))
     .slice(0, 15);
-  const toolingAnalysis = ReadinessService.analyzeToolingABC(ferramentais, products);
+  const toolingAnalysis = ReadinessService.analyzeToolingABC(ferramentais, products, StorageService.getFerramentalHistorico());
   const schedule3Days = ReadinessService.generate3DaySchedule(
     ReadinessService.generateSlitterPrograms(products, coils, intermediarySlitters),
     orders
@@ -80,7 +80,8 @@ function buildContext({ products, coils, orders, kpis, history, ferramentais = [
     ferramentalAbc: toolingAnalysis.slice(0, 25).map(t => ({
       codigo: t.ferramental.codigo,
       nome: t.ferramental.nome,
-      classe: t.ferramental.classe,
+      classe: t.classeGiro,
+      pesoHistoricoT: t.pesoHistoricoT,
       demandaAcumuladaT: t.demandaAcumuladaT,
       capacidadeMinimaT: t.ferramental.capacidadeMinimaT,
       statusAcumulo: t.statusAcumulo,

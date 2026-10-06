@@ -7,6 +7,14 @@ export interface OptimizationParams {
   compatibleProducts: Product[];
   minScrapMm?: number; // STRICT: minimum 10mm
   maxScrapAllowedMm?: number; // STRICT: maximum 18mm (~1.5%)
+  // Outros produtos que compartilham o MESMO ferramental (largura de fita +
+  // espessura) do mainProduct, cada um com sua própria demanda pendente — ex:
+  // TBI20851 (9t) e TBI20970 (88t) saem do mesmo slitter de 399mm. Sem isso,
+  // TODAS as fitas dessa largura eram atribuídas 100% ao mainProduct, fazendo
+  // a demanda dos demais itens do grupo "sumir" do plano de corte. Quando
+  // informado, as fitas da largura principal são rateadas proporcionalmente
+  // à demanda de cada produto do grupo (método do maior resto).
+  demandSplitGroup?: { product: Product; demandaT: number }[];
 }
 
 const STRIP_COLORS = [
@@ -32,7 +40,8 @@ export class SlitterOptimizer {
       selectedCoil,
       compatibleProducts,
       minScrapMm = 10,
-      maxScrapAllowedMm = 18
+      maxScrapAllowedMm = 18,
+      demandSplitGroup
     } = params;
 
     const coilWidth = selectedCoil.largura;
@@ -46,21 +55,31 @@ export class SlitterOptimizer {
       p => Math.abs(p.espessura - selectedCoil.espessura) < 0.001
     );
 
+    // Grupo para ratear as fitas da largura principal (mainWidth) entre todos
+    // os produtos que saem desse mesmo ferramental — nunca só o mainProduct.
+    const splitGroup = (demandSplitGroup && demandSplitGroup.length > 1)
+      ? demandSplitGroup.filter(g => Math.abs(g.product.espessura - selectedCoil.espessura) < 0.001)
+      : null;
+
     const maxMainCount = Math.floor(coilWidth / mainWidth);
 
     // 1. Check pure main product cut (single product)
     for (let k = maxMainCount; k >= Math.max(1, maxMainCount - 4); k--) {
       const usedWidth = k * mainWidth;
       const scrap = coilWidth - usedWidth;
-      
+
+      const mainFitas = splitGroup
+        ? this.splitQuantidadeByDemand(k, splitGroup, mainWidth)
+        : [{ product: mainProduct, quantidade: k, larguraTotal: usedWidth }];
+
       // Only add single cut if scrap >= 10mm
       if (scrap >= minScrapMm) {
         const singleComb = this.buildCombination(
           selectedCoil,
-          [{ product: mainProduct, quantidade: k, larguraTotal: usedWidth }],
+          mainFitas,
           `Corte Exclusivo: ${k}x ${mainProduct.descricao} (${mainWidth}mm)`
         );
-        
+
         const sig = this.getSignature(singleComb);
         if (!seenSignatures.has(sig)) {
           seenSignatures.add(sig);
@@ -79,12 +98,12 @@ export class SlitterOptimizer {
 
         for (const comp of companionSolutions) {
           const combinedFitas = [
-            { product: mainProduct, quantidade: k, larguraTotal: k * mainWidth },
+            ...mainFitas,
             ...comp.items
           ];
 
           const desc = `${k}x ${mainProduct.descricao.slice(0, 25)} + ${comp.items.map(i => `${i.quantidade}x ${i.product.descricao.slice(0, 20)}`).join(' + ')}`;
-          
+
           const comb = this.buildCombination(
             selectedCoil,
             combinedFitas,
@@ -129,6 +148,44 @@ export class SlitterOptimizer {
     });
 
     return finalPool.slice(0, 15);
+  }
+
+  /**
+   * Rateia `totalQuantidade` fitas de uma mesma largura entre todos os produtos
+   * de `group` proporcionalmente à demanda de cada um (método do maior resto,
+   * para garantir que a soma das quantidades inteiras bate exatamente com
+   * `totalQuantidade`). Produtos sem demanda informada ficam de fora do rateio
+   * (a menos que NINGUÉM do grupo tenha demanda — aí tudo vai para o primeiro,
+   * que é sempre o mainProduct por convenção de quem chama).
+   */
+  private static splitQuantidadeByDemand(
+    totalQuantidade: number,
+    group: { product: Product; demandaT: number }[],
+    larguraFita: number
+  ): { product: Product; quantidade: number; larguraTotal: number }[] {
+    const totalDemanda = group.reduce((acc, g) => acc + Math.max(0, g.demandaT || 0), 0);
+
+    if (totalDemanda <= 0) {
+      return [{ product: group[0].product, quantidade: totalQuantidade, larguraTotal: totalQuantidade * larguraFita }];
+    }
+
+    const exact = group.map(g => (Math.max(0, g.demandaT || 0) / totalDemanda) * totalQuantidade);
+    const floors = exact.map(Math.floor);
+    const allocated = floors.reduce((a, b) => a + b, 0);
+    const remaining = totalQuantidade - allocated;
+
+    const fracOrder = exact
+      .map((v, idx) => ({ idx, frac: v - floors[idx] }))
+      .sort((a, b) => b.frac - a.frac);
+
+    const quantidades = [...floors];
+    for (let i = 0; i < remaining; i++) {
+      quantidades[fracOrder[i % fracOrder.length].idx]++;
+    }
+
+    return group
+      .map((g, idx) => ({ product: g.product, quantidade: quantidades[idx], larguraTotal: quantidades[idx] * larguraFita }))
+      .filter(f => f.quantidade > 0);
   }
 
   /**

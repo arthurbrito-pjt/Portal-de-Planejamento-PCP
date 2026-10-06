@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
-import { Coil, Product, SlitterOrder } from '../types/pcp';
+import { Coil, Product, SlitterOrder, FerramentalHistoricoItem, FerramentalProdutividadeItem } from '../types/pcp';
 import { SlitterCatalogService } from './slitterCatalogService';
+import { extractDimsSegment, extractTuboTipo } from './descricaoParser';
 
 export interface ProductImportResult {
   products: Product[]; // produtos novos ou com demanda atualizada, prontos para StorageService.addProduct
@@ -19,24 +20,6 @@ function normalizeSheetName(name: string): string {
 
 function findProgImSheet(sheetNames: string[]): string | null {
   return sheetNames.find(n => normalizeSheetName(n) === 'progim') || null;
-}
-
-// Extrai espessura + dimensões de uma descrição de produto, ex:
-// "PERFIL U ENRIJ LQ 2,00 X 100 X 40 X 17 MM" -> [2.00, 100, 40, 17]
-// "TUBO IND LQ RD 1,50 X 48,30 NBR6591" -> [1.50, 48.30]
-// O primeiro número é sempre a espessura; os demais são as dimensões do perfil/tubo.
-function extractDimsSegment(desc: string): number[] | null {
-  const m = desc.match(/(\d+(?:,\d+)?(?:\s*[Xx]\s*\d+(?:,\d+)?)+)/);
-  if (!m) return null;
-  const tokens = m[1].split(/[Xx]/).map(t => parseFloat(t.trim().replace(',', '.')));
-  return tokens.some(Number.isNaN) ? null : tokens;
-}
-
-// Formato do tubo (RD=redondo, QD=quadrado, RT=retangular), indicado na
-// descrição logo antes da espessura, ex: "TUBO IND LQ RD 1,50 X 48,30 NBR6591".
-function extractTuboTipo(desc: string): 'RD' | 'QD' | 'RT' | null {
-  const m = desc.match(/\b(RD|QD|RT)\b/i);
-  return m ? (m[1].toUpperCase() as 'RD' | 'QD' | 'RT') : null;
 }
 
 // Extrai espessura + largura de descrições de bobina/slitter do ERP, ex:
@@ -232,6 +215,159 @@ export class ExcelService {
     }
 
     return { products, naoEncontrados };
+  }
+
+  /**
+   * Lê a aba "Faturamento" das planilhas PROG (Perfis 3mm/4,75mm, Tubo Marafon/
+   * Zikeli) — uma matriz Item x Mês (jan/2016 em diante) com o peso real
+   * faturado em toneladas — e agrega o total histórico por FERRAMENTAL
+   * (casando item -> ferramental cadastrado via descrição, igual ao importador
+   * de demanda). Usado para calcular a Curva ABC real ("quanto cada ferramental
+   * roda"), em vez de uma classificação manual estática.
+   *
+   * O layout varia entre planilhas: ora a linha de cabeçalho ("Item",
+   * "Descrição") vem na mesma linha dos meses (Tubo), ora uma linha acima
+   * (Perfis) — por isso os meses são identificados por tipo de célula (Date),
+   * não por posição fixa de linha.
+   */
+  static parseFerramentalHistoricoFile(fileBuffer: ArrayBuffer): FerramentalHistoricoItem[] {
+    const workbook = XLSX.read(fileBuffer, { type: 'array', cellDates: true });
+    const sheetName = workbook.SheetNames.find(n => normalizeSheetName(n) === 'faturamento');
+    if (!sheetName) return [];
+
+    const worksheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<any>(worksheet, { header: 1, raw: true });
+    if (rows.length < 2) return [];
+
+    const headerRowIdx = rows.findIndex(r => String(r?.[0] ?? '').trim().toLowerCase() === 'item');
+    if (headerRowIdx < 0) return [];
+
+    // Os meses ficam na própria linha de cabeçalho (layout Tubo) ou na linha
+    // imediatamente acima (layout Perfis) — usa a que tiver mais células Date.
+    const isDateCell = (v: any) => v instanceof Date;
+    const countDates = (r: any[] | undefined) => (r || []).filter(isDateCell).length;
+    const candidateAbove = headerRowIdx > 0 ? rows[headerRowIdx - 1] : undefined;
+    const dateRow = countDates(candidateAbove) > countDates(rows[headerRowIdx]) ? candidateAbove! : rows[headerRowIdx];
+
+    const monthCols: number[] = [];
+    dateRow.forEach((v: any, colIdx: number) => { if (isDateCell(v) && colIdx >= 2) monthCols.push(colIdx); });
+    if (monthCols.length === 0) return [];
+
+    const totals = new Map<string, { pesoTotalT: number; mesesComMovimento: number }>();
+
+    for (let i = headerRowIdx + 1; i < rows.length; i++) {
+      const row = rows[i] as any[];
+      if (!row || row.length === 0) continue;
+
+      const codigo = String(row[0] ?? '').trim();
+      const descricao = String(row[1] ?? '').trim();
+      if (!codigo || !/^[A-Za-z]{2,6}\d/.test(codigo)) continue;
+
+      let pesoItemT = 0;
+      let meses = 0;
+      for (const col of monthCols) {
+        const v = Number(parseFloat(String(row[col] ?? '0').replace(',', '.')) || 0);
+        if (v !== 0) { pesoItemT += v; meses++; }
+      }
+      if (pesoItemT <= 0) continue;
+
+      const familia = inferFamilia(codigo, descricao);
+      const dims = descricao ? extractDimsSegment(descricao) : null;
+      const espessura = dims && dims.length > 0 ? dims[0] : 0;
+      let larguraFita: number | null = null;
+      if (dims && dims.length > 1 && espessura > 0 && familia) {
+        if (familia === 'PERFIL') {
+          larguraFita = SlitterCatalogService.findPerfilBlankByDims(dims.slice(1), espessura);
+        } else {
+          const tipo = extractTuboTipo(descricao);
+          if (tipo) larguraFita = SlitterCatalogService.findTuboBlankByDims(tipo, dims.slice(1), espessura);
+        }
+      }
+      if (!larguraFita || espessura <= 0) continue;
+
+      const slt = SlitterCatalogService.getSlitterInfo(larguraFita, espessura, { familia } as Product);
+      if (!slt.cadastrado) continue; // sem ferramental cadastrado para essa dimensão — não dá pra atribuir
+
+      const acc = totals.get(slt.code) || { pesoTotalT: 0, mesesComMovimento: 0 };
+      acc.pesoTotalT += pesoItemT;
+      acc.mesesComMovimento = Math.max(acc.mesesComMovimento, meses);
+      totals.set(slt.code, acc);
+    }
+
+    return Array.from(totals.entries()).map(([codigoFerramental, v]) => ({
+      codigoFerramental,
+      pesoTotalT: Number(v.pesoTotalT.toFixed(2)),
+      mesesComMovimento: v.mesesComMovimento
+    }));
+  }
+
+  /**
+   * Lê a aba "Produtividade" das planilhas PROG (Perfis 3mm/4,75mm, Tubo
+   * Marafon/Zikeli) — capacidade real de produção (toneladas/hora) por item —
+   * e agrega por FERRAMENTAL cadastrado (mesma resolução por tolerância de
+   * `SlitterCatalogService.findRegisteredFerramental`, via dims extraídos da
+   * descrição do item). Usado para estimar horas de setup necessárias para
+   * atender a demanda agrupada na tela de Planejamento Slitter.
+   *
+   * O nome da coluna de ton/h varia entre planilhas ("Ton/h" nos perfis,
+   * "Produtividade Padrão Ton/H" nos tubos) — por isso a busca é por
+   * conteúdo normalizado ("tonh"), não por nome exato.
+   */
+  static parseFerramentalProdutividadeFile(fileBuffer: ArrayBuffer): FerramentalProdutividadeItem[] {
+    const workbook = XLSX.read(fileBuffer, { type: 'array' });
+    const sheetName = workbook.SheetNames.find(n => normalizeSheetName(n) === 'produtividade');
+    if (!sheetName) return [];
+
+    const worksheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<any>(worksheet, { header: 1, raw: true });
+    if (rows.length < 2) return [];
+
+    const header = (rows[0] as any[]).map(c => normalizeSheetName(String(c ?? '')));
+    const idxItem = header.findIndex(h => h.includes('item'));
+    const idxDesc = header.findIndex(h => h.includes('descr'));
+    const idxTonH = header.findIndex(h => h.includes('tonh'));
+    if (idxItem < 0 || idxTonH < 0) return [];
+
+    const totals = new Map<string, { somaTonH: number; qtd: number }>();
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i] as any[];
+      if (!row || row.length === 0) continue;
+
+      const codigo = String(row[idxItem] ?? '').trim();
+      if (!codigo || !/^[A-Za-z]{2,6}\d/.test(codigo)) continue;
+
+      const tonH = Number(parseFloat(String(row[idxTonH] ?? '0').replace(',', '.')) || 0);
+      if (!(tonH > 0)) continue; // ignora #DIV/0!, zeros (item sem velocidade cadastrada) e texto
+
+      const descricao = idxDesc >= 0 ? String(row[idxDesc] ?? '').trim() : '';
+      const familia = inferFamilia(codigo, descricao);
+      const dims = descricao ? extractDimsSegment(descricao) : null;
+      const espessura = dims && dims.length > 0 ? dims[0] : 0;
+      let larguraFita: number | null = null;
+      if (dims && dims.length > 1 && espessura > 0 && familia) {
+        if (familia === 'PERFIL') {
+          larguraFita = SlitterCatalogService.findPerfilBlankByDims(dims.slice(1), espessura);
+        } else {
+          const tipo = extractTuboTipo(descricao);
+          if (tipo) larguraFita = SlitterCatalogService.findTuboBlankByDims(tipo, dims.slice(1), espessura);
+        }
+      }
+      if (!larguraFita || espessura <= 0) continue;
+
+      const registrado = SlitterCatalogService.findRegisteredFerramental(larguraFita, espessura);
+      if (!registrado) continue; // sem ferramental cadastrado — não dá pra atribuir
+
+      const acc = totals.get(registrado.codigo) || { somaTonH: 0, qtd: 0 };
+      acc.somaTonH += tonH;
+      acc.qtd++;
+      totals.set(registrado.codigo, acc);
+    }
+
+    return Array.from(totals.entries()).map(([codigoFerramental, v]) => ({
+      codigoFerramental,
+      tonPorHora: Number((v.somaTonH / v.qtd).toFixed(3))
+    }));
   }
 
   /**

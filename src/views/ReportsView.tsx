@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Coil, Product, SlitterOrder, CutHistoryItem } from '../types/pcp';
 import { ExcelService } from '../services/excelService';
 import { OpSummaryView } from '../components/OpSummaryView';
+import { FerramentalConformacaoService } from '../services/ferramentalConformacaoService';
 import {
   BarChart3,
   FileSpreadsheet,
@@ -64,6 +65,45 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     }
   };
   const [searchTerm, setSearchTerm] = useState<string>('');
+  // Demanda agrupada pelo ferramental de conformação (aba "Ferramental" das
+  // planilhas de programação): um ferramental atende vários itens em várias
+  // espessuras. A matéria-prima é mostrada por item — bobinas disponíveis da
+  // mesma espessura do item.
+  const demandaPorFerramental = useMemo(() => {
+    const q = searchTerm.toLowerCase();
+    const disponiveis = coils.filter(c => c.status === 'Disponível');
+    const mpPorEspessura = (esp: number) => Number(
+      disponiveis.filter(c => Math.abs(c.espessura - esp) < 0.001).reduce((acc, c) => acc + c.peso, 0).toFixed(2)
+    );
+
+    const groups = new Map<string, { codigo: string; nome: string; mapeado: boolean; itens: { product: Product; mpDisponivelT: number }[]; demandaT: number }>();
+    for (const p of products) {
+      const f = FerramentalConformacaoService.resolve(p);
+      const codigo = f?.codigo ?? 'SEM_FERRAMENTAL';
+      if (!groups.has(codigo)) {
+        groups.set(codigo, { codigo, nome: f?.nome ?? 'Sem ferramental mapeado na aba Ferramental', mapeado: !!f, itens: [], demandaT: 0 });
+      }
+      const g = groups.get(codigo)!;
+      g.itens.push({ product: p, mpDisponivelT: mpPorEspessura(p.espessura) });
+      g.demandaT += p.demandaT || 0;
+    }
+
+    return Array.from(groups.values())
+      .map(g => ({
+        ...g,
+        demandaT: Number(g.demandaT.toFixed(2)),
+        itens: g.itens.sort((x, y) => x.product.espessura - y.product.espessura || x.product.codigo.localeCompare(y.product.codigo))
+      }))
+      .filter(g => !q ||
+        g.nome.toLowerCase().includes(q) ||
+        g.itens.some(i => i.product.codigo.toLowerCase().includes(q) || i.product.descricao.toLowerCase().includes(q)))
+      .sort((x, y) => {
+        if (!x.mapeado) return 1;
+        if (!y.mapeado) return -1;
+        return y.demandaT - x.demandaT;
+      });
+  }, [products, coils, searchTerm]);
+
   const [localSelectedOrderSummary, setLocalSelectedOrderSummary] = useState<SlitterOrder | null>(null);
 
   const handleExportAll = () => {
@@ -162,7 +202,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         {[
           { id: 'slitters', label: 'Ordens de Produção (OP) Geradas', icon: Scissors, count: orders.length },
           { id: 'bobinas', label: 'Consumo por Bobina / Lote', icon: Disc, count: coils.length },
-          { id: 'produtos', label: 'Planejamento por Produto Base', icon: Layers, count: products.length },
+          { id: 'produtos', label: 'Demanda por Ferramental', icon: Layers, count: products.length },
           { id: 'perdas', label: 'Balanço de Perdas & Sobras', icon: TrendingUp, count: null }
         ].map((tab) => {
           const Icon = tab.icon;
@@ -346,42 +386,75 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         </div>
       )}
 
-      {/* TAB 3: Products */}
+      {/* TAB 3: Demanda agrupada por Ferramental */}
       {activeReportTab === 'produtos' && (
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
             <h3 className="text-sm font-black text-slate-900 tracking-tight">
-              Catálogo de Produtos e Blanks de Fita ({products.length} itens)
+              Demanda por Ferramental ({demandaPorFerramental.length} ferramentais · {products.length} itens)
             </h3>
           </div>
 
-          <div className="overflow-x-auto max-h-[500px]">
+          <div className="overflow-x-auto max-h-[600px]">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider font-mono sticky top-0 bg-white z-10 font-bold">
-                  <th className="py-3 px-3">Código</th>
+                  <th className="py-3 px-3">Ferramental / Item</th>
                   <th className="py-3 px-3">Descrição</th>
                   <th className="py-3 px-3">Família</th>
                   <th className="py-3 px-3 text-right">Espessura (mm)</th>
                   <th className="py-3 px-3 text-right">Largura da Fita (mm)</th>
                   <th className="py-3 px-3 text-right">Demanda (t)</th>
+                  <th className="py-3 px-3 text-right">Matéria-Prima</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 font-mono">
-                {products
-                  .filter(p => p.codigo.toLowerCase().includes(searchTerm.toLowerCase()) || p.descricao.toLowerCase().includes(searchTerm.toLowerCase()))
-                  .map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3 px-3 font-black text-[#0B1F3A]">{p.codigo}</td>
-                      <td className="py-3 px-3 font-sans text-slate-700 max-w-sm truncate font-medium">{p.descricao}</td>
-                      <td className="py-3 px-3 font-sans">
-                        <MetricsBadge type="familia" value={p.familia} size="sm" />
-                      </td>
-                      <td className="py-3 px-3 text-right text-purple-700">{p.espessura}</td>
-                      <td className="py-3 px-3 text-right text-slate-900 font-black">{p.larguraFita}</td>
-                      <td className="py-3 px-3 text-right text-amber-700 font-bold">{p.demandaT || 0}</td>
-                    </tr>
-                  ))}
+              <tbody className="font-mono">
+                {demandaPorFerramental.map(g => {
+                  const itensOk = g.itens.filter(i => i.mpDisponivelT >= (i.product.demandaT || 0)).length;
+                  return (
+                    <React.Fragment key={g.codigo}>
+                      <tr className="bg-[#0B1F3A]/5 border-t border-[#0B1F3A]/15">
+                        <td colSpan={2} className="py-2.5 px-3 font-sans font-black text-[#0B1F3A]">
+                          {g.nome}
+                        </td>
+                        <td className="py-2.5 px-3 font-sans text-slate-500">{g.itens.length} item(ns)</td>
+                        <td className="py-2.5 px-3" />
+                        <td className="py-2.5 px-3" />
+                        <td className="py-2.5 px-3 text-right text-amber-700 font-black">{g.demandaT}</td>
+                        <td className="py-2.5 px-3 text-right font-sans text-[11px] text-slate-500">
+                          {itensOk}/{g.itens.length} itens com MP
+                        </td>
+                      </tr>
+                      {g.itens.map(({ product: p, mpDisponivelT }) => {
+                        const demanda = p.demandaT || 0;
+                        const atende = mpDisponivelT >= demanda;
+                        return (
+                          <tr key={p.id} className="hover:bg-slate-50 transition-colors border-t border-slate-100">
+                            <td className="py-2 px-3 pl-8 text-slate-700">{p.codigo}</td>
+                            <td className="py-2 px-3 font-sans text-slate-600 max-w-sm truncate">{p.descricao}</td>
+                            <td className="py-2 px-3 font-sans">
+                              <MetricsBadge type="familia" value={p.familia} size="sm" />
+                            </td>
+                            <td className="py-2 px-3 text-right text-purple-700">{p.espessura}</td>
+                            <td className="py-2 px-3 text-right text-slate-900">{p.larguraFita}</td>
+                            <td className="py-2 px-3 text-right text-amber-700">{demanda}</td>
+                            <td className="py-2 px-3 text-right">
+                              {atende ? (
+                                <span className="font-sans text-[11px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5">
+                                  OK · {mpDisponivelT} t
+                                </span>
+                              ) : (
+                                <span className="font-sans text-[11px] font-black text-red-700 bg-red-50 border border-red-200 rounded px-2 py-0.5">
+                                  {mpDisponivelT} t (falta {Number((demanda - mpDisponivelT).toFixed(2))} t)
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -14,7 +14,9 @@ import {
   RotateCcw,
   Cloud,
   ArrowLeft,
-  Wrench
+  Wrench,
+  History,
+  Gauge
 } from 'lucide-react';
 
 interface DataManagementViewProps {
@@ -114,6 +116,70 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
       }
     } catch (err: any) {
       setImportStatus(`Erro ao importar: ${err.message || err}`);
+    } finally {
+      setIsImporting(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleFerramentalHistoricoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsImporting(true);
+    setImportStatus('Lendo histórico de faturamento (aba "Faturamento")...');
+
+    try {
+      let totalFerramentais = new Set<string>();
+      for (const file of Array.from(files)) {
+        const buffer = await file.arrayBuffer();
+        const itens = ExcelService.parseFerramentalHistoricoFile(buffer);
+        if (itens.length > 0) {
+          StorageService.mergeFerramentalHistorico(itens);
+          itens.forEach(i => totalFerramentais.add(i.codigoFerramental));
+        }
+      }
+
+      if (totalFerramentais.size > 0) {
+        setImportStatus(`Sucesso! Histórico real de ${totalFerramentais.size} ferramental(is) atualizado. A Curva ABC agora reflete o giro real de produção.`);
+        onDataUpdated();
+      } else {
+        setImportStatus('Nenhuma aba "Faturamento" com dados reconhecíveis foi encontrada nos arquivos selecionados.');
+      }
+    } catch (err: any) {
+      setImportStatus(`Erro ao importar histórico: ${err.message || err}`);
+    } finally {
+      setIsImporting(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleFerramentalProdutividadeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsImporting(true);
+    setImportStatus('Lendo capacidade de produção (aba "Produtividade")...');
+
+    try {
+      const totalFerramentais = new Set<string>();
+      for (const file of Array.from(files)) {
+        const buffer = await file.arrayBuffer();
+        const itens = ExcelService.parseFerramentalProdutividadeFile(buffer);
+        if (itens.length > 0) {
+          StorageService.mergeFerramentalProdutividade(itens);
+          itens.forEach(i => totalFerramentais.add(i.codigoFerramental));
+        }
+      }
+
+      if (totalFerramentais.size > 0) {
+        setImportStatus(`Sucesso! Capacidade (ton/h) de ${totalFerramentais.size} ferramental(is) atualizada.`);
+        onDataUpdated();
+      } else {
+        setImportStatus('Nenhuma aba "Produtividade" com dados reconhecíveis foi encontrada nos arquivos selecionados.');
+      }
+    } catch (err: any) {
+      setImportStatus(`Erro ao importar produtividade: ${err.message || err}`);
     } finally {
       setIsImporting(false);
       e.target.value = '';
@@ -331,7 +397,7 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
 
       {/* TAB 1: Import Excel Files */}
       {activeTab === 'import' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {/* Box 1: Coils Upload */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div className="flex items-center gap-3">
@@ -394,6 +460,76 @@ export const DataManagementView: React.FC<DataManagementViewProps> = ({
                   type="file"
                   accept=".xlsx, .xls"
                   onChange={(e) => handleFileUpload(e, 'products')}
+                  className="hidden"
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Box 3: Histórico de Faturamento Upload (Curva ABC Real) */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <History className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-900">Importar Histórico de Faturamento (Curva ABC Real)</h3>
+                <p className="text-xs text-slate-500 font-medium">Calcula a classe A/B/C de cada ferramental pelo giro real de produção</p>
+              </div>
+            </div>
+
+            <div className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl p-6 text-center transition-all bg-slate-50">
+              <FileSpreadsheet className="w-10 h-10 text-emerald-700 mx-auto mb-2" />
+              <p className="text-xs text-slate-700 font-bold">
+                Selecione as planilhas PROG (Perfis 3mm/4,75mm, Tubo Marafon/Zikeli) — pode selecionar várias de uma vez
+              </p>
+              <p className="text-[11px] text-slate-500 mt-1 font-medium">
+                Lê a aba "Faturamento" (peso real faturado por item/mês) e agrega por ferramental cadastrado
+              </p>
+
+              <label className="mt-4 inline-flex items-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl cursor-pointer shadow-md transition-all">
+                <Upload className="w-4 h-4" />
+                <span>Escolher Arquivo(s)</span>
+                <input
+                  type="file"
+                  accept=".xlsx, .xls"
+                  multiple
+                  onChange={handleFerramentalHistoricoUpload}
+                  className="hidden"
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Box 4: Produtividade (ton/h) Upload */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-amber-50 text-amber-700 border border-amber-200">
+                <Gauge className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-900">Importar Capacidade de Produção (Ton/h)</h3>
+                <p className="text-xs text-slate-500 font-medium">Relaciona Velocidade/Produtividade por item ao ferramental</p>
+              </div>
+            </div>
+
+            <div className="border-2 border-dashed border-slate-300 hover:border-amber-500 rounded-2xl p-6 text-center transition-all bg-slate-50">
+              <FileSpreadsheet className="w-10 h-10 text-amber-700 mx-auto mb-2" />
+              <p className="text-xs text-slate-700 font-bold">
+                Selecione as planilhas PROG (Perfis 3mm/4,75mm, Tubo Marafon/Zikeli) — pode selecionar várias de uma vez
+              </p>
+              <p className="text-[11px] text-slate-500 mt-1 font-medium">
+                Lê a aba "Produtividade" (ton/h real por item) e agrega por ferramental cadastrado
+              </p>
+
+              <label className="mt-4 inline-flex items-center gap-2 px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black rounded-xl cursor-pointer shadow-md transition-all">
+                <Upload className="w-4 h-4" />
+                <span>Escolher Arquivo(s)</span>
+                <input
+                  type="file"
+                  accept=".xlsx, .xls"
+                  multiple
+                  onChange={handleFerramentalProdutividadeUpload}
                   className="hidden"
                 />
               </label>

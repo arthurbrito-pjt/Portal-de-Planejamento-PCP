@@ -408,6 +408,8 @@ export const App: React.FC = () => {
               onProceedToSimulation={handleProceedToSimulation}
               onOrderCreated={handleOrderCreatedFromPlanning}
               onNavigateToDashboard={() => handleSelectTab('dashboard')}
+              onOpenProgramSimulation={handleOpenProgramInSimulation}
+              onOpenProgramOrder={handleOpenProgramInOrder}
             />
           )}
 

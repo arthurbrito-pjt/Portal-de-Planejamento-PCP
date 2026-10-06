@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Coil, Product, SlitterOrder, Ferramental, SlitterIntermediaryItem, PCPKPIs } from '../../types/pcp';
 import { ReadinessService, SlitterProductionProgram } from '../../services/readinessService';
 import { ProductionForecastService } from '../../services/productionForecastService';
+import { StorageService } from '../../services/storageService';
 import { MetricsBadge } from '../../components/MetricsBadge';
 import { KpiOverview } from '../../components/KpiOverview';
 import {
@@ -74,7 +75,10 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
     [products, coils, intermediarySlitters]
   );
   const schedule3Days = useMemo(() => ReadinessService.generate3DaySchedule(slitterPrograms, orders), [slitterPrograms, orders]);
-  const toolingAnalysis = useMemo(() => ReadinessService.analyzeToolingABC(ferramentais, products), [ferramentais, products]);
+  const toolingAnalysis = useMemo(
+    () => ReadinessService.analyzeToolingABC(ferramentais, products, StorageService.getFerramentalHistorico()),
+    [ferramentais, products]
+  );
   const slitterDemands = useMemo(() => {
     const list = ReadinessService.analyzeSlitters(products, coils, intermediarySlitters);
     return ReadinessService.sortSlittersByReadiness(list);
@@ -88,7 +92,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
   const setupFragmentationDays = useMemo(() => schedule3Days.days.filter(d => !!d.alertaSetup), [schedule3Days]);
   const ferramentaisAguardandoLote = useMemo(
-    () => toolingAnalysis.filter(t => t.ferramental.classe === 'C' && !t.prontaParaSetup),
+    () => toolingAnalysis.filter(t => t.classeGiro === 'C' && !t.prontaParaSetup),
     [toolingAnalysis]
   );
 
@@ -105,9 +109,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   }), [slitterDemands]);
 
   const abcCounts = useMemo(() => ({
-    a: toolingAnalysis.filter(t => t.ferramental.classe === 'A').length,
-    b: toolingAnalysis.filter(t => t.ferramental.classe === 'B').length,
-    c: toolingAnalysis.filter(t => t.ferramental.classe === 'C').length
+    a: toolingAnalysis.filter(t => t.classeGiro === 'A').length,
+    b: toolingAnalysis.filter(t => t.classeGiro === 'B').length,
+    c: toolingAnalysis.filter(t => t.classeGiro === 'C').length
   }), [toolingAnalysis]);
 
   const semCadastroCount = useMemo(

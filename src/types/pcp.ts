@@ -19,6 +19,24 @@ export interface Product {
 
 export type FerramentalClasse = 'A' | 'B' | 'C'; // A = Sempre roda | B = Regular | C = Menos roda (requer acúmulo de lote)
 
+// Histórico real de faturamento por ferramental, agregado a partir da aba
+// "Faturamento" das planilhas PROG (Perfis 3mm/4,75mm, Tubo Marafon/Zikeli) —
+// usado para calcular a Curva ABC real (quanto cada ferramental roda de fato),
+// em vez de uma classificação manual estática.
+export interface FerramentalHistoricoItem {
+  codigoFerramental: string;
+  pesoTotalT: number;
+  mesesComMovimento: number;
+}
+
+// Capacidade real de produção (toneladas/hora) por ferramental, agregada a
+// partir das abas "Velocidade"/"Produtividade" das planilhas PROG — usada para
+// estimar horas de setup necessárias para atender a demanda agrupada.
+export interface FerramentalProdutividadeItem {
+  codigoFerramental: string;
+  tonPorHora: number;
+}
+
 export interface Ferramental {
   id: string;
   codigo: string; // livre; pode coincidir com um código de slitter do catálogo

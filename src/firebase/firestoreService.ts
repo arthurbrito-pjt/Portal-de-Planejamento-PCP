@@ -12,7 +12,7 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { db } from './config';
-import { Coil, Product, SlitterOrder, CutHistoryItem, Ferramental, AIRecommendationFeedback } from '../types/pcp';
+import { Coil, Product, SlitterOrder, CutHistoryItem, Ferramental, AIRecommendationFeedback, FerramentalHistoricoItem, FerramentalProdutividadeItem } from '../types/pcp';
 
 export class FirestoreService {
   private static isFirestoreAvailable = true;
@@ -167,6 +167,28 @@ export class FirestoreService {
       await setDoc(doc(db, 'ai_feedback', item.id), item);
     } catch (e) {
       console.warn('Firestore addAIFeedbackItem error', e);
+    }
+  }
+
+  // Histórico real de faturamento por ferramental (Curva ABC real)
+  static async saveMultipleFerramentalHistorico(items: FerramentalHistoricoItem[]): Promise<void> {
+    for (const item of items) {
+      try {
+        await setDoc(doc(db, 'ferramental_historico', item.codigoFerramental), item);
+      } catch (e) {
+        console.warn('Firestore saveFerramentalHistorico error', e);
+      }
+    }
+  }
+
+  // Capacidade real (ton/h) por ferramental (abas Velocidade/Produtividade)
+  static async saveMultipleFerramentalProdutividade(items: FerramentalProdutividadeItem[]): Promise<void> {
+    for (const item of items) {
+      try {
+        await setDoc(doc(db, 'ferramental_produtividade', item.codigoFerramental), item);
+      } catch (e) {
+        console.warn('Firestore saveFerramentalProdutividade error', e);
+      }
     }
   }
 
