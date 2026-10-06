@@ -1,19 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Coil, Product, SlitterIntermediaryItem } from '../../types/pcp';
-import { Disc, Scissors, Layers, Boxes, CheckCircle2, ChevronDown, ChevronUp, Search, Gauge, Wrench } from 'lucide-react';
+import { Disc, Scissors, Layers, Boxes, CheckCircle2, ChevronDown, ChevronUp, Gauge } from 'lucide-react';
 import { ReadinessService, SlitterProductionProgram } from '../../services/readinessService';
 import { StorageService } from '../../services/storageService';
-import { FerramentalConformacaoService, MAQUINAS_CONFORMACAO } from '../../services/ferramentalConformacaoService';
 import { MetricsBadge } from '../../components/MetricsBadge';
-import { SearchableSelect } from '../../components/SearchableSelect';
+import {
+  PlanningFilters,
+  PlanningFilterBar,
+  FerramentalGroupHeader,
+  groupByFerramental
+} from '../../components/planning/planningFilters';
 
 type ScrapFilter = 'TODOS' | 'IDEAL' | 'ALTO';
-
-// Chave de agrupamento para itens que não constam na aba "Ferramental".
-const SEM_FERRAMENTAL = 'SEM_FERRAMENTAL';
-
-const ferramentalKey = (p: Product) => FerramentalConformacaoService.resolve(p)?.codigo ?? SEM_FERRAMENTAL;
-
 
 interface ProgramasSlitterProps {
   products: Product[];
@@ -21,6 +19,8 @@ interface ProgramasSlitterProps {
   intermediarySlitters?: SlitterIntermediaryItem[];
   onOpenProgramSimulation: (program: SlitterProductionProgram) => void;
   onOpenProgramOrder: (program: SlitterProductionProgram) => void;
+  filters: PlanningFilters;
+  viewToggle?: React.ReactNode;
 }
 
 export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
@@ -28,15 +28,10 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
   coils,
   intermediarySlitters = [],
   onOpenProgramSimulation,
-  onOpenProgramOrder
+  onOpenProgramOrder,
+  filters,
+  viewToggle
 }) => {
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  // Filtros de seleção múltipla: lista vazia = sem filtro (todos).
-  const [familyFilter, setFamilyFilter] = useState<string[]>([]);
-  const [maquinaFilter, setMaquinaFilter] = useState<string[]>([]);
-  const [ferramentalFilter, setFerramentalFilter] = useState<string[]>([]);
-  const [thicknessFilter, setThicknessFilter] = useState<string[]>([]);
-  const [itemFilter, setItemFilter] = useState<string[]>([]);
   const [scrapFilter, setScrapFilter] = useState<ScrapFilter>('TODOS');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
@@ -60,74 +55,8 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
     [products, coils, intermediarySlitters]
   );
 
-  // Filtros em cascata: Família -> Máquina -> Ferramental -> Bitola -> Item.
-  // Cada filtro só oferece opções compatíveis com o que já foi escolhido antes.
-  const inFilter = (filter: string[], v: string) => filter.length === 0 || filter.includes(v);
-
-  const productsByFamily = useMemo(
-    () => products.filter(p => inFilter(familyFilter, p.familia)),
-    [products, familyFilter]
-  );
-
-  const maquinaOptions = useMemo(() => {
-    const presentes = new Set(productsByFamily.map(p => FerramentalConformacaoService.maquina(p)));
-    return MAQUINAS_CONFORMACAO.filter(m => presentes.has(m));
-  }, [productsByFamily]);
-
-  const productsByMaquina = useMemo(
-    () => productsByFamily.filter(p => inFilter(maquinaFilter, FerramentalConformacaoService.maquina(p))),
-    [productsByFamily, maquinaFilter]
-  );
-
-  const ferramentalOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    let temSemFerramental = false;
-    productsByMaquina.forEach(p => {
-      const f = FerramentalConformacaoService.resolve(p);
-      if (f) map.set(f.codigo, f.nome);
-      else temSemFerramental = true;
-    });
-    const opts = Array.from(map.entries())
-      .map(([codigo, nome]) => ({ codigo, nome }))
-      .sort((x, y) => x.nome.localeCompare(y.nome, 'pt-BR', { numeric: true }));
-    if (temSemFerramental) opts.push({ codigo: SEM_FERRAMENTAL, nome: 'Sem ferramental mapeado' });
-    return opts;
-  }, [productsByMaquina]);
-
-  const productsByFerramental = useMemo(
-    () => productsByMaquina.filter(p => inFilter(ferramentalFilter, ferramentalKey(p))),
-    [productsByMaquina, ferramentalFilter]
-  );
-
-  const thicknessOptions = useMemo(() => {
-    const set = new Set<number>();
-    productsByFerramental.forEach(p => set.add(p.espessura));
-    return Array.from(set).sort((x, y) => x - y);
-  }, [productsByFerramental]);
-
-  const itemOptions = useMemo(() => {
-    return productsByFerramental
-      .filter(p => inFilter(thicknessFilter, String(p.espessura)))
-      .slice()
-      .sort((x, y) => x.codigo.localeCompare(y.codigo));
-  }, [productsByFerramental, thicknessFilter]);
-
-  // Quando um filtro anterior muda, descarta as seleções que deixaram de
-  // existir nas opções (ex: trocou de máquina -> some o ferramental da outra).
-  const prune = (filter: string[], valid: string[], set: (v: string[]) => void) => {
-    const kept = filter.filter(v => valid.includes(v));
-    if (kept.length !== filter.length) set(kept);
-  };
-  useEffect(() => prune(maquinaFilter, maquinaOptions, setMaquinaFilter), [maquinaOptions, maquinaFilter]);
-  useEffect(() => prune(ferramentalFilter, ferramentalOptions.map(f => f.codigo), setFerramentalFilter), [ferramentalOptions, ferramentalFilter]);
-  useEffect(() => prune(thicknessFilter, thicknessOptions.map(String), setThicknessFilter), [thicknessOptions, thicknessFilter]);
-  useEffect(() => prune(itemFilter, itemOptions.map(p => p.codigo), setItemFilter), [itemOptions, itemFilter]);
-
   const filteredPrograms = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    const some = (prog: SlitterProductionProgram, filter: string[], key: (p: Product) => string) =>
-      filter.length === 0 || prog.materialsProduced.some(m => filter.includes(key(m.product)));
-
+    const q = filters.searchQuery.trim().toLowerCase();
     return slitterPrograms.filter(prog => {
       const matchesSearch = !q ||
         prog.coil.lote.toLowerCase().includes(q) ||
@@ -144,142 +73,40 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
         (scrapFilter === 'ALTO' && prog.sobraMm > 18);
 
       return matchesSearch &&
-        some(prog, familyFilter, p => p.familia) &&
-        some(prog, maquinaFilter, p => FerramentalConformacaoService.maquina(p)) &&
-        some(prog, ferramentalFilter, ferramentalKey) &&
-        inFilter(thicknessFilter, String(prog.coil.espessura)) &&
-        some(prog, itemFilter, p => p.codigo) &&
+        filters.matchesProducts(prog.materialsProduced.map(m => m.product)) &&
+        filters.matchesThickness(prog.coil.espessura) &&
         matchesScrap;
     });
-  }, [slitterPrograms, searchQuery, familyFilter, maquinaFilter, ferramentalFilter, thicknessFilter, itemFilter, scrapFilter]);
+  }, [slitterPrograms, filters, scrapFilter]);
 
-  // Agrupa as combinações pelo ferramental de conformação do produto
-  // principal, com a demanda total (todas as espessuras) de cada ferramental.
-  const groupedPrograms = useMemo(() => {
-    const demandaPorFerramental = new Map<string, number>();
-    products.forEach(p => {
-      const k = ferramentalKey(p);
-      demandaPorFerramental.set(k, (demandaPorFerramental.get(k) || 0) + (p.demandaT || 0));
-    });
-
-    const groups = new Map<string, { codigo: string; nome: string; programs: SlitterProductionProgram[] }>();
-    const complementares: SlitterProductionProgram[] = [];
-    filteredPrograms.forEach(prog => {
-      const f = FerramentalConformacaoService.resolve(prog.mainProduct);
-      const codigo = f?.codigo ?? SEM_FERRAMENTAL;
-      // Com ferramental/máquina filtrados, combinações puxadas por OUTRO
-      // ferramental (onde o filtrado só entra como fita complementar) ficam
-      // num bloco à parte, em vez de abrir cabeçalhos não pedidos.
-      const foraDoFiltro =
-        !inFilter(ferramentalFilter, codigo) ||
-        !inFilter(maquinaFilter, FerramentalConformacaoService.maquina(prog.mainProduct));
-      if (foraDoFiltro) {
-        complementares.push(prog);
-        return;
-      }
-      if (!groups.has(codigo)) groups.set(codigo, { codigo, nome: f?.nome ?? 'Sem ferramental mapeado', programs: [] });
-      groups.get(codigo)!.programs.push(prog);
-    });
-
-    const ordered = Array.from(groups.values())
-      .map(g => ({ ...g, demandaT: Number((demandaPorFerramental.get(g.codigo) || 0).toFixed(2)) }))
-      .sort((x, y) => {
-        if (x.codigo === SEM_FERRAMENTAL) return 1;
-        if (y.codigo === SEM_FERRAMENTAL) return -1;
-        return y.demandaT - x.demandaT;
-      });
-
-    if (complementares.length > 0) {
-      const alvo = ferramentalFilter.length > 0
-        ? ferramentalFilter.map(c => ferramentalOptions.find(f => f.codigo === c)?.nome ?? c).join(', ')
-        : maquinaFilter.join(', ');
-      ordered.push({
-        codigo: 'COMPLEMENTAR',
-        nome: `Outras combinações que também produzem itens de ${alvo} (como fita complementar)`,
-        programs: complementares,
-        demandaT: Number(products
-          .filter(p => inFilter(ferramentalFilter, ferramentalKey(p)) && inFilter(maquinaFilter, FerramentalConformacaoService.maquina(p)))
-          .reduce((acc, p) => acc + (p.demandaT || 0), 0)
-          .toFixed(2))
-      });
-    }
-    return ordered;
-  }, [filteredPrograms, products, ferramentalFilter, ferramentalOptions, maquinaFilter]);
+  const groupedPrograms = useMemo(
+    () => groupByFerramental(filteredPrograms, prog => prog.mainProduct, products, filters),
+    [filteredPrograms, products, filters]
+  );
 
   return (
     <div className="space-y-3">
-      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-56">
-            <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Buscar por código ou slitter..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0B1F3A]/20 focus:border-[#0B1F3A]"
-            />
-          </div>
+      {viewToggle}
 
-          <SearchableSelect
-            values={familyFilter}
-            onChange={setFamilyFilter}
-            allLabel="Todas as Famílias"
-            options={[{ value: 'TUBO', label: 'TUBO' }, { value: 'PERFIL', label: 'PERFIL' }]}
-            className="w-48"
-          />
-
-          <SearchableSelect
-            values={maquinaFilter}
-            onChange={setMaquinaFilter}
-            allLabel="Todas as Máquinas"
-            options={maquinaOptions.map(m => ({ value: m, label: m }))}
-            className="w-52"
-          />
-
-          <SearchableSelect
-            values={ferramentalFilter}
-            onChange={setFerramentalFilter}
-            allLabel="Todos os Ferramentais"
-            options={ferramentalOptions.map(f => ({ value: f.codigo, label: f.nome }))}
-            className="w-72"
-          />
-
-          <SearchableSelect
-            values={thicknessFilter}
-            onChange={setThicknessFilter}
-            allLabel="Todas as Bitolas"
-            options={thicknessOptions.map(t => ({ value: String(t), label: `${t} mm` }))}
-            className="w-40"
-          />
-
-          <SearchableSelect
-            values={itemFilter}
-            onChange={setItemFilter}
-            allLabel="Todos os Itens"
-            options={itemOptions.map(p => ({ value: p.codigo, label: `${p.codigo} — ${p.descricao}` }))}
-            className="w-72"
-          />
-
-          <div className="flex rounded-lg bg-slate-100 p-1">
-            {[
-              { id: 'TODOS', label: 'Todos' },
-              { id: 'IDEAL', label: 'Conforme (10-18mm)' },
-              { id: 'ALTO', label: 'Sobra > 18mm' }
-            ].map(y => (
-              <button
-                key={y.id}
-                onClick={() => setScrapFilter(y.id as ScrapFilter)}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                  scrapFilter === y.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                {y.label}
-              </button>
-            ))}
-          </div>
+      <PlanningFilterBar filters={filters}>
+        <div className="flex rounded-lg bg-slate-100 p-1">
+          {[
+            { id: 'TODOS', label: 'Todos' },
+            { id: 'IDEAL', label: 'Conforme (10-18mm)' },
+            { id: 'ALTO', label: 'Sobra > 18mm' }
+          ].map(y => (
+            <button
+              key={y.id}
+              onClick={() => setScrapFilter(y.id as ScrapFilter)}
+              className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                scrapFilter === y.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              {y.label}
+            </button>
+          ))}
         </div>
-      </div>
+      </PlanningFilterBar>
 
       <div className="flex items-center justify-between text-xs text-slate-500 px-1">
         <span>Exibindo <strong className="font-medium text-slate-700">{filteredPrograms.length}</strong> combinações de corte em <strong className="font-medium text-slate-700">{groupedPrograms.filter(g => g.codigo !== 'COMPLEMENTAR').length}</strong> ferramentais</span>
@@ -292,17 +119,12 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
       <div className="space-y-5">
         {groupedPrograms.map(group => (
         <section key={group.codigo} className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 rounded-xl bg-[#0B1F3A] text-white">
-            <div className="flex items-center gap-2">
-              <Wrench className="w-4 h-4 text-orange-400" />
-              <span className="text-sm font-black">{group.nome}</span>
-            </div>
-            <div className="flex items-center gap-3 text-xs">
-              <span>Demanda do ferramental: <strong className="font-black text-orange-300">{group.demandaT} t</strong></span>
-              <span className="text-white/60">{group.programs.length} {group.programs.length === 1 ? 'combinação' : 'combinações'}</span>
-            </div>
-          </div>
-        {group.programs.map((prog, idx) => {
+          <FerramentalGroupHeader
+            nome={group.nome}
+            demandaT={group.demandaT}
+            countLabel={`${group.entries.length} ${group.entries.length === 1 ? 'combinação' : 'combinações'}`}
+          />
+        {group.entries.map((prog, idx) => {
           const coil = prog.coil;
           const isIdeal = prog.sobraMm >= 10 && prog.sobraMm <= 18;
           const mainMaterial = prog.materialsProduced.find(m => m.finalidade === 'PRINCIPAL');

@@ -6,7 +6,8 @@ import {
   SlitterStrip,
   SlitterOrder,
   Ferramental,
-  SlitterIntermediaryItem
+  SlitterIntermediaryItem,
+  SlitterDemandItem
 } from '../types/pcp';
 import { SlitterOptimizer } from '../services/slitterOptimizer';
 import { ReadinessService, SlitterProductionProgram } from '../services/readinessService';
@@ -21,6 +22,8 @@ import { SlitterVisualizer } from '../components/SlitterVisualizer';
 import { StepIndicator } from '../components/StepIndicator';
 import { PolicyAlertBar, PolicyAlert } from '../components/PolicyAlertBar';
 import { ProgramasSlitter } from './dashboard/ProgramasSlitter';
+import { DemandaSlitter } from './planning/DemandaSlitter';
+import { usePlanningFilters } from '../components/planning/planningFilters';
 import {
   CheckCircle2,
   AlertCircle,
@@ -68,6 +71,11 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   // Etapa A: Escolher o que produzir
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedDemandGroup, setSelectedDemandGroup] = useState<{ product: Product; demandaT: number }[]>([]);
+
+  // Etapa 1 tem duas visões sobre os mesmos filtros: por demanda (fluxo
+  // clássico, segue para Revisar & Confirmar) e combinações otimizadas por bobina.
+  const [step1Mode, setStep1Mode] = useState<'demanda' | 'combinacoes'>('demanda');
+  const planningFilters = usePlanningFilters(products);
 
   const [desiredQtyTon, setDesiredQtyTon] = useState<number>(10);
   const [showManualCoilPicker, setShowManualCoilPicker] = useState<boolean>(false);
@@ -127,6 +135,27 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preSelectedProductId, products, slitterPrograms]);
+
+  const handleAcceptSuggestion = (item: SlitterDemandItem) => {
+    const coilsToUse = item.recommendedCoils || [];
+    setSelectedProduct(item.mainProduct);
+    setSelectedDemandGroup(item.produtos.map(p => ({ product: p.product, demandaT: p.demandaT })));
+    setDesiredQtyTon(item.effectiveDemandTon ?? item.totalDemandaT ?? item.mainProduct.demandaT ?? 10);
+    setSelectedCoils(coilsToUse);
+    setSelectedCombination(item.bestCombination || null);
+    setShowManualCoilPicker(coilsToUse.length === 0 && !item.coveredByWipOnly);
+    setCurrentStep(2);
+  };
+
+  const handleCustomize = (item: SlitterDemandItem) => {
+    setSelectedProduct(item.mainProduct);
+    setSelectedDemandGroup(item.produtos.map(p => ({ product: p.product, demandaT: p.demandaT })));
+    setDesiredQtyTon(item.effectiveDemandTon ?? item.totalDemandaT ?? item.mainProduct.demandaT ?? 10);
+    setSelectedCoils([]);
+    setSelectedCombination(null);
+    setShowManualCoilPicker(true);
+    setCurrentStep(2);
+  };
 
   const rankedCoils = useMemo(() => {
     if (!selectedProduct) return [];
@@ -287,6 +316,25 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     onOrderCreated(order);
   };
 
+  const step1Toggle = (
+    <div className="inline-flex rounded-xl bg-white border border-slate-200 p-1 shadow-sm">
+      {[
+        { id: 'demanda', label: 'Por Demanda (Planejamento Clássico)' },
+        { id: 'combinacoes', label: 'Combinações Otimizadas' }
+      ].map(m => (
+        <button
+          key={m.id}
+          onClick={() => setStep1Mode(m.id as 'demanda' | 'combinacoes')}
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            step1Mode === m.id ? 'bg-[#0B1F3A] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          {m.label}
+        </button>
+      ))}
+    </div>
+  );
+
   const stepsList = [
     { num: 1, title: 'Escolher o que Produzir' },
     { num: 2, title: 'Revisar & Confirmar' },
@@ -302,7 +350,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         isStepEnabled={(num) => (num === 2 && !!selectedProduct) || (num === 3 && coilCutInputs.length > 0)}
       />
 
-      {/* ETAPA 1: Escolher o que Produzir — mesma tela de "Combinações Otimizadas" do Painel Geral */}
+      {/* ETAPA 1: Escolher o que Produzir */}
       {currentStep === 1 && (
         <div className="space-y-4">
           <div className="flex items-center gap-3">
@@ -317,21 +365,38 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             )}
             <div>
               <h3 className="text-base font-semibold text-slate-900 tracking-tight">
-                Combinações Otimizadas por Ferramental
+                Etapa 1: Escolher o que Produzir
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Melhor bobina e plano de corte já calculados para cada ferramental, com todos os materiais de destino.
+                {step1Mode === 'demanda'
+                  ? 'Demanda por slitter, agrupada por ferramental — aceite o plano sugerido ou personalize bobina e quantidade.'
+                  : 'Melhor bobina e plano de corte já calculados para cada ferramental, com todos os materiais de destino.'}
               </p>
             </div>
           </div>
 
-          <ProgramasSlitter
-            products={products}
-            coils={coils}
-            intermediarySlitters={intermediarySlitters}
-            onOpenProgramSimulation={onOpenProgramSimulation}
-            onOpenProgramOrder={onOpenProgramOrder}
-          />
+          {step1Mode === 'demanda' ? (
+            <DemandaSlitter
+              products={products}
+              coils={coils}
+              ferramentais={ferramentais}
+              intermediarySlitters={intermediarySlitters}
+              filters={planningFilters}
+              viewToggle={step1Toggle}
+              onAccept={handleAcceptSuggestion}
+              onCustomize={handleCustomize}
+            />
+          ) : (
+            <ProgramasSlitter
+              products={products}
+              coils={coils}
+              intermediarySlitters={intermediarySlitters}
+              filters={planningFilters}
+              viewToggle={step1Toggle}
+              onOpenProgramSimulation={onOpenProgramSimulation}
+              onOpenProgramOrder={onOpenProgramOrder}
+            />
+          )}
         </div>
       )}
 
