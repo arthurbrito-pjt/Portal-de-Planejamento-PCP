@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Coil, SlitterStrip, SlitterOrder } from '../types/pcp';
 import { ExcelService } from '../services/excelService';
 import { StorageService } from '../services/storageService';
@@ -6,6 +6,7 @@ import { OrderBuilderService, OrderCoilInput } from '../services/orderBuilderSer
 import { SlitterCatalogService } from '../services/slitterCatalogService';
 import { PrintTagsPortal } from '../components/PrintTagsPortal';
 import { EmptyState } from '../components/EmptyState';
+import { OrderListPanel } from '../components/OrderListPanel';
 import { MetricsBadge } from '../components/MetricsBadge';
 import { CedisaLogo } from '../components/CedisaLogo';
 import {
@@ -33,8 +34,12 @@ interface SlitterOrderViewProps {
   observacoesInicial?: string;
   justCreated?: boolean;
   onOrderSaved?: (savedOrder: SlitterOrder) => void;
-  onFinishOrder?: () => void;
+  onFinishOrder?: (orderId?: string) => void;
   onCancelOrder?: (orderId: string) => void;
+  orders?: SlitterOrder[];
+  highlightOrderId?: string | null;
+  onOpenOrder?: (order: SlitterOrder) => void;
+  onBackToOrderList?: () => void;
   onNavigateToPlanning: () => void;
   onNavigateToSimulation?: () => void;
   onNavigateToDashboard?: () => void;
@@ -52,6 +57,10 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
   justCreated = false,
   onOrderSaved,
   onFinishOrder,
+  orders = [],
+  highlightOrderId,
+  onOpenOrder,
+  onBackToOrderList,
   onCancelOrder,
   onNavigateToPlanning,
   onNavigateToSimulation,
@@ -65,6 +74,9 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
   const [turno, setTurno] = useState<string>(order?.turno || turnoInicial || '');
   const [maquina, setMaquina] = useState<string>(order?.maquina || maquinaInicial || '');
   const [observacoes, setObservacoes] = useState<string>(order?.observacoes || observacoesInicial || '');
+  // OP efetivamente gravada nesta tela — o rascunho salvo aqui não vira a prop
+  // `order`, então sem isso "Finalizar" não achava a OP para marcar Concluída.
+  const savedOrderRef = useRef<SlitterOrder | null>(order);
 
   // Rascunho estável: monta a OP (com numeroOP/id fixos) uma única vez a partir
   // da bobina + fitas vindas do Estúdio de Simulação, antes de existir uma OP
@@ -81,6 +93,16 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
   const displayOrder = order || draftOrder;
 
   if (!displayOrder) {
+    if (orders.length > 0 && onOpenOrder) {
+      return (
+        <OrderListPanel
+          orders={orders}
+          highlightOrderId={highlightOrderId}
+          onOpenOrder={onOpenOrder}
+          onNavigateToPlanning={onNavigateToPlanning}
+        />
+      );
+    }
     return (
       <EmptyState
         icon={ClipboardCheck}
@@ -105,6 +127,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
     const toSave = OrderBuilderService.updateFields(base, { operador, turno, maquina, observacoes });
 
     StorageService.addOrder(toSave);
+    savedOrderRef.current = toSave;
     setIsSaved(true);
     if (isSaved) {
       setJustUpdated(true);
@@ -115,7 +138,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
   };
 
   const handleFinalizeAndClear = () => {
-    const savedOrder = isSaved ? order : handleSaveOrder();
+    const savedOrder = isSaved ? (savedOrderRef.current ?? order) : handleSaveOrder();
     const orderId = savedOrder?.id;
 
     if (orderId) {
@@ -123,7 +146,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
     }
 
     if (onFinishOrder) {
-      onFinishOrder();
+      onFinishOrder(orderId);
     }
   };
 
@@ -181,6 +204,16 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
       {/* Top Action Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 print:hidden">
         <div className="flex items-center gap-2.5">
+          {onBackToOrderList && orders.length > 0 && (
+            <button
+              onClick={onBackToOrderList}
+              className="px-3.5 py-2 rounded-xl bg-[#0B1F3A] hover:bg-[#163866] text-white shadow-xs flex items-center gap-1.5 text-xs font-bold"
+            >
+              <ArrowLeft className="w-4 h-4 text-orange-400" />
+              <span>Todas as OPs</span>
+            </button>
+          )}
+
           <button
             onClick={onNavigateToPlanning}
             className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-xs flex items-center gap-1.5 text-xs font-bold"

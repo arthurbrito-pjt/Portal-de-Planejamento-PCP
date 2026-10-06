@@ -239,10 +239,13 @@ export const App: React.FC = () => {
     navigateToRoute('dashboard');
   };
 
-  const handleFinishOrder = () => {
+  // Ao finalizar, volta para a lista de OPs com a OP recém-finalizada em
+  // destaque, em vez de sair para o Painel (onde ela "sumia" da vista).
+  const handleFinishOrder = (orderId?: string) => {
     handleClearActiveWorkspace();
     loadData();
-    navigateToRoute('dashboard');
+    if (orderId) setHighlightOrderId(orderId);
+    navigateToRoute('order');
   };
 
   const handleOpenProgramInSimulation = (program: SlitterProductionProgram) => {
@@ -441,6 +444,7 @@ export const App: React.FC = () => {
 
           {activeTab === 'order' && (
             <SlitterOrderView
+              key={activeOrder?.id ?? (activeCoilInputs.length > 0 || activeCoil ? 'draft' : 'list')}
               order={activeOrder}
               coil={activeCoil}
               strips={activeStrips}
@@ -453,6 +457,13 @@ export const App: React.FC = () => {
               onOrderSaved={handleOrderSaved}
               onFinishOrder={handleFinishOrder}
               onCancelOrder={handleCancelOrder}
+              orders={orders}
+              highlightOrderId={highlightOrderId}
+              onOpenOrder={handleViewOrderDetails}
+              onBackToOrderList={() => {
+                handleClearActiveWorkspace();
+                navigateToRoute('order');
+              }}
               onNavigateToPlanning={() => handleSelectTab('planning')}
               onNavigateToSimulation={() => handleSelectTab('simulation')}
               onNavigateToDashboard={() => handleSelectTab('dashboard')}
