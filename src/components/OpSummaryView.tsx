@@ -10,6 +10,8 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { ExcelService } from '../services/excelService';
+import { OrderExecutionPanel } from './OrderExecutionPanel';
+import { StorageService } from '../services/storageService';
 
 interface OpSummaryViewProps {
   order: SlitterOrder;
@@ -243,6 +245,13 @@ export const OpSummaryView: React.FC<OpSummaryViewProps> = ({
             {order.observacoes}
           </div>
         )}
+
+        <OrderExecutionPanel
+          order={order}
+          execucao={order.execucao || {}}
+          faltas={StorageService.getFaltasMateriaPrima().filter(f => f.orderId === order.id)}
+          disabled
+        />
       </div>
     </div>
   );

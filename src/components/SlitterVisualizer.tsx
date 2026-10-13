@@ -16,6 +16,7 @@ interface SlitterVisualizerProps {
   strips: SlitterStrip[];
   onAddStrip?: (productId?: string) => void;
   onRemoveStrip?: (stripId: string) => void;
+  onMoveStrip?: (stripId: string, direction: -1 | 1) => void;
   interactive?: boolean;
 }
 
@@ -24,6 +25,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
   strips,
   onAddStrip,
   onRemoveStrip,
+  onMoveStrip,
   interactive = false
 }) => {
   const [hoveredStrip, setHoveredStrip] = useState<SlitterStrip | null>(null);
@@ -151,6 +153,26 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
                   <span className="text-[10px] font-black bg-black/60 text-white px-1.5 py-0.5 rounded font-mono shadow">
                     #{idx + 1}
                   </span>
+                  {interactive && onMoveStrip && (
+                    <span className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onMoveStrip(strip.id, -1); }}
+                        disabled={idx === 0}
+                        title="Mover fita para a esquerda"
+                        className="px-1 rounded bg-black/70 hover:bg-[#0B1F3A] text-white text-[10px] font-black disabled:opacity-30 shadow"
+                      >
+                        ◀
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onMoveStrip(strip.id, 1); }}
+                        disabled={idx === strips.length - 1}
+                        title="Mover fita para a direita"
+                        className="px-1 rounded bg-black/70 hover:bg-[#0B1F3A] text-white text-[10px] font-black disabled:opacity-30 shadow"
+                      >
+                        ▶
+                      </button>
+                    </span>
+                  )}
                   {interactive && onRemoveStrip && (
                     <button
                       onClick={(e) => {

@@ -72,7 +72,7 @@ export const ProntidaoDemanda: React.FC<ProntidaoDemandaProps> = ({ products, co
                 <td className="py-3 px-3">
                   {s.status === 'PRONTO' ? (
                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-medium">
-                      <CheckCircle className="w-3 h-3" /> Pronto ({s.compatibleLotCount} lotes)
+                      <CheckCircle className="w-3 h-3" /> MP Disponível ({s.compatibleLotCount} lotes)
                     </span>
                   ) : s.status === 'PARCIAL' ? (
                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 text-amber-700 text-[11px] font-medium">

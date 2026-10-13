@@ -13,7 +13,7 @@ import { SlitterOptimizer } from '../services/slitterOptimizer';
 import { ReadinessService, SlitterProductionProgram } from '../services/readinessService';
 import { SlitterCatalogService } from '../services/slitterCatalogService';
 import { CoilCompatibilityService } from '../services/coilCompatibilityService';
-import { OrderBuilderService, OrderCoilInput } from '../services/orderBuilderService';
+import { MAQUINAS_SLITTER, OrderBuilderService, OrderCoilInput } from '../services/orderBuilderService';
 import { StorageService } from '../services/storageService';
 import { CoilCard } from '../components/CoilCard';
 import { CoilCompatibilityBadge } from '../components/CoilCompatibilityBadge';
@@ -22,6 +22,7 @@ import { SlitterVisualizer } from '../components/SlitterVisualizer';
 import { StepIndicator } from '../components/StepIndicator';
 import { PolicyAlertBar, PolicyAlert } from '../components/PolicyAlertBar';
 import { ProgramasSlitter } from './dashboard/ProgramasSlitter';
+import { CustomPlanLauncher } from '../components/planning/CustomPlanLauncher';
 import { DemandaSlitter } from './planning/DemandaSlitter';
 import { usePlanningFilters } from '../components/planning/planningFilters';
 import {
@@ -34,7 +35,8 @@ import {
   AlertTriangle,
   ArrowLeft,
   Repeat,
-  ClipboardCheck
+  ClipboardCheck,
+  Sliders
 } from 'lucide-react';
 
 interface PlanningViewProps {
@@ -52,7 +54,7 @@ interface PlanningViewProps {
 
 const OPERADORES = ['João Silva', 'Maria Santos', 'Carlos Oliveira', 'Ana Pereira'];
 const TURNOS = ['1º Turno', '2º Turno', '3º Turno'];
-const MAQUINAS = ['SLT_01', 'SLT_02', 'SLT_03', 'SLT_04', 'SLT_05'];
+const MAQUINAS = MAQUINAS_SLITTER;
 
 export const PlanningView: React.FC<PlanningViewProps> = ({
   products,
@@ -76,6 +78,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   // clássico, segue para Revisar & Confirmar) e combinações otimizadas por bobina.
   const [step1Mode, setStep1Mode] = useState<'demanda' | 'combinacoes'>('demanda');
   const planningFilters = usePlanningFilters(products);
+  const [showCustomPlan, setShowCustomPlan] = useState<boolean>(false);
 
   const [desiredQtyTon, setDesiredQtyTon] = useState<number>(10);
   const [showManualCoilPicker, setShowManualCoilPicker] = useState<boolean>(false);
@@ -317,6 +320,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   };
 
   const step1Toggle = (
+    <div className="flex flex-wrap items-center gap-3">
     <div className="inline-flex rounded-xl bg-white border border-slate-200 p-1 shadow-sm">
       {[
         { id: 'demanda', label: 'Por Demanda (Planejamento Clássico)' },
@@ -332,6 +336,18 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
           {m.label}
         </button>
       ))}
+    </div>
+      <button
+        onClick={() => setShowCustomPlan(v => !v)}
+        className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all ${
+          showCustomPlan
+            ? 'bg-orange-500 text-white border-orange-500'
+            : 'bg-white text-slate-700 border-slate-200 hover:border-orange-400 hover:text-orange-700'
+        }`}
+      >
+        <Sliders className="w-3.5 h-3.5" />
+        Plano Personalizado
+      </button>
     </div>
   );
 
@@ -374,6 +390,17 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
               </p>
             </div>
           </div>
+
+          {showCustomPlan && (
+            <CustomPlanLauncher
+              coils={coils}
+              onClose={() => setShowCustomPlan(false)}
+              onStart={(coil) => {
+                setShowCustomPlan(false);
+                onProceedToSimulation(coil, [], undefined, [{ coil, strips: [] }]);
+              }}
+            />
+          )}
 
           {step1Mode === 'demanda' ? (
             <DemandaSlitter

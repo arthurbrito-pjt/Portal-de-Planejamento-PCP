@@ -90,7 +90,7 @@ export const DemandaSlitter: React.FC<DemandaSlitterProps> = ({
 
   const statusTabs: { id: StatusFilter; label: string }[] = [
     { id: 'TODOS', label: 'Todos' },
-    { id: 'PRONTO', label: 'Prontos' },
+    { id: 'PRONTO', label: 'Matéria-Prima Disponível' },
     { id: 'PARCIAL', label: 'Parciais' },
     { id: 'BLOQUEADO', label: 'Sem Bobina' }
   ];

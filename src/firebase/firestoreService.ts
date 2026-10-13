@@ -12,7 +12,7 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { db } from './config';
-import { Coil, Product, SlitterOrder, CutHistoryItem, Ferramental, AIRecommendationFeedback, FerramentalHistoricoItem, FerramentalProdutividadeItem } from '../types/pcp';
+import { Coil, Product, SlitterOrder, CutHistoryItem, Ferramental, AIRecommendationFeedback, FerramentalHistoricoItem, FerramentalProdutividadeItem, FaltaMateriaPrimaRegistro } from '../types/pcp';
 
 export class FirestoreService {
   private static isFirestoreAvailable = true;
@@ -188,6 +188,16 @@ export class FirestoreService {
         await setDoc(doc(db, 'ferramental_produtividade', item.codigoFerramental), item);
       } catch (e) {
         console.warn('Firestore saveFerramentalProdutividade error', e);
+      }
+    }
+  }
+
+  static async saveMultipleFaltasMp(items: FaltaMateriaPrimaRegistro[]): Promise<void> {
+    for (const item of items) {
+      try {
+        await setDoc(doc(db, 'faltas_materia_prima', item.id), item);
+      } catch (e) {
+        console.warn('Firestore saveFaltasMp error', e);
       }
     }
   }

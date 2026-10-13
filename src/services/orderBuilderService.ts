@@ -1,5 +1,7 @@
 import { Coil, SlitterStrip, SlitterOrder, SlitterOrderCoil } from '../types/pcp';
 
+export const MAQUINAS_SLITTER = ['SLT_01', 'SLT_02', 'SLT_03', 'SLT_04', 'SLT_05'];
+
 export interface OrderFields {
   operador?: string;
   turno?: string;

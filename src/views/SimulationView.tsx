@@ -3,6 +3,7 @@ import { Coil, SlitterStrip, Product } from '../types/pcp';
 import { SlitterVisualizer } from '../components/SlitterVisualizer';
 import { SlitterCatalogService } from '../services/slitterCatalogService';
 import { OrderCoilInput } from '../services/orderBuilderService';
+import { CommitNumberInput } from '../components/CommitNumberInput';
 import { SlitterTagModal } from '../components/SlitterTagModal';
 import { EmptyState } from '../components/EmptyState';
 import {
@@ -18,7 +19,9 @@ import {
   LayoutGrid,
   ChevronRight,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 
 export interface SimulationViewProps {
@@ -121,6 +124,20 @@ function normalizeCoilInputs(
       bobinaCodigo: s.bobinaCodigo || coil.codigo
     }))
   }];
+}
+
+/** Recalcula peso e metragem de uma fita a partir da largura dela e da largura/peso da bobina matriz. */
+function resizeStrip(strip: SlitterStrip, coil: Coil, largura: number): SlitterStrip {
+  const pesoTon = Number((coil.peso * (largura / coil.largura)).toFixed(3));
+  const pesoKg = Math.round(pesoTon * 1000);
+  const kgPerMeter = largura * strip.espessura * 7.85 / 1000;
+  return {
+    ...strip,
+    largura,
+    pesoTon,
+    pesoKg,
+    metrosLineares: kgPerMeter > 0 ? Math.round(pesoKg / kgPerMeter) : 0
+  };
 }
 
 export const SimulationView: React.FC<SimulationViewProps> = ({
@@ -231,9 +248,50 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
     syncUpdates(updatedInputs);
   };
 
+  const handleMoveStrip = (stripId: string, direction: -1 | 1, coilIndexTarget: number) => {
+    const updatedInputs = activeInputs.map((item, idx) => {
+      if (idx !== coilIndexTarget) return item;
+      const from = item.strips.findIndex(s => s.id === stripId);
+      const to = from + direction;
+      if (from < 0 || to < 0 || to >= item.strips.length) return item;
+      const reordered = [...item.strips];
+      [reordered[from], reordered[to]] = [reordered[to], reordered[from]];
+      return { ...item, strips: reordered.map((s, sIdx) => ({ ...s, stripNumber: sIdx + 1 })) };
+    });
+    syncUpdates(updatedInputs);
+  };
+
+  const handleChangeStripWidth = (stripId: string, largura: number, coilIndexTarget: number) => {
+    const updatedInputs = activeInputs.map((item, idx) => {
+      if (idx !== coilIndexTarget) return item;
+      return {
+        ...item,
+        strips: item.strips.map(s => (s.id === stripId ? resizeStrip(s, item.coil, largura) : s))
+      };
+    });
+    syncUpdates(updatedInputs);
+  };
+
+  const handleChangeCoilWidth = (largura: number, coilIndexTarget: number) => {
+    const updatedInputs = activeInputs.map((item, idx) => {
+      if (idx !== coilIndexTarget) return item;
+      const newCoil = { ...item.coil, largura };
+      return {
+        coil: newCoil,
+        strips: item.strips.map(s => resizeStrip(s, newCoil, s.largura))
+      };
+    });
+    syncUpdates(updatedInputs);
+  };
+
   const handleAddCompanionStrip = (coilIndexTarget: number) => {
     if (!selectedCompanionProduct) return;
-    const prod = products.find(p => p.id === selectedCompanionProduct || p.codigo === selectedCompanionProduct);
+    addProductStrip(selectedCompanionProduct, coilIndexTarget);
+    setSelectedCompanionProduct('');
+  };
+
+  const addProductStrip = (productRef: string, coilIndexTarget: number) => {
+    const prod = products.find(p => p.id === productRef || p.codigo === productRef);
     if (!prod) return;
 
     const targetItem = activeInputs[coilIndexTarget];
@@ -271,8 +329,22 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
     });
 
     syncUpdates(updatedInputs);
-    setSelectedCompanionProduct('');
   };
+
+  // Refilo alto: sugere itens da mesma espessura — mesmo fora da programação —
+  // que cabem na sobra deixando refilo técnico (>= 10 mm). Quanto menor o refilo
+  // resultante, melhor; empate vai para o item com maior demanda.
+  const currentUsedWidth = currentStrips.reduce((acc, s) => acc + s.largura, 0);
+  const currentScrapMm = Number((currentCoil.largura - currentUsedWidth).toFixed(2));
+  const refiloSuggestions = currentScrapMm > 18
+    ? compatibleProducts
+        .filter(p => p.larguraFita > 0 && currentScrapMm - p.larguraFita >= 10)
+        .sort((a, b) =>
+          (currentScrapMm - a.larguraFita) - (currentScrapMm - b.larguraFita) ||
+          (b.demandaT || 0) - (a.demandaT || 0)
+        )
+        .slice(0, 8)
+    : [];
 
   const mainProductId = currentStrips[0]?.productId || activeInputs[0]?.strips[0]?.productId;
 
@@ -481,6 +553,23 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
       {/* MODO 1: VISÃO DETALHADA DA BOBINA SELECIONADA */}
       {viewMode === 'individual' && (
         <div className="space-y-6 animate-fadeIn">
+          <div className="bg-white px-5 py-3 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
+            <span className="font-black text-slate-800 uppercase tracking-wide">Bobina matriz {currentCoil.lote}</span>
+            <label className="flex items-center gap-2 text-slate-600 font-bold">
+              Largura da bobina:
+              <CommitNumberInput
+                value={currentCoil.largura}
+                suffix="mm"
+                onCommit={(v) => handleChangeCoilWidth(v, safeIndex)}
+                title="Ajuste a largura real da bobina (ex.: bobina com borda aparada)"
+              />
+            </label>
+            <span className="text-slate-500 font-mono">
+              Soma das fitas: <strong className="text-slate-800">{currentStrips.reduce((a, s) => a + s.largura, 0)} mm</strong>
+              {' · '}Refilo: <strong className="text-slate-800">{Number((currentCoil.largura - currentStrips.reduce((a, s) => a + s.largura, 0)).toFixed(2))} mm</strong>
+            </span>
+          </div>
+
           {/* Gráfico do Slitter da Bobina Atual */}
           <div className="space-y-2">
             {isMultiCoil && (
@@ -499,9 +588,45 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
               coil={currentCoil}
               strips={currentStrips}
               onRemoveStrip={(stripId) => handleRemoveStrip(stripId, safeIndex)}
+              onMoveStrip={(stripId, dir) => handleMoveStrip(stripId, dir, safeIndex)}
               interactive={true}
             />
           </div>
+
+          {/* Refilo alto: sugestões para aproveitar a sobra */}
+          {refiloSuggestions.length > 0 && (
+            <div className="bg-amber-50 p-5 rounded-3xl border border-amber-200 shadow-sm space-y-3">
+              <div className="flex flex-wrap items-center gap-2 text-xs font-black text-amber-900">
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                <span>Refilo de {currentScrapMm} mm (acima de 18 mm) — itens que cabem na sobra, inclusive fora da programação:</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {refiloSuggestions.map(p => {
+                  const foraProgramacao = (p.demandaT || 0) <= 0;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => addProductStrip(p.id, safeIndex)}
+                      title={p.descricao}
+                      className="px-3 py-2 rounded-2xl bg-white hover:bg-orange-50 border border-amber-200 hover:border-orange-400 text-left transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-black text-[#0B1F3A] text-xs">{p.codigo}</span>
+                        <span className="font-mono text-[11px] text-slate-700">{p.larguraFita} mm</span>
+                        {foraProgramacao && (
+                          <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[9px] font-black uppercase">Fora da programação</span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                        Refilo ficaria {Number((currentScrapMm - p.larguraFita).toFixed(2))} mm
+                        {!foraProgramacao && ` · demanda ${p.demandaT} t`}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Bancada de Facas: Adicionar Fita Complementar */}
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
@@ -524,7 +649,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
                 <option value="">Selecione um produto de destino compatível (espessura {currentCoil.espessura}mm)...</option>
                 {compatibleProducts.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.codigo} - {p.descricao.slice(0, 45)} (Fita {p.larguraFita}mm | Demanda {p.demandaT || 0}t)
+                    {p.codigo} - {p.descricao.slice(0, 45)} (Fita {p.larguraFita}mm | {p.demandaT ? `Demanda ${p.demandaT}t` : 'Fora da programação'})
                   </option>
                 ))}
               </select>
@@ -593,10 +718,34 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
                             {strip.productFamily}
                           </span>
                         </td>
-                        <td className="py-3.5 px-3 text-right font-black text-slate-900">{strip.largura} mm</td>
+                        <td className="py-3.5 px-3 text-right font-black text-slate-900">
+                          <CommitNumberInput
+                            value={strip.largura}
+                            suffix="mm"
+                            step={0.5}
+                            onCommit={(v) => handleChangeStripWidth(strip.id, v, safeIndex)}
+                            title="Editar a largura desta fita"
+                          />
+                        </td>
                         <td className="py-3.5 px-3 text-right text-emerald-700 font-bold">{strip.pesoTon} t</td>
                         <td className="py-3.5 px-3 text-right text-[#0B1F3A] font-semibold">{strip.metrosLineares} m</td>
-                        <td className="py-3.5 px-3 text-center">
+                        <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                          <button
+                            onClick={() => handleMoveStrip(strip.id, -1, safeIndex)}
+                            disabled={idx === 0}
+                            title="Mover para cima (esquerda no corte)"
+                            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 disabled:opacity-30"
+                          >
+                            <ChevronUp className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleMoveStrip(strip.id, 1, safeIndex)}
+                            disabled={idx === currentStrips.length - 1}
+                            title="Mover para baixo (direita no corte)"
+                            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 disabled:opacity-30"
+                          >
+                            <ChevronDown className="w-4 h-4" />
+                          </button>
                           <button
                             onClick={() => handleRemoveStrip(strip.id, safeIndex)}
                             title="Remover esta fita desta bobina"
@@ -662,6 +811,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
                   coil={item.coil}
                   strips={item.strips}
                   onRemoveStrip={(stripId) => handleRemoveStrip(stripId, idx)}
+                  onMoveStrip={(stripId, dir) => handleMoveStrip(stripId, dir, idx)}
                   interactive={true}
                 />
               </div>

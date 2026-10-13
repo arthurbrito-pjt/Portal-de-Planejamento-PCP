@@ -1,4 +1,4 @@
-import { Product, Coil, SlitterOrder, CutHistoryItem, PCPKPIs, Ferramental, SlitterIntermediaryItem, AIRecommendationFeedback, FerramentalHistoricoItem, FerramentalProdutividadeItem } from '../types/pcp';
+import { Product, Coil, SlitterOrder, CutHistoryItem, PCPKPIs, Ferramental, SlitterIntermediaryItem, AIRecommendationFeedback, FerramentalHistoricoItem, FerramentalProdutividadeItem, FaltaMateriaPrimaRegistro, OrderExecucao } from '../types/pcp';
 import { INITIAL_PRODUCTS, INITIAL_COILS, INITIAL_FERRAMENTAL, INITIAL_INTERMEDIARY_SLITTERS } from '../data/initialData';
 import { FirestoreService } from '../firebase/firestoreService';
 
@@ -12,6 +12,7 @@ const STORAGE_KEYS = {
   AI_FEEDBACK: 'pcp_ai_feedback_v1',
   FERRAMENTAL_HISTORICO: 'pcp_ferramental_historico_v1',
   FERRAMENTAL_PRODUTIVIDADE: 'pcp_ferramental_produtividade_v1',
+  FALTAS_MP: 'pcp_faltas_mp_v1',
   LAST_SYNC: 'pcp_last_sync_v1'
 };
 
@@ -29,6 +30,7 @@ export class StorageService {
   private static aiFeedbackCache: AIRecommendationFeedback[] | null = null;
   private static ferramentalHistoricoCache: FerramentalHistoricoItem[] | null = null;
   private static ferramentalProdutividadeCache: FerramentalProdutividadeItem[] | null = null;
+  private static faltasMpCache: FaltaMateriaPrimaRegistro[] | null = null;
 
   // Initialize data from local or initial seeds
   static initialize(): void {
@@ -328,6 +330,15 @@ export class StorageService {
     }
   }
 
+  static updateCoilLargura(coilId: string, largura: number): void {
+    const coils = this.getCoils();
+    const c = coils.find(x => x.id === coilId);
+    if (c && largura > 0) {
+      c.largura = largura;
+      this.saveCoils(coils);
+    }
+  }
+
   // Orders
   static getOrders(): SlitterOrder[] {
     if (this.ordersCache) return this.ordersCache;
@@ -381,6 +392,58 @@ export class StorageService {
 
     // Cloud sync
     FirestoreService.saveSlitterOrder(order).catch(() => {});
+  }
+
+  /** Atualiza o apontamento de execução (sucata, tempos) de uma OP já gravada. */
+  static updateOrderExecucao(orderId: string, execucao: OrderExecucao): SlitterOrder | null {
+    const orders = this.getOrders();
+    const idx = orders.findIndex(o => o.id === orderId || o.numeroOP === orderId || o.numeroOS === orderId);
+    if (idx === -1) return null;
+    const updated: SlitterOrder = { ...orders[idx], execucao };
+    orders[idx] = updated;
+    this.saveOrders(orders);
+    FirestoreService.saveSlitterOrder(updated).catch(() => {});
+    return updated;
+  }
+
+  /** Lança a OP na máquina: status Em Corte, máquina definida e início do processo registrado. */
+  static lancarOrderNaMaquina(orderId: string, maquina: string): SlitterOrder | null {
+    const orders = this.getOrders();
+    const idx = orders.findIndex(o => o.id === orderId || o.numeroOP === orderId || o.numeroOS === orderId);
+    if (idx === -1) return null;
+    const atual = orders[idx];
+    const updated: SlitterOrder = {
+      ...atual,
+      maquina,
+      status: 'Em Corte',
+      execucao: { ...atual.execucao, inicioEm: atual.execucao?.inicioEm || new Date().toISOString() }
+    };
+    orders[idx] = updated;
+    this.saveOrders(orders);
+    FirestoreService.saveSlitterOrder(updated).catch(() => {});
+    return updated;
+  }
+
+  // Materiais não produzidos por falta de matéria-prima (resumo gravado no encerramento da OP)
+  static getFaltasMateriaPrima(): FaltaMateriaPrimaRegistro[] {
+    if (this.faltasMpCache) return this.faltasMpCache;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.FALTAS_MP);
+      this.faltasMpCache = raw ? JSON.parse(raw) : [];
+      return this.faltasMpCache || [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** Grava (substituindo registros anteriores da mesma OP+produto) as faltas apuradas no encerramento. */
+  static saveFaltasMateriaPrima(novas: FaltaMateriaPrimaRegistro[]): void {
+    if (novas.length === 0) return;
+    const ids = new Set(novas.map(n => n.id));
+    const merged = [...novas, ...this.getFaltasMateriaPrima().filter(f => !ids.has(f.id))];
+    this.faltasMpCache = merged;
+    localStorage.setItem(STORAGE_KEYS.FALTAS_MP, JSON.stringify(merged));
+    FirestoreService.saveMultipleFaltasMp(novas).catch(() => {});
   }
 
   static updateOrderStatus(orderId: string, status: SlitterOrder['status']): SlitterOrder | null {
@@ -487,6 +550,8 @@ export class StorageService {
     localStorage.setItem(STORAGE_KEYS.AI_FEEDBACK, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.FERRAMENTAL_HISTORICO, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.FERRAMENTAL_PRODUTIVIDADE, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.FALTAS_MP, JSON.stringify([]));
+    this.faltasMpCache = [];
 
     await Promise.all([
       FirestoreService.clearCollection('bobinas'),
@@ -495,7 +560,8 @@ export class StorageService {
       FirestoreService.clearCollection('historico_cortes'),
       FirestoreService.clearCollection('ai_feedback'),
       FirestoreService.clearCollection('ferramental_historico'),
-      FirestoreService.clearCollection('ferramental_produtividade')
+      FirestoreService.clearCollection('ferramental_produtividade'),
+      FirestoreService.clearCollection('faltas_materia_prima')
     ]);
   }
 

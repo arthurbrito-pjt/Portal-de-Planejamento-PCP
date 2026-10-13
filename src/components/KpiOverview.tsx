@@ -135,7 +135,7 @@ export const KpiOverview: React.FC<KpiOverviewProps> = ({
             {statusCounts.bloqueado > 0 && <div className="bg-red-500" style={{ width: `${pct(statusCounts.bloqueado)}%` }} />}
           </div>
           <div className="flex items-center gap-4 mt-2 text-[11px] font-bold">
-            <span className="flex items-center gap-1 text-emerald-700"><CheckCircle2 className="w-3 h-3" /> {statusCounts.pronto} Pronto</span>
+            <span className="flex items-center gap-1 text-emerald-700"><CheckCircle2 className="w-3 h-3" /> {statusCounts.pronto} Mat. Prima Disp.</span>
             <span className="flex items-center gap-1 text-amber-700"><AlertTriangle className="w-3 h-3" /> {statusCounts.parcial} Parcial</span>
             <span className="flex items-center gap-1 text-red-700"><XCircle className="w-3 h-3" /> {statusCounts.bloqueado} Bloqueado</span>
           </div>

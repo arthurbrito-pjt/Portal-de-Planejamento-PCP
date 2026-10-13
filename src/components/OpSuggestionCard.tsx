@@ -40,7 +40,7 @@ export const OpSuggestionCard: React.FC<OpSuggestionCardProps> = ({
         <span className="text-sm font-black font-mono text-[#0B1F3A]">{item.codigoSlitter}</span>
         {isReady ? (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-medium">
-            <CheckCircle className="w-3 h-3" /> Pronto
+            <CheckCircle className="w-3 h-3" /> Matéria-Prima Disponível
           </span>
         ) : isPartial ? (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 text-[11px] font-medium">

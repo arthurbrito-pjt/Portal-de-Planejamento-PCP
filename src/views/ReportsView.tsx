@@ -1,5 +1,7 @@
+import { CommitNumberInput } from '../components/CommitNumberInput';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Coil, Product, SlitterOrder, CutHistoryItem } from '../types/pcp';
+import { StorageService } from '../services/storageService';
 import { ExcelService } from '../services/excelService';
 import { OpSummaryView } from '../components/OpSummaryView';
 import { FerramentalConformacaoService } from '../services/ferramentalConformacaoService';
@@ -14,11 +16,12 @@ import {
   Eye,
   FileText,
   ArrowLeft,
-  XCircle
+  XCircle,
+  AlertTriangle
 } from 'lucide-react';
 import { MetricsBadge } from '../components/MetricsBadge';
 
-type ReportTab = 'slitters' | 'bobinas' | 'produtos' | 'perdas';
+type ReportTab = 'slitters' | 'bobinas' | 'produtos' | 'perdas' | 'faltas';
 
 interface ReportsViewProps {
   orders: SlitterOrder[];
@@ -33,6 +36,7 @@ interface ReportsViewProps {
   onViewOrderDetails?: (order: SlitterOrder) => void;
   onCancelOrder?: (order: SlitterOrder) => void;
   onNavigateToDashboard?: () => void;
+  onDataUpdated?: () => void;
 }
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
@@ -46,9 +50,11 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   onSelectOpSummary,
   onViewOrderDetails,
   onCancelOrder,
-  onNavigateToDashboard
+  onNavigateToDashboard,
+  onDataUpdated
 }) => {
   const highlightRowRef = useRef<HTMLTableRowElement | null>(null);
+  const faltasMp = StorageService.getFaltasMateriaPrima();
 
   useEffect(() => {
     if (highlightOrderId && highlightRowRef.current) {
@@ -203,7 +209,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           { id: 'slitters', label: 'Ordens de Produção (OP) Geradas', icon: Scissors, count: orders.length },
           { id: 'bobinas', label: 'Consumo por Bobina / Lote', icon: Disc, count: coils.length },
           { id: 'produtos', label: 'Demanda por Ferramental', icon: Layers, count: products.length },
-          { id: 'perdas', label: 'Balanço de Perdas & Sobras', icon: TrendingUp, count: null }
+          { id: 'perdas', label: 'Balanço de Perdas & Sobras', icon: TrendingUp, count: null },
+          { id: 'faltas', label: 'Faltas de Matéria-Prima', icon: AlertTriangle, count: faltasMp.length }
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeReportTab === tab.id;
@@ -373,7 +380,16 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       <td className="py-3 px-3 font-bold text-slate-700">{c.codigo}</td>
                       <td className="py-3 px-3 font-black text-[#0B1F3A]">{c.lote}</td>
                       <td className="py-3 px-3 text-right text-purple-700">{c.espessura}</td>
-                      <td className="py-3 px-3 text-right text-slate-900 font-black">{c.largura}</td>
+                      <td className="py-3 px-3 text-right text-slate-900 font-black">
+                        <CommitNumberInput
+                          value={c.largura}
+                          onCommit={(v) => {
+                            StorageService.updateCoilLargura(c.id, v);
+                            onDataUpdated?.();
+                          }}
+                          title="Editar a largura desta bobina"
+                        />
+                      </td>
                       <td className="py-3 px-3 text-right text-emerald-700 font-bold">{c.peso}</td>
                       <td className="py-3 px-3 text-center">
                         <MetricsBadge type="status" value={c.status} size="sm" />
@@ -462,6 +478,56 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       )}
 
       {/* TAB 4: Perdas e Sobras */}
+      {activeReportTab === 'faltas' && (
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+          <div className="border-b border-slate-100 pb-3.5">
+            <h3 className="text-sm font-black text-slate-900 tracking-tight">
+              Materiais não produzidos por falta de matéria-prima ({faltasMp.length})
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Gravado automaticamente ao concluir cada OP: itens em demanda da mesma espessura que ficaram sem bobina disponível.
+            </p>
+          </div>
+          {faltasMp.length === 0 ? (
+            <div className="text-center py-8 text-sm text-slate-400">Nenhuma falta registrada até agora.</div>
+          ) : (
+            <div className="overflow-x-auto max-h-[500px]">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider font-mono sticky top-0 bg-white z-10 font-bold">
+                    <th className="py-3 px-3">Data</th>
+                    <th className="py-3 px-3">OP</th>
+                    <th className="py-3 px-3">Item</th>
+                    <th className="py-3 px-3 text-right">Espessura (mm)</th>
+                    <th className="py-3 px-3 text-right">Demanda (t)</th>
+                    <th className="py-3 px-3 text-right">MP disponível (t)</th>
+                    <th className="py-3 px-3 text-right">Falta (t)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-mono">
+                  {faltasMp
+                    .filter(f => f.produtoCodigo.toLowerCase().includes(searchTerm.toLowerCase()) || f.numeroOP.toLowerCase().includes(searchTerm.toLowerCase()))
+                    .map(f => (
+                      <tr key={f.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-3 px-3 text-slate-600">{new Date(f.data).toLocaleDateString('pt-BR')}</td>
+                        <td className="py-3 px-3 font-black text-[#0B1F3A]">{f.numeroOP}</td>
+                        <td className="py-3 px-3">
+                          <div className="font-bold text-slate-900">{f.produtoCodigo}</div>
+                          <div className="text-[10px] text-slate-500 font-sans truncate max-w-xs">{f.descricao}</div>
+                        </td>
+                        <td className="py-3 px-3 text-right text-purple-700">{f.espessura}</td>
+                        <td className="py-3 px-3 text-right text-slate-900">{f.demandaT}</td>
+                        <td className="py-3 px-3 text-right text-emerald-700">{f.mpDisponivelT}</td>
+                        <td className="py-3 px-3 text-right font-black text-red-700">{f.faltaT}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {activeReportTab === 'perdas' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">

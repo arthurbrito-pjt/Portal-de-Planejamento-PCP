@@ -233,7 +233,7 @@ export const CotacaoView: React.FC<CotacaoViewProps> = ({
             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none"
           >
             <option value="TODOS">Todos os Status</option>
-            <option value="PRONTA_ENTREGA">Pronta Entrega (Slitter Pronto)</option>
+            <option value="PRONTA_ENTREGA">Pronta Entrega (Slitter com MP disponível)</option>
             <option value="EM_PRODUCAO_D2">D+2 (Em Produção Hoje)</option>
             <option value="PROGRAMADO_D3">D+3 (Bobina Disponível)</option>
             <option value="AGUARDANDO_MP">Sem Bobina (Aguardando)</option>

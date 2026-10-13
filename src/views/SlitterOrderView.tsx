@@ -1,8 +1,10 @@
-import React, { useRef, useState } from 'react';
-import { Coil, SlitterStrip, SlitterOrder } from '../types/pcp';
+import React, { useMemo, useRef, useState } from 'react';
+import { Coil, SlitterStrip, SlitterOrder, OrderExecucao } from '../types/pcp';
 import { ExcelService } from '../services/excelService';
 import { StorageService } from '../services/storageService';
-import { OrderBuilderService, OrderCoilInput } from '../services/orderBuilderService';
+import { MAQUINAS_SLITTER, OrderBuilderService, OrderCoilInput } from '../services/orderBuilderService';
+import { OrderExecutionService } from '../services/orderExecutionService';
+import { OrderExecutionPanel } from '../components/OrderExecutionPanel';
 import { SlitterCatalogService } from '../services/slitterCatalogService';
 import { PrintTagsPortal } from '../components/PrintTagsPortal';
 import { EmptyState } from '../components/EmptyState';
@@ -20,7 +22,8 @@ import {
   Scissors,
   Tag,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Play
 } from 'lucide-react';
 
 interface SlitterOrderViewProps {
@@ -77,6 +80,8 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
   // OP efetivamente gravada nesta tela — o rascunho salvo aqui não vira a prop
   // `order`, então sem isso "Finalizar" não achava a OP para marcar Concluída.
   const savedOrderRef = useRef<SlitterOrder | null>(order);
+  const [liveOrder, setLiveOrder] = useState<SlitterOrder | null>(null);
+  const [execucao, setExecucao] = useState<OrderExecucao>(order?.execucao || {});
 
   // Rascunho estável: monta a OP (com numeroOP/id fixos) uma única vez a partir
   // da bobina + fitas vindas do Estúdio de Simulação, antes de existir uma OP
@@ -90,7 +95,17 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
     return OrderBuilderService.buildNew([{ coil, strips }], {});
   });
 
-  const displayOrder = order || draftOrder;
+  const displayOrder = liveOrder || order || draftOrder;
+
+  // Faltas de MP: prévia enquanto a OP está aberta; depois de concluída, o que foi gravado.
+  const faltasMp = useMemo(() => {
+    if (!displayOrder) return [];
+    if (displayOrder.status === 'Concluída') {
+      return StorageService.getFaltasMateriaPrima().filter(f => f.orderId === displayOrder.id);
+    }
+    if (displayOrder.status === 'Cancelada') return [];
+    return OrderExecutionService.computeFaltasMateriaPrima(displayOrder, StorageService.getProducts(), StorageService.getCoils());
+  }, [displayOrder]);
 
   if (!displayOrder) {
     if (orders.length > 0 && onOpenOrder) {
@@ -123,11 +138,12 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
   const isMultiCoil = bobinas.length > 1;
 
   const handleSaveOrder = (): SlitterOrder => {
-    const base = order || draftOrder!;
-    const toSave = OrderBuilderService.updateFields(base, { operador, turno, maquina, observacoes });
+    const base = savedOrderRef.current || order || draftOrder!;
+    const toSave: SlitterOrder = { ...OrderBuilderService.updateFields(base, { operador, turno, maquina, observacoes }), execucao };
 
     StorageService.addOrder(toSave);
     savedOrderRef.current = toSave;
+    setLiveOrder(toSave);
     setIsSaved(true);
     if (isSaved) {
       setJustUpdated(true);
@@ -137,13 +153,27 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
     return toSave;
   };
 
-  const handleFinalizeAndClear = () => {
-    const savedOrder = isSaved ? (savedOrderRef.current ?? order) : handleSaveOrder();
-    const orderId = savedOrder?.id;
+  const handleLancarNaMaquina = () => {
+    if (!maquina) return;
+    const saved = handleSaveOrder();
+    const launched = StorageService.lancarOrderNaMaquina(saved.id, maquina);
+    if (!launched) return;
+    savedOrderRef.current = launched;
+    setLiveOrder(launched);
+    setExecucao(launched.execucao || {});
+    if (onOrderSaved) onOrderSaved(launched);
+  };
 
-    if (orderId) {
-      StorageService.updateOrderStatus(orderId, 'Concluída');
-    }
+  const handleFinalizeAndClear = () => {
+    const savedOrder = handleSaveOrder();
+    const orderId = savedOrder.id;
+
+    // Fim do processo e faltas de matéria-prima ficam gravados junto com a conclusão.
+    StorageService.updateOrderExecucao(orderId, { ...execucao, fimEm: execucao.fimEm || new Date().toISOString() });
+    StorageService.saveFaltasMateriaPrima(
+      OrderExecutionService.computeFaltasMateriaPrima(savedOrder, StorageService.getProducts(), StorageService.getCoils())
+    );
+    StorageService.updateOrderStatus(orderId, 'Concluída');
 
     if (onFinishOrder) {
       onFinishOrder(orderId);
@@ -161,8 +191,8 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
   };
 
   const handleExportExcel = () => {
-    const base = order || draftOrder!;
-    const toExport = OrderBuilderService.updateFields(base, { operador, turno, maquina, observacoes });
+    const base = savedOrderRef.current || order || draftOrder!;
+    const toExport = { ...OrderBuilderService.updateFields(base, { operador, turno, maquina, observacoes }), execucao };
     ExcelService.exportSlitterOrderToExcel(toExport);
   };
 
@@ -282,6 +312,20 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
               <Check className="w-4 h-4" />
               Alterações salvas
             </span>
+          )}
+
+          {!isLocked && orderStatus !== 'Em Corte' && (
+            <button
+              onClick={handleLancarNaMaquina}
+              disabled={!maquina}
+              title={maquina ? `Lançar o plano de corte na máquina ${maquina} e iniciar o tempo de processo` : 'Selecione a máquina em "Dados Operacionais" para lançar'}
+              className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl shadow-xs transition-all ${
+                maquina ? 'bg-[#0B1F3A] hover:bg-[#163866] text-white' : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+              }`}
+            >
+              <Play className="w-4 h-4 text-orange-400" />
+              <span>Lançar na Máquina</span>
+            </button>
           )}
 
           <button
@@ -520,14 +564,17 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
             <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-slate-600">Equipamento / Máquina:</span>
-                <input
-                  type="text"
+                <select
                   value={maquina}
                   onChange={(e) => setMaquina(e.target.value)}
-                  disabled={isLocked}
-                  placeholder="Selecione a máquina no Planejamento"
-                  className="bg-transparent border-b border-slate-300 text-right font-mono font-bold text-slate-900 placeholder:font-normal placeholder:text-slate-400 focus:outline-none disabled:text-slate-400 disabled:cursor-not-allowed"
-                />
+                  disabled={isLocked || orderStatus === 'Em Corte'}
+                  className="bg-transparent border-b border-slate-300 text-right font-mono font-bold text-slate-900 focus:outline-none disabled:text-slate-400 disabled:cursor-not-allowed"
+                >
+                  <option value="">Selecione a máquina</option>
+                  {Array.from(new Set([...MAQUINAS_SLITTER, ...(maquina ? [maquina] : [])])).map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-600">Programador PCP:</span>
@@ -568,6 +615,14 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
             </div>
           </div>
         </div>
+
+        <OrderExecutionPanel
+          order={displayOrder}
+          execucao={execucao}
+          faltas={faltasMp}
+          disabled={isLocked}
+          onChange={setExecucao}
+        />
       </div>
     </div>
   );

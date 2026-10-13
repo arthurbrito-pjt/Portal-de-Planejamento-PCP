@@ -232,7 +232,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
         <div className="flex items-center justify-between">
           <h4 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-orange-600" />
-            Prontos para virar OP agora {totalReadyCount > 0 && `(${totalReadyCount})`}
+            Com matéria-prima disponível para virar OP {totalReadyCount > 0 && `(${totalReadyCount})`}
           </h4>
           <button onClick={() => onNavigateToSubview('prontidao-demanda')} className="text-[11px] text-[#0B1F3A] hover:text-orange-600 hover:underline font-bold">
             Ver todos

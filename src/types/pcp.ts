@@ -205,6 +205,32 @@ export interface SlitterOrderCoil {
   perdaPercent: number; // %
 }
 
+// Apontamento de execução da OP no chão de fábrica: pesagem da sucata antes e
+// depois do corte e horário de início/fim (tempo de processo).
+export interface OrderExecucao {
+  inicioEm?: string; // ISO
+  fimEm?: string; // ISO
+  sucataAntesKg?: number;
+  sucataDepoisKg?: number;
+  observacoes?: string;
+}
+
+// Item em demanda que não foi produzido por falta de matéria-prima, gravado no
+// encerramento da OP.
+export interface FaltaMateriaPrimaRegistro {
+  id: string;
+  data: string; // ISO
+  orderId: string;
+  numeroOP: string;
+  produtoId: string;
+  produtoCodigo: string;
+  descricao: string;
+  espessura: number;
+  demandaT: number;
+  mpDisponivelT: number;
+  faltaT: number;
+}
+
 export interface SlitterOrder {
   id: string;
   numeroOP: string; // ex: OP-SLT-2026-001
@@ -240,6 +266,7 @@ export interface SlitterOrder {
   operador?: string;
   turno?: string;
   maquina?: string;
+  execucao?: OrderExecucao;
 }
 
 export interface CutHistoryItem {

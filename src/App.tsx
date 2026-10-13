@@ -484,6 +484,7 @@ export const App: React.FC = () => {
               onViewOrderDetails={handleViewOrderDetails}
               onCancelOrder={(order) => handleCancelOrder(order.id)}
               onNavigateToDashboard={() => handleSelectTab('dashboard')}
+              onDataUpdated={loadData}
             />
           )}
 
