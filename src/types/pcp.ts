@@ -231,6 +231,16 @@ export interface FaltaMateriaPrimaRegistro {
   faltaT: number;
 }
 
+// Modelo de plano de corte salvo pelo PCP para reaproveitar em outras bobinas
+// da mesma espessura (lista de itens com a largura de cada fita, na ordem do corte).
+export interface PlanTemplate {
+  id: string;
+  nome: string;
+  espessura: number;
+  criadoEm: string; // ISO
+  fitas: { productId: string; productCode: string; largura: number }[];
+}
+
 export interface SlitterOrder {
   id: string;
   numeroOP: string; // ex: OP-SLT-2026-001

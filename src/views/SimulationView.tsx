@@ -3,6 +3,7 @@ import { Coil, SlitterStrip, Product } from '../types/pcp';
 import { SlitterVisualizer } from '../components/SlitterVisualizer';
 import { SlitterCatalogService } from '../services/slitterCatalogService';
 import { OrderCoilInput } from '../services/orderBuilderService';
+import { StorageService } from '../services/storageService';
 import { CommitNumberInput } from '../components/CommitNumberInput';
 import { SlitterTagModal } from '../components/SlitterTagModal';
 import { EmptyState } from '../components/EmptyState';
@@ -167,6 +168,8 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   const [companionQty, setCompanionQty] = useState<number>(1);
   const [companionFilter, setCompanionFilter] = useState<string>('');
   const [coilToAdd, setCoilToAdd] = useState<string>('');
+  const [templateName, setTemplateName] = useState<string>('');
+  const [templateSavedMsg, setTemplateSavedMsg] = useState<string>('');
 
   // Sincroniza sempre que as props externas mudam
   useEffect(() => {
@@ -338,6 +341,21 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
     syncUpdates(updatedInputs);
   };
 
+  const handleSaveTemplate = () => {
+    const nome = templateName.trim();
+    if (!nome || currentStrips.length === 0) return;
+    StorageService.savePlanTemplate({
+      id: `TPL_${Date.now()}`,
+      nome,
+      espessura: currentCoil.espessura,
+      criadoEm: new Date().toISOString(),
+      fitas: currentStrips.map(s => ({ productId: s.productId, productCode: s.productCode, largura: s.largura }))
+    });
+    setTemplateName('');
+    setTemplateSavedMsg(`Modelo "${nome}" salvo — disponível em Planejamento > Plano Personalizado.`);
+    setTimeout(() => setTemplateSavedMsg(''), 4000);
+  };
+
   const handleAddCoil = () => {
     const coilNew = availableCoils.find(c => c.id === coilToAdd);
     if (!coilNew) return;
@@ -493,6 +511,23 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
             <Plus className="w-4 h-4 text-orange-400" />
             <span>Adicionar Bobina</span>
           </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
+          <input
+            type="text"
+            value={templateName}
+            onChange={(e) => setTemplateName(e.target.value)}
+            placeholder="Nome para salvar o corte da bobina atual como modelo..."
+            className="flex-1 min-w-[260px] px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs focus:outline-none focus:border-[#0B1F3A]"
+          />
+          <button
+            onClick={handleSaveTemplate}
+            disabled={!templateName.trim() || currentStrips.length === 0}
+            className="px-5 py-2.5 bg-white hover:bg-orange-50 border border-slate-300 hover:border-orange-400 text-slate-800 text-xs font-black rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Salvar como Modelo
+          </button>
+          {templateSavedMsg && <span className="text-xs font-bold text-emerald-700">{templateSavedMsg}</span>}
         </div>
         <p className="text-[11px] text-slate-500">
           Cada bobina tem o próprio corte. Selecione a bobina nos cards abaixo para adicionar materiais e ajustar as fitas dela.

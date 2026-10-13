@@ -394,10 +394,12 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
           {showCustomPlan && (
             <CustomPlanLauncher
               coils={coils}
+              products={products}
+              readyPlans={slitterPrograms}
               onClose={() => setShowCustomPlan(false)}
-              onStart={(coil) => {
+              onStart={(coil, strips) => {
                 setShowCustomPlan(false);
-                onProceedToSimulation(coil, [], undefined, [{ coil, strips: [] }]);
+                onProceedToSimulation(coil, strips, undefined, [{ coil, strips }]);
               }}
             />
           )}

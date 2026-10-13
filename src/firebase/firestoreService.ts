@@ -12,7 +12,7 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { db } from './config';
-import { Coil, Product, SlitterOrder, CutHistoryItem, Ferramental, AIRecommendationFeedback, FerramentalHistoricoItem, FerramentalProdutividadeItem, FaltaMateriaPrimaRegistro } from '../types/pcp';
+import { Coil, Product, SlitterOrder, CutHistoryItem, Ferramental, AIRecommendationFeedback, FerramentalHistoricoItem, FerramentalProdutividadeItem, FaltaMateriaPrimaRegistro, PlanTemplate } from '../types/pcp';
 
 export class FirestoreService {
   private static isFirestoreAvailable = true;
@@ -189,6 +189,22 @@ export class FirestoreService {
       } catch (e) {
         console.warn('Firestore saveFerramentalProdutividade error', e);
       }
+    }
+  }
+
+  static async savePlanTemplate(template: PlanTemplate): Promise<void> {
+    try {
+      await setDoc(doc(db, 'modelos_plano_corte', template.id), template);
+    } catch (e) {
+      console.warn('Firestore savePlanTemplate error', e);
+    }
+  }
+
+  static async deletePlanTemplate(id: string): Promise<void> {
+    try {
+      await deleteDoc(doc(db, 'modelos_plano_corte', id));
+    } catch (e) {
+      console.warn('Firestore deletePlanTemplate error', e);
     }
   }
 

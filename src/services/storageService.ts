@@ -1,4 +1,4 @@
-import { Product, Coil, SlitterOrder, CutHistoryItem, PCPKPIs, Ferramental, SlitterIntermediaryItem, AIRecommendationFeedback, FerramentalHistoricoItem, FerramentalProdutividadeItem, FaltaMateriaPrimaRegistro, OrderExecucao } from '../types/pcp';
+import { Product, Coil, SlitterOrder, CutHistoryItem, PCPKPIs, Ferramental, SlitterIntermediaryItem, AIRecommendationFeedback, FerramentalHistoricoItem, FerramentalProdutividadeItem, FaltaMateriaPrimaRegistro, OrderExecucao, PlanTemplate } from '../types/pcp';
 import { INITIAL_PRODUCTS, INITIAL_COILS, INITIAL_FERRAMENTAL, INITIAL_INTERMEDIARY_SLITTERS } from '../data/initialData';
 import { FirestoreService } from '../firebase/firestoreService';
 
@@ -13,6 +13,7 @@ const STORAGE_KEYS = {
   FERRAMENTAL_HISTORICO: 'pcp_ferramental_historico_v1',
   FERRAMENTAL_PRODUTIVIDADE: 'pcp_ferramental_produtividade_v1',
   FALTAS_MP: 'pcp_faltas_mp_v1',
+  PLAN_TEMPLATES: 'pcp_plan_templates_v1',
   LAST_SYNC: 'pcp_last_sync_v1'
 };
 
@@ -422,6 +423,27 @@ export class StorageService {
     this.saveOrders(orders);
     FirestoreService.saveSlitterOrder(updated).catch(() => {});
     return updated;
+  }
+
+  // Modelos de plano de corte salvos pelo PCP
+  static getPlanTemplates(): PlanTemplate[] {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.PLAN_TEMPLATES);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  static savePlanTemplate(template: PlanTemplate): void {
+    const all = [template, ...this.getPlanTemplates().filter(t => t.id !== template.id)];
+    localStorage.setItem(STORAGE_KEYS.PLAN_TEMPLATES, JSON.stringify(all));
+    FirestoreService.savePlanTemplate(template).catch(() => {});
+  }
+
+  static deletePlanTemplate(id: string): void {
+    localStorage.setItem(STORAGE_KEYS.PLAN_TEMPLATES, JSON.stringify(this.getPlanTemplates().filter(t => t.id !== id)));
+    FirestoreService.deletePlanTemplate(id).catch(() => {});
   }
 
   // Materiais não produzidos por falta de matéria-prima (resumo gravado no encerramento da OP)
