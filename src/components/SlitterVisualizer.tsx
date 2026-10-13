@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { SlitterStrip, Coil } from '../types/pcp';
 import { SlitterCatalogService } from '../services/slitterCatalogService';
 import { 
@@ -36,9 +36,10 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
     }
   }, [strips, hoveredStrip]);
 
-  const [dragStripId, setDragStripId] = useState<string | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const canReorder = interactive && !!onReorderStrip;
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const [drag, setDrag] = useState<{ id: string; originIdx: number; startX: number; dx: number; trackPx: number } | null>(null);
+  const [settledId, setSettledId] = useState<string | null>(null);
 
   const totalUsedWidth = strips.reduce((acc, s) => acc + s.largura, 0);
   const scrapWidth = Math.max(0, coil.largura - totalUsedWidth);
@@ -53,6 +54,64 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
   const isScrapIdeal = scrapWidth >= 10 && scrapWidth <= 18;
   const isScrapLow = scrapWidth < 10;
   const isScrapHigh = scrapWidth > 18;
+
+  // Layout em % da trilha. Com excesso de largura as fitas são comprimidas em 88% e o bloco vermelho ocupa o resto.
+  const layoutK = isOverflow ? 88 / ((totalUsedWidth / coil.largura) * 100) : 1;
+  const widthPct = (s: SlitterStrip) => (s.largura / coil.largura) * 100 * layoutK;
+  const usedPct = strips.reduce((acc, s) => acc + widthPct(s), 0);
+
+  // Durante o arraste a fita segue o cursor e as demais abrem espaço em tempo real.
+  const layout = (() => {
+    const draggedStrip = drag ? strips.find(s => s.id === drag.id) : undefined;
+    const others = draggedStrip ? strips.filter(s => s.id !== draggedStrip.id) : strips;
+    const originLeft = draggedStrip
+      ? strips.slice(0, drag!.originIdx).reduce((acc, s) => acc + widthPct(s), 0)
+      : 0;
+    const dragW = draggedStrip ? widthPct(draggedStrip) : 0;
+    const dragLeft = draggedStrip
+      ? Math.max(0, Math.min(usedPct - dragW, originLeft + (drag!.dx / drag!.trackPx) * 100))
+      : 0;
+
+    let insertIdx = drag ? drag.originIdx : 0;
+    if (draggedStrip) {
+      const dragCenter = dragLeft + dragW / 2;
+      let acc = 0;
+      let count = 0;
+      for (const o of others) {
+        const w = widthPct(o);
+        if (acc + w / 2 < dragCenter) count++;
+        acc += w;
+      }
+      insertIdx = count;
+    }
+
+    const order = draggedStrip
+      ? [...others.slice(0, insertIdx), draggedStrip, ...others.slice(insertIdx)]
+      : strips;
+    const slots: { left: number; width: number }[] = [];
+    const slotById = new Map<string, { left: number; width: number }>();
+    const previewIndex = new Map<string, number>();
+    let acc = 0;
+    order.forEach((s, i) => {
+      const slot = { left: acc, width: widthPct(s) };
+      slots.push(slot);
+      slotById.set(s.id, slot);
+      previewIndex.set(s.id, i);
+      acc += slot.width;
+    });
+    return { slots, slotById, previewIndex, insertIdx, dragLeft, usedPct: acc };
+  })();
+
+  const finishDrag = (stripId: string) => {
+    if (!drag || drag.id !== stripId) return;
+    const target = strips[layout.insertIdx];
+    if (target && target.id !== stripId) {
+      onReorderStrip?.(stripId, target.id);
+      setSettledId(stripId);
+      setTimeout(() => setSettledId(null), 900);
+    }
+    setDrag(null);
+  };
 
   const formulaText = strips.map(s => `${s.largura}`).join(' + ') + (scrapWidth > 0 ? ` + [${scrapWidth} refilo]` : '') + ` = ${coil.largura} mm`;
 
@@ -134,123 +193,146 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
           </span>
         </div>
 
-        {/* 3D-effect Cross Section */}
-        <div className="relative w-full h-28 bg-slate-100 rounded-2xl p-1.5 border-2 border-slate-300 shadow-sm flex items-stretch overflow-hidden">
-          {strips.map((strip, idx) => {
-            const widthPercent = (strip.largura / coil.largura) * 100;
-            const isHovered = hoveredStrip?.id === strip.id;
-
-            return (
+        {/* 3D-effect Cross Section — fitas posicionadas por offset para animar a reordenação ao arrastar */}
+        <div className="relative w-full h-28 bg-slate-100 rounded-2xl p-1.5 border-2 border-slate-300 shadow-sm">
+          <div ref={trackRef} className="relative w-full h-full select-none">
+            {drag && layout.slots[layout.insertIdx] && (
               <div
-                key={strip.id || idx}
+                className="absolute top-0 bottom-0 rounded-lg border-2 border-dashed border-orange-400 bg-orange-400/15 transition-all duration-200 ease-out"
+                style={{ left: `${layout.slots[layout.insertIdx].left}%`, width: `${layout.slots[layout.insertIdx].width}%` }}
+              />
+            )}
+
+            {strips.map((strip) => {
+              const slot = layout.slotById.get(strip.id)!;
+              const isDragging = drag?.id === strip.id;
+              const left = isDragging ? layout.dragLeft : slot.left;
+              const isHovered = !drag && hoveredStrip?.id === strip.id;
+              const isSettled = settledId === strip.id;
+
+              return (
+                <div
+                  key={strip.id}
+                  style={{
+                    left: `${left}%`,
+                    width: `${slot.width}%`,
+                    backgroundColor: strip.cor,
+                    touchAction: canReorder ? 'none' : undefined,
+                    transition: isDragging
+                      ? 'transform 150ms ease, box-shadow 150ms ease'
+                      : 'left 260ms cubic-bezier(0.22, 1, 0.36, 1), transform 200ms ease, box-shadow 200ms ease, opacity 200ms ease, filter 150ms ease'
+                  }}
+                  onMouseEnter={() => !drag && setHoveredStrip(strip)}
+                  onMouseLeave={() => setHoveredStrip(null)}
+                  onPointerDown={(e) => {
+                    if (!canReorder || e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                    setHoveredStrip(null);
+                    setDrag({
+                      id: strip.id,
+                      originIdx: strips.findIndex(s => s.id === strip.id),
+                      startX: e.clientX,
+                      dx: 0,
+                      trackPx: trackRef.current?.getBoundingClientRect().width || 1
+                    });
+                  }}
+                  onPointerMove={(e) => {
+                    if (drag?.id === strip.id) setDrag({ ...drag, dx: e.clientX - drag.startX });
+                  }}
+                  onPointerUp={() => finishDrag(strip.id)}
+                  onPointerCancel={() => setDrag(null)}
+                  title={canReorder ? 'Arraste para mudar a fita de lugar' : undefined}
+                  className={`absolute top-0 bottom-0 group flex flex-col justify-between p-2 border-r-2 border-white rounded-lg coil-texture strip-shadow ${
+                    canReorder ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-pointer'
+                  } ${
+                    isDragging
+                      ? 'z-40 scale-y-[1.08] scale-x-[1.02] shadow-2xl shadow-black/40 ring-2 ring-orange-400 brightness-110'
+                      : drag
+                      ? 'opacity-80'
+                      : isSettled
+                      ? 'z-30 ring-4 ring-orange-400/70'
+                      : isHovered
+                      ? 'brightness-125 ring-2 ring-orange-500 z-20 scale-[1.02]'
+                      : 'hover:brightness-110'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black bg-black/60 text-white px-1.5 py-0.5 rounded font-mono shadow">
+                      #{layout.previewIndex.get(strip.id)! + 1}
+                    </span>
+                    {interactive && onRemoveStrip && !drag && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRemoveStrip(strip.id);
+                        }}
+                        title="Remover fita"
+                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-600 rounded bg-black/70 text-white transition-opacity shadow"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="text-center my-auto overflow-hidden px-0.5 pointer-events-none">
+                    <div className="text-sm sm:text-base font-black text-white font-mono drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                      {strip.largura} mm
+                    </div>
+                    <div className="text-[10px] font-black text-white uppercase truncate drop-shadow tracking-tight">
+                      {SlitterCatalogService.getSlitterInfo(strip.largura, strip.espessura).code}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center text-[9px] font-mono text-white/90 drop-shadow font-bold pointer-events-none">
+                    <span>{((strip.largura / coil.largura) * 100).toFixed(1)}%</span>
+                    <span>{strip.pesoTon} t</span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Scrap Zone */}
+            {scrapWidth > 0 && !isOverflow && (
+              <div
                 style={{
-                  width: `${widthPercent}%`,
-                  backgroundColor: strip.cor
+                  left: `${layout.usedPct}%`,
+                  width: `${scrapPercent}%`,
+                  transition: 'left 260ms cubic-bezier(0.22, 1, 0.36, 1)'
                 }}
-                onMouseEnter={() => setHoveredStrip(strip)}
-                onMouseLeave={() => setHoveredStrip(null)}
-                draggable={canReorder}
-                onDragStart={(e) => {
-                  setDragStripId(strip.id);
-                  e.dataTransfer.effectAllowed = 'move';
-                  e.dataTransfer.setData('text/plain', strip.id);
-                }}
-                onDragOver={(e) => {
-                  if (!canReorder || !dragStripId) return;
-                  e.preventDefault();
-                  if (dragOverId !== strip.id) setDragOverId(strip.id);
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (dragStripId && dragStripId !== strip.id) onReorderStrip?.(dragStripId, strip.id);
-                  setDragStripId(null);
-                  setDragOverId(null);
-                }}
-                onDragEnd={() => {
-                  setDragStripId(null);
-                  setDragOverId(null);
-                }}
-                title={canReorder ? 'Arraste para mudar a fita de lugar' : undefined}
-                className={`relative group h-full flex flex-col justify-between p-2 border-r-2 border-white rounded-lg transition-all duration-150 coil-texture strip-shadow ${
-                  canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
-                } ${dragStripId === strip.id ? 'opacity-40' : ''} ${
-                  dragOverId === strip.id && dragStripId !== strip.id ? 'ring-4 ring-white z-30' : ''
-                } ${
-                  isHovered ? 'brightness-125 ring-2 ring-orange-500 z-20 scale-[1.02]' : 'hover:brightness-110'
+                className={`absolute top-0 bottom-0 flex flex-col justify-between items-center p-2 border-2 border-dashed rounded-lg ${
+                  isScrapIdeal
+                    ? 'scrap-stripes-green border-emerald-500 text-emerald-800'
+                    : isScrapLow
+                    ? 'scrap-stripes border-amber-500 text-amber-800'
+                    : 'scrap-stripes border-red-400 text-red-800'
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black bg-black/60 text-white px-1.5 py-0.5 rounded font-mono shadow">
-                    #{idx + 1}
-                  </span>
-                  {interactive && onRemoveStrip && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onRemoveStrip(strip.id);
-                      }}
-                      title="Remover fita"
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-600 rounded bg-black/70 text-white transition-opacity shadow"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  )}
+                <div className="text-[9px] uppercase font-black tracking-wider bg-white/90 px-1.5 py-0.5 rounded shadow-sm">
+                  Refilo
                 </div>
-
-                <div className="text-center my-auto overflow-hidden px-0.5">
-                  <div className="text-sm sm:text-base font-black text-white font-mono drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-                    {strip.largura} mm
+                <div className="text-center">
+                  <div className="text-sm font-black font-mono">
+                    {scrapWidth} mm
                   </div>
-                  <div className="text-[10px] font-black text-white uppercase truncate drop-shadow tracking-tight">
-                    {SlitterCatalogService.getSlitterInfo(strip.largura, strip.espessura).code}
+                  <div className="text-[9px] font-mono font-bold">
+                    {scrapPercent}% ({scrapWeightTon} t)
                   </div>
                 </div>
-
-                <div className="flex justify-between items-center text-[9px] font-mono text-white/90 drop-shadow font-bold">
-                  <span>{widthPercent.toFixed(1)}%</span>
-                  <span>{strip.pesoTon} t</span>
+                <div className="text-[8px] font-black uppercase">
+                  {isScrapIdeal ? '✓ IDEAL 10-18mm' : isScrapLow ? '⚠ < 10mm' : '⚠ > 18mm'}
                 </div>
               </div>
-            );
-          })}
+            )}
 
-          {/* Scrap Zone */}
-          {scrapWidth > 0 && !isOverflow && (
-            <div
-              style={{ width: `${scrapPercent}%` }}
-              className={`h-full flex flex-col justify-between items-center p-2 border-2 border-dashed rounded-lg transition-all ${
-                isScrapIdeal
-                  ? 'scrap-stripes-green border-emerald-500 text-emerald-800'
-                  : isScrapLow
-                  ? 'scrap-stripes border-amber-500 text-amber-800'
-                  : 'scrap-stripes border-red-400 text-red-800'
-              }`}
-            >
-              <div className="text-[9px] uppercase font-black tracking-wider bg-white/90 px-1.5 py-0.5 rounded shadow-sm">
-                Refilo
+            {isOverflow && (
+              <div
+                style={{ left: '88%', width: '12%' }}
+                className="absolute top-0 bottom-0 flex flex-col justify-center items-center p-1 bg-red-600 text-white font-mono font-black text-xs rounded-lg"
+              >
+                <span>+{overflowAmount}mm</span>
               </div>
-              <div className="text-center">
-                <div className="text-sm font-black font-mono">
-                  {scrapWidth} mm
-                </div>
-                <div className="text-[9px] font-mono font-bold">
-                  {scrapPercent}% ({scrapWeightTon} t)
-                </div>
-              </div>
-              <div className="text-[8px] font-black uppercase">
-                {isScrapIdeal ? '✓ IDEAL 10-18mm' : isScrapLow ? '⚠ < 10mm' : '⚠ > 18mm'}
-              </div>
-            </div>
-          )}
-
-          {isOverflow && (
-            <div
-              style={{ width: '12%' }}
-              className="h-full flex flex-col justify-center items-center p-1 bg-red-600 text-white font-mono font-black text-xs rounded-lg"
-            >
-              <span>+{overflowAmount}mm</span>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Lower Millimeter Scale Ticks */}

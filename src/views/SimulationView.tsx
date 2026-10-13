@@ -168,6 +168,8 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   const [companionFilter, setCompanionFilter] = useState<string>('');
   const [coilToAdd, setCoilToAdd] = useState<string>('');
   const [dragRowId, setDragRowId] = useState<string | null>(null);
+  const [dragOverRowId, setDragOverRowId] = useState<string | null>(null);
+  const [movedRowId, setMovedRowId] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState<string>('');
   const [templateSavedMsg, setTemplateSavedMsg] = useState<string>('');
 
@@ -832,14 +834,32 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
                           e.dataTransfer.effectAllowed = 'move';
                           e.dataTransfer.setData('text/plain', strip.id);
                         }}
-                        onDragOver={(e) => { if (dragRowId) e.preventDefault(); }}
+                        onDragOver={(e) => {
+                          if (!dragRowId) return;
+                          e.preventDefault();
+                          if (dragOverRowId !== strip.id) setDragOverRowId(strip.id);
+                        }}
                         onDrop={(e) => {
                           e.preventDefault();
-                          if (dragRowId && dragRowId !== strip.id) handleReorderStrip(dragRowId, strip.id, safeIndex);
+                          if (dragRowId && dragRowId !== strip.id) {
+                            handleReorderStrip(dragRowId, strip.id, safeIndex);
+                            setMovedRowId(dragRowId);
+                            setTimeout(() => setMovedRowId(null), 1200);
+                          }
                           setDragRowId(null);
+                          setDragOverRowId(null);
                         }}
-                        onDragEnd={() => setDragRowId(null)}
-                        className={`hover:bg-slate-50 transition-colors cursor-grab active:cursor-grabbing ${dragRowId === strip.id ? 'opacity-40' : ''}`}
+                        onDragEnd={() => {
+                          setDragRowId(null);
+                          setDragOverRowId(null);
+                        }}
+                        className={`transition-all duration-300 cursor-grab active:cursor-grabbing ${
+                          dragRowId === strip.id
+                            ? 'opacity-40 scale-[0.99]'
+                            : movedRowId === strip.id
+                            ? 'bg-orange-100'
+                            : 'hover:bg-slate-50'
+                        } ${dragOverRowId === strip.id && dragRowId !== strip.id ? 'shadow-[inset_0_3px_0_0_#FF6B00] bg-orange-50/60' : ''}`}
                       >
                         <td className="py-3.5 px-3 font-black text-slate-900 flex items-center gap-2.5">
                           <GripVertical className="w-4 h-4 text-slate-300 shrink-0" />
