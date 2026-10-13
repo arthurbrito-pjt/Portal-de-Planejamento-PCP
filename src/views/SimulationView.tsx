@@ -29,6 +29,7 @@ export interface SimulationViewProps {
   strips: SlitterStrip[];
   coilInputs?: OrderCoilInput[];
   products: Product[];
+  availableCoils?: Coil[];
   onUpdateStrips?: (newStrips: SlitterStrip[]) => void;
   onUpdateCoilInputs?: (newInputs: OrderCoilInput[]) => void;
   onProceedToOrder: (coil: Coil, strips: SlitterStrip[], allInputs?: OrderCoilInput[]) => void;
@@ -145,6 +146,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   strips,
   coilInputs,
   products,
+  availableCoils = [],
   onUpdateStrips,
   onUpdateCoilInputs,
   onProceedToOrder,
@@ -162,6 +164,9 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   const [viewMode, setViewMode] = useState<'individual' | 'todas'>('individual');
   const [selectedCompanionProduct, setSelectedCompanionProduct] = useState<string>('');
   const [isTagModalOpen, setIsTagModalOpen] = useState<boolean>(false);
+  const [companionQty, setCompanionQty] = useState<number>(1);
+  const [companionFilter, setCompanionFilter] = useState<string>('');
+  const [coilToAdd, setCoilToAdd] = useState<string>('');
 
   // Sincroniza sempre que as props externas mudam
   useEffect(() => {
@@ -286,11 +291,12 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
 
   const handleAddCompanionStrip = (coilIndexTarget: number) => {
     if (!selectedCompanionProduct) return;
-    addProductStrip(selectedCompanionProduct, coilIndexTarget);
+    addProductStrip(selectedCompanionProduct, coilIndexTarget, companionQty);
     setSelectedCompanionProduct('');
+    setCompanionQty(1);
   };
 
-  const addProductStrip = (productRef: string, coilIndexTarget: number) => {
+  const addProductStrip = (productRef: string, coilIndexTarget: number, count = 1) => {
     const prod = products.find(p => p.id === productRef || p.codigo === productRef);
     if (!prod) return;
 
@@ -303,9 +309,9 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
     const kgPerMeter = prod.pesoPorMetro || (prod.larguraFita * prod.espessura * 7.85 / 1000);
     const linearMeters = kgPerMeter > 0 ? Math.round(stripWeightKg / kgPerMeter) : 0;
 
-    const newStrip: SlitterStrip = {
-      id: `STRIP_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      stripNumber: targetItem.strips.length + 1,
+    const makeStrip = (n: number): SlitterStrip => ({
+      id: `STRIP_${Date.now()}_${n}_${Math.random().toString(36).substring(2, 6)}`,
+      stripNumber: targetItem.strips.length + n,
       productId: prod.id,
       productCode: prod.codigo,
       productDescription: prod.descricao,
@@ -318,18 +324,38 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
       cor: '#EA580C', // Cedisa Orange vibrante
       bobinaLote: targetCoil.lote,
       bobinaCodigo: targetCoil.codigo
-    };
+    });
 
+    const newStrips = Array.from({ length: Math.max(1, Math.min(count, 50)) }, (_, i) => makeStrip(i + 1));
     const updatedInputs = activeInputs.map((item, idx) => {
       if (idx !== coilIndexTarget) return item;
       return {
         ...item,
-        strips: [...item.strips, newStrip]
+        strips: [...item.strips, ...newStrips]
       };
     });
 
     syncUpdates(updatedInputs);
   };
+
+  const handleAddCoil = () => {
+    const coilNew = availableCoils.find(c => c.id === coilToAdd);
+    if (!coilNew) return;
+    syncUpdates([...activeInputs, { coil: coilNew, strips: [] }]);
+    setActiveCoilIndex(activeInputs.length);
+    setViewMode('individual');
+    setCoilToAdd('');
+  };
+
+  const handleRemoveCoil = (coilIndexTarget: number) => {
+    if (activeInputs.length <= 1) return;
+    syncUpdates(activeInputs.filter((_, idx) => idx !== coilIndexTarget));
+    setActiveCoilIndex(0);
+  };
+
+  const coilsNotInPlan = availableCoils
+    .filter(c => c.status === 'Disponível' && !activeInputs.some(i => i.coil.id === c.id))
+    .sort((a, b) => Math.abs(a.espessura - currentCoil.espessura) - Math.abs(b.espessura - currentCoil.espessura) || b.peso - a.peso);
 
   // Refilo alto: sugere itens da mesma espessura — mesmo fora da programação —
   // que cabem na sobra deixando refilo técnico (>= 10 mm). Quanto menor o refilo
@@ -427,6 +453,51 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
           </button>
         </div>
       )}
+
+      {/* Montagem do plano: adicionar/remover bobinas matriz */}
+      <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-black text-slate-900 flex items-center gap-2 tracking-tight">
+            <Layers className="w-4 h-4 text-orange-500" />
+            Montar Plano — Bobinas do Plano ({totalBobinas})
+          </h3>
+          {isMultiCoil && (
+            <button
+              onClick={() => handleRemoveCoil(safeIndex)}
+              className="px-3 py-1.5 rounded-xl bg-white hover:bg-red-50 text-red-700 border border-red-200 text-xs font-bold flex items-center gap-1.5"
+              title="Remover a bobina selecionada deste plano"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Remover bobina {currentCoil.lote}
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            value={coilToAdd}
+            onChange={(e) => setCoilToAdd(e.target.value)}
+            className="flex-1 min-w-[280px] px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-900 focus:outline-none focus:border-[#0B1F3A] font-bold"
+          >
+            <option value="">Adicionar outra bobina ao plano (lote · largura x espessura · peso)...</option>
+            {coilsNotInPlan.map(c => (
+              <option key={c.id} value={c.id}>
+                {c.lote} · {c.largura} x {c.espessura} mm · {c.peso} t
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={handleAddCoil}
+            disabled={!coilToAdd}
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#0B1F3A] hover:bg-[#163866] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-black rounded-2xl border border-[#163866]"
+          >
+            <Plus className="w-4 h-4 text-orange-400" />
+            <span>Adicionar Bobina</span>
+          </button>
+        </div>
+        <p className="text-[11px] text-slate-500">
+          Cada bobina tem o próprio corte. Selecione a bobina nos cards abaixo para adicionar materiais e ajustar as fitas dela.
+        </p>
+      </div>
 
       {/* PAINEL MULTI-BOBINAS: Indicadores Globais & Seletor de Bobinas */}
       {isMultiCoil && (
@@ -641,19 +712,40 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
+              <input
+                type="text"
+                value={companionFilter}
+                onChange={(e) => setCompanionFilter(e.target.value)}
+                placeholder="Buscar material (código, descrição, largura)..."
+                className="w-64 px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs text-slate-900 focus:outline-none focus:border-[#0B1F3A]"
+              />
               <select
                 value={selectedCompanionProduct}
                 onChange={(e) => setSelectedCompanionProduct(e.target.value)}
                 className="flex-1 min-w-[280px] px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-900 focus:outline-none focus:border-[#0B1F3A] font-bold"
               >
                 <option value="">Selecione um produto de destino compatível (espessura {currentCoil.espessura}mm)...</option>
-                {compatibleProducts.map((p) => (
+                {compatibleProducts.filter(p => {
+                  const q = companionFilter.trim().toLowerCase();
+                  return !q || p.codigo.toLowerCase().includes(q) || p.descricao.toLowerCase().includes(q) || `${p.larguraFita}`.includes(q);
+                }).map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.codigo} - {p.descricao.slice(0, 45)} (Fita {p.larguraFita}mm | {p.demandaT ? `Demanda ${p.demandaT}t` : 'Fora da programação'})
                   </option>
                 ))}
               </select>
 
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                Qtd. de fitas:
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={companionQty}
+                  onChange={(e) => setCompanionQty(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-16 px-2 py-2 rounded-xl border border-slate-200 text-center font-mono font-bold focus:outline-none focus:border-orange-500"
+                />
+              </label>
               <button
                 onClick={() => handleAddCompanionStrip(safeIndex)}
                 disabled={!selectedCompanionProduct}

@@ -433,6 +433,7 @@ export const App: React.FC = () => {
               strips={activeStrips}
               coilInputs={activeCoilInputs}
               products={products}
+              availableCoils={coils}
               onUpdateStrips={setActiveStrips}
               onUpdateCoilInputs={setActiveCoilInputs}
               onProceedToOrder={(c, s, all) => handleProceedToOrder(c, s, undefined, all)}
