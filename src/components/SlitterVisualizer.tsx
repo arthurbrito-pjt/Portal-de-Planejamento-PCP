@@ -16,7 +16,7 @@ interface SlitterVisualizerProps {
   strips: SlitterStrip[];
   onAddStrip?: (productId?: string) => void;
   onRemoveStrip?: (stripId: string) => void;
-  onMoveStrip?: (stripId: string, direction: -1 | 1) => void;
+  onReorderStrip?: (fromStripId: string, toStripId: string) => void;
   interactive?: boolean;
 }
 
@@ -25,7 +25,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
   strips,
   onAddStrip,
   onRemoveStrip,
-  onMoveStrip,
+  onReorderStrip,
   interactive = false
 }) => {
   const [hoveredStrip, setHoveredStrip] = useState<SlitterStrip | null>(null);
@@ -35,6 +35,10 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
       setHoveredStrip(null);
     }
   }, [strips, hoveredStrip]);
+
+  const [dragStripId, setDragStripId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const canReorder = interactive && !!onReorderStrip;
 
   const totalUsedWidth = strips.reduce((acc, s) => acc + s.largura, 0);
   const scrapWidth = Math.max(0, coil.largura - totalUsedWidth);
@@ -145,7 +149,33 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
                 }}
                 onMouseEnter={() => setHoveredStrip(strip)}
                 onMouseLeave={() => setHoveredStrip(null)}
-                className={`relative group h-full flex flex-col justify-between p-2 border-r-2 border-white rounded-lg transition-all duration-150 cursor-pointer coil-texture strip-shadow ${
+                draggable={canReorder}
+                onDragStart={(e) => {
+                  setDragStripId(strip.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData('text/plain', strip.id);
+                }}
+                onDragOver={(e) => {
+                  if (!canReorder || !dragStripId) return;
+                  e.preventDefault();
+                  if (dragOverId !== strip.id) setDragOverId(strip.id);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dragStripId && dragStripId !== strip.id) onReorderStrip?.(dragStripId, strip.id);
+                  setDragStripId(null);
+                  setDragOverId(null);
+                }}
+                onDragEnd={() => {
+                  setDragStripId(null);
+                  setDragOverId(null);
+                }}
+                title={canReorder ? 'Arraste para mudar a fita de lugar' : undefined}
+                className={`relative group h-full flex flex-col justify-between p-2 border-r-2 border-white rounded-lg transition-all duration-150 coil-texture strip-shadow ${
+                  canReorder ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+                } ${dragStripId === strip.id ? 'opacity-40' : ''} ${
+                  dragOverId === strip.id && dragStripId !== strip.id ? 'ring-4 ring-white z-30' : ''
+                } ${
                   isHovered ? 'brightness-125 ring-2 ring-orange-500 z-20 scale-[1.02]' : 'hover:brightness-110'
                 }`}
               >
@@ -153,26 +183,6 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
                   <span className="text-[10px] font-black bg-black/60 text-white px-1.5 py-0.5 rounded font-mono shadow">
                     #{idx + 1}
                   </span>
-                  {interactive && onMoveStrip && (
-                    <span className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onMoveStrip(strip.id, -1); }}
-                        disabled={idx === 0}
-                        title="Mover fita para a esquerda"
-                        className="px-1 rounded bg-black/70 hover:bg-[#0B1F3A] text-white text-[10px] font-black disabled:opacity-30 shadow"
-                      >
-                        ◀
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onMoveStrip(strip.id, 1); }}
-                        disabled={idx === strips.length - 1}
-                        title="Mover fita para a direita"
-                        className="px-1 rounded bg-black/70 hover:bg-[#0B1F3A] text-white text-[10px] font-black disabled:opacity-30 shadow"
-                      >
-                        ▶
-                      </button>
-                    </span>
-                  )}
                   {interactive && onRemoveStrip && (
                     <button
                       onClick={(e) => {

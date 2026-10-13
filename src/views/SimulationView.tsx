@@ -21,8 +21,7 @@ import {
   ChevronRight,
   XCircle,
   AlertTriangle,
-  ChevronUp,
-  ChevronDown
+  GripVertical
 } from 'lucide-react';
 
 export interface SimulationViewProps {
@@ -168,6 +167,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   const [companionQty, setCompanionQty] = useState<number>(1);
   const [companionFilter, setCompanionFilter] = useState<string>('');
   const [coilToAdd, setCoilToAdd] = useState<string>('');
+  const [dragRowId, setDragRowId] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState<string>('');
   const [templateSavedMsg, setTemplateSavedMsg] = useState<string>('');
 
@@ -256,14 +256,15 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
     syncUpdates(updatedInputs);
   };
 
-  const handleMoveStrip = (stripId: string, direction: -1 | 1, coilIndexTarget: number) => {
+  const handleReorderStrip = (fromId: string, toId: string, coilIndexTarget: number) => {
     const updatedInputs = activeInputs.map((item, idx) => {
       if (idx !== coilIndexTarget) return item;
-      const from = item.strips.findIndex(s => s.id === stripId);
-      const to = from + direction;
-      if (from < 0 || to < 0 || to >= item.strips.length) return item;
+      const from = item.strips.findIndex(s => s.id === fromId);
+      const to = item.strips.findIndex(s => s.id === toId);
+      if (from < 0 || to < 0 || from === to) return item;
       const reordered = [...item.strips];
-      [reordered[from], reordered[to]] = [reordered[to], reordered[from]];
+      const [moved] = reordered.splice(from, 1);
+      reordered.splice(to, 0, moved);
       return { ...item, strips: reordered.map((s, sIdx) => ({ ...s, stripNumber: sIdx + 1 })) };
     });
     syncUpdates(updatedInputs);
@@ -694,7 +695,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
               coil={currentCoil}
               strips={currentStrips}
               onRemoveStrip={(stripId) => handleRemoveStrip(stripId, safeIndex)}
-              onMoveStrip={(stripId, dir) => handleMoveStrip(stripId, dir, safeIndex)}
+              onReorderStrip={(fromId, toId) => handleReorderStrip(fromId, toId, safeIndex)}
               interactive={true}
             />
           </div>
@@ -823,8 +824,25 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
                     const sltInfo = SlitterCatalogService.getSlitterInfo(strip.largura, strip.espessura);
 
                     return (
-                      <tr key={strip.id || idx} className="hover:bg-slate-50 transition-colors">
+                      <tr
+                        key={strip.id || idx}
+                        draggable
+                        onDragStart={(e) => {
+                          setDragRowId(strip.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                          e.dataTransfer.setData('text/plain', strip.id);
+                        }}
+                        onDragOver={(e) => { if (dragRowId) e.preventDefault(); }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (dragRowId && dragRowId !== strip.id) handleReorderStrip(dragRowId, strip.id, safeIndex);
+                          setDragRowId(null);
+                        }}
+                        onDragEnd={() => setDragRowId(null)}
+                        className={`hover:bg-slate-50 transition-colors cursor-grab active:cursor-grabbing ${dragRowId === strip.id ? 'opacity-40' : ''}`}
+                      >
                         <td className="py-3.5 px-3 font-black text-slate-900 flex items-center gap-2.5">
+                          <GripVertical className="w-4 h-4 text-slate-300 shrink-0" />
                           <span className="w-3 h-3 rounded-full shadow-xs shrink-0" style={{ backgroundColor: strip.cor }} />
                           Fita {String(idx + 1).padStart(2, '0')}
                         </td>
@@ -857,22 +875,6 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
                         <td className="py-3.5 px-3 text-right text-emerald-700 font-bold">{strip.pesoTon} t</td>
                         <td className="py-3.5 px-3 text-right text-[#0B1F3A] font-semibold">{strip.metrosLineares} m</td>
                         <td className="py-3.5 px-3 text-center whitespace-nowrap">
-                          <button
-                            onClick={() => handleMoveStrip(strip.id, -1, safeIndex)}
-                            disabled={idx === 0}
-                            title="Mover para cima (esquerda no corte)"
-                            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 disabled:opacity-30"
-                          >
-                            <ChevronUp className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleMoveStrip(strip.id, 1, safeIndex)}
-                            disabled={idx === currentStrips.length - 1}
-                            title="Mover para baixo (direita no corte)"
-                            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 disabled:opacity-30"
-                          >
-                            <ChevronDown className="w-4 h-4" />
-                          </button>
                           <button
                             onClick={() => handleRemoveStrip(strip.id, safeIndex)}
                             title="Remover esta fita desta bobina"
@@ -938,7 +940,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
                   coil={item.coil}
                   strips={item.strips}
                   onRemoveStrip={(stripId) => handleRemoveStrip(stripId, idx)}
-                  onMoveStrip={(stripId, dir) => handleMoveStrip(stripId, dir, idx)}
+                  onReorderStrip={(fromId, toId) => handleReorderStrip(fromId, toId, idx)}
                   interactive={true}
                 />
               </div>
