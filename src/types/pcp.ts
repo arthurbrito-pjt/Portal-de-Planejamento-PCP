@@ -182,6 +182,10 @@ export interface SlitterCombination {
   classificacao: 'PERFEITO' | 'EXCELENTE' | 'BOM' | 'ATENÇÃO' | 'ALERTA';
   badgeTexto: string;
   prioridadeDemanda: boolean;
+  // Toneladas de demanda pendente que este corte atende (produção de cada item
+  // limitada à demanda dele) e % da demanda do grupo principal coberta.
+  demandaAtendidaT?: number;
+  atendimentoDemandaPercent?: number;
 }
 
 // Uma bobina matriz física cortada dentro de uma OP, com seu próprio plano de

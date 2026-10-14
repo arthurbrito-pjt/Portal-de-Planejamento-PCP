@@ -376,6 +376,23 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
     setActiveCoilIndex(0);
   };
 
+  // Atendimento da demanda no plano: toneladas de cada item do plano vs. demanda pendente.
+  const plannedByProduct = new Map<string, number>();
+  activeInputs.forEach(item =>
+    item.strips.forEach(st => plannedByProduct.set(st.productId, (plannedByProduct.get(st.productId) ?? 0) + st.pesoTon))
+  );
+  const demandRows = Array.from(plannedByProduct.entries())
+    .map(([productId, plannedT]) => {
+      const prod = products.find(p => p.id === productId);
+      const demandaT = prod?.demandaT || 0;
+      return { productId, prod, plannedT: Number(plannedT.toFixed(2)), demandaT, faltaT: Number(Math.max(0, demandaT - plannedT).toFixed(2)) };
+    })
+    .filter(r => r.prod && r.demandaT > 0)
+    .sort((a, b) => b.faltaT - a.faltaT);
+  const demandTotalT = demandRows.reduce((acc, r) => acc + r.demandaT, 0);
+  const demandCoveredT = demandRows.reduce((acc, r) => acc + Math.min(r.plannedT, r.demandaT), 0);
+  const demandPercent = demandTotalT > 0 ? Math.round((demandCoveredT / demandTotalT) * 100) : 0;
+
   const coilsNotInPlan = availableCoils
     .filter(c => c.status === 'Disponível' && !activeInputs.some(i => i.coil.id === c.id))
     .sort((a, b) => Math.abs(a.espessura - currentCoil.espessura) - Math.abs(b.espessura - currentCoil.espessura) || b.peso - a.peso);
@@ -388,10 +405,12 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   const refiloSuggestions = currentScrapMm > 18
     ? compatibleProducts
         .filter(p => p.larguraFita > 0 && currentScrapMm - p.larguraFita >= 10)
-        .sort((a, b) =>
-          (currentScrapMm - a.larguraFita) - (currentScrapMm - b.larguraFita) ||
-          (b.demandaT || 0) - (a.demandaT || 0)
-        )
+        .sort((a, b) => {
+          const faltaA = Math.max(0, (a.demandaT || 0) - (plannedByProduct.get(a.id) ?? 0));
+          const faltaB = Math.max(0, (b.demandaT || 0) - (plannedByProduct.get(b.id) ?? 0));
+          if (Math.abs(faltaB - faltaA) > 0.05) return faltaB - faltaA;
+          return (currentScrapMm - a.larguraFita) - (currentScrapMm - b.larguraFita);
+        })
         .slice(0, 8)
     : [];
 
@@ -538,6 +557,67 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
           Cada bobina tem o próprio corte. Selecione a bobina nos cards abaixo para adicionar materiais e ajustar as fitas dela.
         </p>
       </div>
+
+      {/* Atendimento da demanda — o plano é livre, mas a falta de demanda fica sempre à vista */}
+      {demandRows.length > 0 && (
+        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-sm font-black text-slate-900 flex items-center gap-2 tracking-tight">
+              <CheckCircle2 className="w-4 h-4 text-orange-500" />
+              Atendimento da Demanda neste Plano
+            </h3>
+            <div className="flex items-center gap-3">
+              <div className="w-40 h-2 rounded-full bg-slate-100 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${demandPercent >= 100 ? 'bg-emerald-500' : 'bg-orange-500'}`}
+                  style={{ width: `${Math.min(100, demandPercent)}%` }}
+                />
+              </div>
+              <span className="text-xs font-black font-mono text-slate-800">
+                {Number(demandCoveredT.toFixed(1))} de {Number(demandTotalT.toFixed(1))} t ({demandPercent}%)
+              </span>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-mono">
+              <thead>
+                <tr className="text-slate-500 uppercase text-[10px] border-b border-slate-200">
+                  <th className="py-2 px-2">Item</th>
+                  <th className="py-2 px-2 text-right">Demanda</th>
+                  <th className="py-2 px-2 text-right">No plano</th>
+                  <th className="py-2 px-2 text-right">Falta</th>
+                  <th className="py-2 px-2 text-center">Ajuste</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {demandRows.map(r => (
+                  <tr key={r.productId}>
+                    <td className="py-2 px-2 font-bold text-[#0B1F3A]">{r.prod!.codigo} <span className="text-slate-400 font-normal">· {r.prod!.larguraFita} mm</span></td>
+                    <td className="py-2 px-2 text-right text-slate-900">{r.demandaT} t</td>
+                    <td className="py-2 px-2 text-right text-emerald-700">{r.plannedT} t</td>
+                    <td className={`py-2 px-2 text-right font-black ${r.faltaT > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+                      {r.faltaT > 0 ? `${r.faltaT} t` : 'Atendida'}
+                    </td>
+                    <td className="py-2 px-2 text-center">
+                      {r.faltaT > 0 && Math.abs(r.prod!.espessura - currentCoil.espessura) < 0.001 ? (
+                        <button
+                          onClick={() => addProductStrip(r.productId, safeIndex)}
+                          className="px-2.5 py-1 rounded-lg bg-[#0B1F3A] hover:bg-[#163866] text-white text-[10px] font-black font-sans"
+                          title="Adicionar mais uma fita deste item na bobina selecionada"
+                        >
+                          + fita
+                        </button>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* PAINEL MULTI-BOBINAS: Indicadores Globais & Seletor de Bobinas */}
       {isMultiCoil && (

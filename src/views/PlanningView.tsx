@@ -219,6 +219,17 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     if (!selectedProduct || selectedCoils.length === 0) return [];
     if (selectedCoils.length === 1) return [selectedCombination];
 
+    // Cada bobina atende a demanda que as anteriores não cobriram.
+    const groupTotal = selectedDemandGroup.reduce((acc, g) => acc + g.demandaT, 0);
+    const ratio = groupTotal > 0 ? desiredQtyTon / groupTotal : 1;
+    const pending = new Map<string, number>();
+    if (selectedDemandGroup.length > 0) {
+      selectedDemandGroup.forEach(g => pending.set(g.product.id, g.demandaT * ratio));
+    } else {
+      pending.set(selectedProduct.id, desiredQtyTon);
+    }
+    const focusIds = new Set(pending.keys());
+
     return selectedCoils.map(coil => {
       const combos = SlitterOptimizer.optimize({
         mainProduct: selectedProduct,
@@ -227,9 +238,16 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         compatibleProducts: products,
         minScrapMm: 10,
         maxScrapAllowedMm: 18,
-        demandSplitGroup: selectedDemandGroup
+        demandSplitGroup: selectedDemandGroup,
+        demandaPorProduto: Object.fromEntries(pending)
       });
-      return combos[0] || null;
+      const top = combos[0] || null;
+      if (top) {
+        SlitterOptimizer.computeCoverage(top, coil, pending, focusIds).producedByProduct.forEach((t, id) =>
+          pending.set(id, Math.max(0, (pending.get(id) ?? 0) - t))
+        );
+      }
+      return top;
     });
   }, [selectedProduct, selectedCoils, selectedCombination, desiredQtyTon, products, selectedDemandGroup]);
 
@@ -619,7 +637,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                       >
                         <div className="flex items-center justify-between gap-3">
                           <span className="font-medium text-slate-800">{idx === 0 ? 'Recomendada pelo sistema' : `Alternativa ${idx}`}: {comb.descricao}</span>
-                          <span className="font-mono text-emerald-700">{comb.aproveitamentoPercent}% · {comb.sobraMm}mm</span>
+                          <span className="font-mono text-emerald-700">{comb.aproveitamentoPercent}% · {comb.sobraMm}mm{comb.atendimentoDemandaPercent !== undefined ? ` · ${comb.atendimentoDemandaPercent}% da demanda` : ''}</span>
                         </div>
                       </div>
                     );

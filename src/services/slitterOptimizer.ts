@@ -15,6 +15,10 @@ export interface OptimizationParams {
   // informado, as fitas da largura principal são rateadas proporcionalmente
   // à demanda de cada produto do grupo (método do maior resto).
   demandSplitGroup?: { product: Product; demandaT: number }[];
+  // Demanda pendente (t) por produto, que sobrepõe a demanda cadastrada — usado
+  // para planos com várias bobinas, onde cada bobina atende o que as anteriores
+  // não cobriram.
+  demandaPorProduto?: Record<string, number>;
 }
 
 const STRIP_COLORS = [
@@ -41,7 +45,8 @@ export class SlitterOptimizer {
       compatibleProducts,
       minScrapMm = 10,
       maxScrapAllowedMm = 18,
-      demandSplitGroup
+      demandSplitGroup,
+      demandaPorProduto
     } = params;
 
     const coilWidth = selectedCoil.largura;
@@ -61,6 +66,10 @@ export class SlitterOptimizer {
       ? demandSplitGroup.filter(g => Math.abs(g.product.espessura - selectedCoil.espessura) < 0.001)
       : null;
 
+    const demandMap = this.buildDemandMap(params, splitGroup);
+    const focusIds = new Set<string>(splitGroup ? splitGroup.map(g => g.product.id) : [mainProduct.id]);
+    const tonPerMm = selectedCoil.peso / selectedCoil.largura;
+
     const maxMainCount = Math.floor(coilWidth / mainWidth);
 
     // 1. Check pure main product cut (single product)
@@ -77,7 +86,9 @@ export class SlitterOptimizer {
         const singleComb = this.buildCombination(
           selectedCoil,
           mainFitas,
-          `Corte Exclusivo: ${k}x ${mainProduct.descricao} (${mainWidth}mm)`
+          `Corte Exclusivo: ${k}x ${mainProduct.descricao} (${mainWidth}mm)`,
+          demandMap,
+          focusIds
         );
 
         const sig = this.getSignature(singleComb);
@@ -93,7 +104,9 @@ export class SlitterOptimizer {
           scrap,
           candidates,
           minScrapMm,
-          maxScrapAllowedMm
+          maxScrapAllowedMm,
+          demandMap,
+          tonPerMm
         );
 
         for (const comp of companionSolutions) {
@@ -107,7 +120,9 @@ export class SlitterOptimizer {
           const comb = this.buildCombination(
             selectedCoil,
             combinedFitas,
-            desc
+            desc,
+            demandMap,
+            focusIds
           );
 
           const cSig = this.getSignature(comb);
@@ -130,10 +145,15 @@ export class SlitterOptimizer {
       : rawResults.filter(r => r.sobraMm >= minScrapMm);
 
     // Rank combinations:
-    // 1. Highest utilization (aproveitamentoPercent) FIRST!
-    // 2. Minimum refilo/scrap (sobraMm) within valid range
-    // 3. Higher count of main product strips
+    // 1. Maior demanda pendente atendida (t) — a demanda manda no plano
+    // 2. Highest utilization (aproveitamentoPercent)
+    // 3. Minimum refilo/scrap (sobraMm) within valid range
+    // 4. Higher count of main product strips
     finalPool.sort((a, b) => {
+      const dA = a.demandaAtendidaT ?? 0;
+      const dB = b.demandaAtendidaT ?? 0;
+      if (Math.abs(dB - dA) > 0.05) return dB - dA;
+
       if (Math.abs(b.aproveitamentoPercent - a.aproveitamentoPercent) > 0.001) {
         return b.aproveitamentoPercent - a.aproveitamentoPercent;
       }
@@ -148,6 +168,51 @@ export class SlitterOptimizer {
     });
 
     return finalPool.slice(0, 15);
+  }
+
+  /** Demanda pendente (t) por produto considerada ao pontuar cada corte. */
+  private static buildDemandMap(
+    params: OptimizationParams,
+    splitGroup: { product: Product; demandaT: number }[] | null
+  ): Map<string, number> {
+    const { mainProduct, selectedCoil, compatibleProducts, desiredQuantityTon, demandaPorProduto } = params;
+    const map = new Map<string, number>();
+    compatibleProducts
+      .filter(p => Math.abs(p.espessura - selectedCoil.espessura) < 0.001 && (p.demandaT || 0) > 0)
+      .forEach(p => map.set(p.id, p.demandaT || 0));
+    if (splitGroup) {
+      splitGroup.forEach(g => map.set(g.product.id, Math.max(0, g.demandaT || 0)));
+    } else if (desiredQuantityTon > 0) {
+      map.set(mainProduct.id, desiredQuantityTon);
+    }
+    if (demandaPorProduto) {
+      Object.entries(demandaPorProduto).forEach(([id, t]) => map.set(id, Math.max(0, t)));
+    }
+    return map;
+  }
+
+  /**
+   * Toneladas de demanda que um corte atende: cada item produz peso proporcional
+   * à largura total das fitas dele, limitado à demanda pendente do próprio item.
+   */
+  static computeCoverage(
+    combination: SlitterCombination,
+    coil: Coil,
+    demand: Map<string, number>,
+    focusIds?: Set<string>
+  ): { coveredT: number; focusCoveredT: number; producedByProduct: Map<string, number> } {
+    let coveredT = 0;
+    let focusCoveredT = 0;
+    const producedByProduct = new Map<string, number>();
+    for (const f of combination.fitas) {
+      const produced = coil.peso * (f.larguraTotal / coil.largura);
+      const pending = demand.get(f.product.id) ?? 0;
+      const covered = Math.min(produced, pending);
+      coveredT += covered;
+      if (!focusIds || focusIds.has(f.product.id)) focusCoveredT += covered;
+      producedByProduct.set(f.product.id, (producedByProduct.get(f.product.id) ?? 0) + covered);
+    }
+    return { coveredT, focusCoveredT, producedByProduct };
   }
 
   /**
@@ -195,7 +260,9 @@ export class SlitterOptimizer {
     targetSpace: number,
     candidates: Product[],
     minScrap: number,
-    maxScrap: number
+    maxScrap: number,
+    demandMap: Map<string, number>,
+    tonPerMm: number
   ): { items: { product: Product; quantidade: number; larguraTotal: number }[]; scrap: number }[] {
     const validCandidates = candidates.filter(p => p.larguraFita <= targetSpace);
     const solutions: { items: { product: Product; quantidade: number; larguraTotal: number }[]; scrap: number }[] = [];
@@ -295,10 +362,19 @@ export class SlitterOptimizer {
       }
     }
 
-    // Sort solutions strictly by lowest scrap (highest utilization)
-    solutions.sort((a, b) => a.scrap - b.scrap);
+    // Prioriza o que atende mais demanda pendente; empate vai para o menor refilo.
+    const coveredOf = (sol: { items: { product: Product; larguraTotal: number }[] }) =>
+      sol.items.reduce(
+        (acc, i) => acc + Math.min(i.larguraTotal * tonPerMm, demandMap.get(i.product.id) ?? 0),
+        0
+      );
+    const scored = solutions.map(sol => ({ sol, covered: coveredOf(sol) }));
+    scored.sort((a, b) => {
+      if (Math.abs(b.covered - a.covered) > 0.05) return b.covered - a.covered;
+      return a.sol.scrap - b.sol.scrap;
+    });
 
-    return solutions.slice(0, 15);
+    return scored.slice(0, 20).map(x => x.sol);
   }
 
   /**
@@ -307,7 +383,9 @@ export class SlitterOptimizer {
   private static buildCombination(
     coil: Coil,
     fitas: { product: Product; quantidade: number; larguraTotal: number }[],
-    descricao: string
+    descricao: string,
+    demandMap: Map<string, number>,
+    focusIds: Set<string>
   ): SlitterCombination {
     const totalLarguraUsada = fitas.reduce((acc, f) => acc + f.larguraTotal, 0);
     const sobraMm = Math.max(0, coil.largura - totalLarguraUsada);
@@ -333,6 +411,17 @@ export class SlitterOptimizer {
 
     const hasPriorityDemand = fitas.some(f => (f.product.demandaT || 0) > 0);
 
+    let demandaAtendidaT = 0;
+    let focusCovered = 0;
+    for (const f of fitas) {
+      const produced = coil.peso * (f.larguraTotal / coil.largura);
+      const covered = Math.min(produced, demandMap.get(f.product.id) ?? 0);
+      demandaAtendidaT += covered;
+      if (focusIds.has(f.product.id)) focusCovered += covered;
+    }
+    const focusDemand = Array.from(focusIds).reduce((acc, id) => acc + (demandMap.get(id) ?? 0), 0);
+    const atendimentoDemandaPercent = focusDemand > 0 ? Math.min(100, Math.round((focusCovered / focusDemand) * 100)) : 0;
+
     return {
       id: `COMB_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       descricao,
@@ -345,7 +434,9 @@ export class SlitterOptimizer {
       pesoSobraTon,
       classificacao,
       badgeTexto,
-      prioridadeDemanda: hasPriorityDemand
+      prioridadeDemanda: hasPriorityDemand,
+      demandaAtendidaT: Number(demandaAtendidaT.toFixed(3)),
+      atendimentoDemandaPercent
     };
   }
 

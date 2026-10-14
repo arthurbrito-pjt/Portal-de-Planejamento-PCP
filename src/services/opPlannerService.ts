@@ -95,72 +95,70 @@ export class OpPlannerService {
       };
     }
 
-    // 1. Tenta a MELHOR bobina única (maior aproveitamento) que sozinha cubra a demanda efetiva
-    let bestSingle: { coil: Coil; combination: SlitterCombination } | null = null;
-    for (const coil of matchingCoils) {
-      if (coil.peso < effectiveDemandTon) continue;
-      const combos = SlitterOptimizer.optimize({
-        mainProduct,
-        desiredQuantityTon: effectiveDemandTon,
-        selectedCoil: coil,
-        compatibleProducts,
-        minScrapMm: 10,
-        maxScrapAllowedMm: 18,
-        demandSplitGroup
-      });
-      const top = combos[0];
-      if (top && (!bestSingle || top.aproveitamentoPercent > bestSingle.combination.aproveitamentoPercent)) {
-        bestSingle = { coil, combination: top };
-      }
-    }
+    // A demanda manda: monta o conjunto de bobinas até cobrir as toneladas
+    // pendentes de cada item (produção de cada item limitada à demanda dele).
+    // Cada passo escolhe a bobina cujo melhor corte atende mais demanda ainda
+    // descoberta; se alguma bobina cobre tudo sozinha, vence a de maior
+    // aproveitamento. Cada bobina recebe seu próprio plano de corte.
+    const ratio = totalDemandaT > 0 ? effectiveDemandTon / totalDemandaT : 1;
+    const focusGroup = demandSplitGroup && demandSplitGroup.length > 0
+      ? demandSplitGroup.filter(g => Math.abs(g.product.espessura - espessura) < 0.001)
+      : [{ product: mainProduct, demandaT: totalDemandaT }];
+    const focusIds = new Set(focusGroup.map(g => g.product.id));
 
-    if (bestSingle) {
-      const totalCoilsWeightTon = bestSingle.coil.peso;
-      const coverageTon = Number((wipAvailableTon + totalCoilsWeightTon).toFixed(2));
-      return {
-        totalDemandaT,
-        wipAvailableTon,
-        effectiveDemandTon,
-        coveredByWipOnly: false,
-        coils: [bestSingle.coil],
-        totalCoilsWeightTon,
-        combinations: [bestSingle.combination],
-        combination: bestSingle.combination,
-        coverageTon,
-        coveragePercent: totalDemandaT > 0 ? Math.min(100, Math.round((coverageTon / totalDemandaT) * 100)) : 100,
-        isFullyCovered: coverageTon >= totalDemandaT
-      };
-    }
+    const remaining = new Map<string, number>();
+    compatibleProducts
+      .filter(p => Math.abs(p.espessura - espessura) < 0.001 && (p.demandaT || 0) > 0)
+      .forEach(p => remaining.set(p.id, p.demandaT || 0));
+    focusGroup.forEach(g => remaining.set(g.product.id, Number((Math.max(0, g.demandaT || 0) * ratio).toFixed(3))));
 
-    // 2. Nenhuma bobina sozinha cobre a demanda efetiva — combina múltiplas bobinas
-    // (maior peso primeiro). Cada bobina física é cortada de forma independente,
-    // então cada uma recebe seu PRÓPRIO plano de corte (largura/aproveitamento
-    // podem diferir entre bobinas) — nunca reaproveita a combinação de uma bobina
-    // para "representar" o peso somado das demais.
-    const sortedByWeight = [...matchingCoils].sort((a, b) => b.peso - a.peso);
+    let focusRemaining = focusGroup.reduce((acc, g) => acc + (remaining.get(g.product.id) ?? 0), 0);
+    const tolerance = 0.05;
+
+    const pool = [...matchingCoils].sort((a, b) => b.peso - a.peso).slice(0, 10);
     const chosenCoils: Coil[] = [];
-    let accum = 0;
-    for (const c of sortedByWeight) {
-      chosenCoils.push(c);
-      accum += c.peso;
-      if (accum >= effectiveDemandTon) break;
-    }
+    const combinations: (SlitterCombination | null)[] = [];
+    let focusCoveredTotal = 0;
 
-    const combinations: (SlitterCombination | null)[] = chosenCoils.map(coil => {
-      const combos = SlitterOptimizer.optimize({
-        mainProduct,
-        desiredQuantityTon: effectiveDemandTon,
-        selectedCoil: coil,
-        compatibleProducts,
-        minScrapMm: 10,
-        maxScrapAllowedMm: 18,
-        demandSplitGroup
-      });
-      return combos[0] || null;
-    });
+    while (pool.length > 0 && focusRemaining > tolerance && chosenCoils.length < 8) {
+      const demandObj = Object.fromEntries(remaining);
+      const evaluated = pool
+        .map(coil => {
+          const combos = SlitterOptimizer.optimize({
+            mainProduct,
+            desiredQuantityTon: focusRemaining,
+            selectedCoil: coil,
+            compatibleProducts,
+            minScrapMm: 10,
+            maxScrapAllowedMm: 18,
+            demandSplitGroup,
+            demandaPorProduto: demandObj
+          });
+          const top = combos[0];
+          if (!top) return null;
+          const cov = SlitterOptimizer.computeCoverage(top, coil, remaining, focusIds);
+          return { coil, top, cov };
+        })
+        .filter((e): e is NonNullable<typeof e> => !!e && e.cov.focusCoveredT > 0);
+
+      if (evaluated.length === 0) break;
+
+      const full = evaluated.filter(e => e.cov.focusCoveredT >= focusRemaining - tolerance);
+      const best = full.length > 0
+        ? full.sort((a, b) => b.top.aproveitamentoPercent - a.top.aproveitamentoPercent || a.coil.peso - b.coil.peso)[0]
+        : evaluated.sort((a, b) => b.cov.focusCoveredT - a.cov.focusCoveredT || b.top.aproveitamentoPercent - a.top.aproveitamentoPercent)[0];
+
+      chosenCoils.push(best.coil);
+      combinations.push(best.top);
+      focusCoveredTotal += best.cov.focusCoveredT;
+      focusRemaining -= best.cov.focusCoveredT;
+      best.cov.producedByProduct.forEach((t, id) => remaining.set(id, Math.max(0, (remaining.get(id) ?? 0) - t)));
+      pool.splice(pool.findIndex(c => c.id === best.coil.id), 1);
+    }
 
     const totalCoilsWeightTon = Number(chosenCoils.reduce((acc, c) => acc + c.peso, 0).toFixed(3));
-    const coverageTon = Number((wipAvailableTon + totalCoilsWeightTon).toFixed(2));
+    const coverageTon = Number((wipAvailableTon + focusCoveredTotal / (ratio || 1)).toFixed(2));
+    const cappedCoverage = Math.min(coverageTon, totalDemandaT);
 
     return {
       totalDemandaT,
@@ -171,9 +169,9 @@ export class OpPlannerService {
       totalCoilsWeightTon,
       combinations,
       combination: combinations[0] || null,
-      coverageTon,
-      coveragePercent: totalDemandaT > 0 ? Math.min(100, Math.round((coverageTon / totalDemandaT) * 100)) : 100,
-      isFullyCovered: coverageTon >= totalDemandaT
+      coverageTon: cappedCoverage,
+      coveragePercent: totalDemandaT > 0 ? Math.min(100, Math.round((cappedCoverage / totalDemandaT) * 100)) : 100,
+      isFullyCovered: totalDemandaT > 0 ? cappedCoverage >= totalDemandaT - tolerance : chosenCoils.length > 0
     };
   }
 }
