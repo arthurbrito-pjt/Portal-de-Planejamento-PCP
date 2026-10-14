@@ -52,7 +52,7 @@ export interface SlitterProductionProgram {
   sobraMm: number;
   aproveitamentoPercent: number;
   sobraPesoTon: number;
-  status: 'Conforme (10 a 18 mm)' | 'Sobra Excedente (> 18 mm)';
+  status: 'Conforme (8 a 18 mm)' | 'Sobra Excedente (> 18 mm)';
   // Todos os produtos que compartilham este mesmo ferramental, com sua
   // demanda individual — usado para re-otimizar o corte (ex: ao ajustar a
   // quantidade desejada na Etapa 2) sem perder o rateio por material.
@@ -130,7 +130,8 @@ export class ReadinessService {
         larguraFita,
         espessura,
         totalDemandaT,
-        compatibleProducts: produtos.map(p => p.product),
+        // Todos os itens da mesma espessura podem completar a bobina (não só os do ferramental).
+        compatibleProducts: products.filter(p => Math.abs(p.espessura - espessura) < 0.001),
         availableCoils,
         intermediarySlitters,
         demandSplitGroup: produtos.map(p => ({ product: p.product, demandaT: p.demandaT }))
@@ -208,7 +209,7 @@ export class ReadinessService {
 
   /**
    * Generates the complete Ready Slitter Programs (Bobina -> Slitter -> Materiais Produzidos).
-   * STRICT CRITERIA: Scrap MUST be between 10mm and 18mm (1.5% limit). Programs with < 10mm are discarded!
+   * STRICT CRITERIA: Scrap MUST be between 8mm and 18mm. Programs with < 8mm are discarded!
    *
    * A demanda manda: cada ferramental recebe quantas bobinas forem necessárias
    * (OpPlannerService) para produzir o máximo possível da demanda dos itens dele,
@@ -276,8 +277,8 @@ export class ReadinessService {
 
       coilsToUse.forEach((coil, idx) => {
         const combination = combosToUse[idx];
-        // STRICT VALIDATION: Only include if sobraMm >= 10
-        if (!combination || combination.sobraMm < 10 || usedCoilIds.has(coil.id)) return;
+        // STRICT VALIDATION: Only include if sobraMm >= 8
+        if (!combination || combination.sobraMm < 8 || usedCoilIds.has(coil.id)) return;
         usedCoilIds.add(coil.id);
 
         const materialsProduced = combination.fitas.map(f => {
@@ -314,7 +315,7 @@ export class ReadinessService {
           sobraMm: combination.sobraMm,
           aproveitamentoPercent: combination.aproveitamentoPercent,
           sobraPesoTon: combination.pesoSobraTon,
-          status: combination.sobraMm <= 18 ? 'Conforme (10 a 18 mm)' : 'Sobra Excedente (> 18 mm)',
+          status: combination.sobraMm <= 18 ? 'Conforme (8 a 18 mm)' : 'Sobra Excedente (> 18 mm)',
           demandGroup: demandSplitGroup
         });
       });
@@ -371,7 +372,7 @@ export class ReadinessService {
             desiredQuantityTon: demanda || 10,
             selectedCoil: c,
             compatibleProducts: products,
-            minScrapMm: 10,
+            minScrapMm: 8,
             maxScrapAllowedMm: 18
           });
 

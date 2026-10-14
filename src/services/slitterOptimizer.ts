@@ -5,7 +5,7 @@ export interface OptimizationParams {
   desiredQuantityTon: number;
   selectedCoil: Coil;
   compatibleProducts: Product[];
-  minScrapMm?: number; // STRICT: minimum 10mm
+  minScrapMm?: number; // STRICT: minimum 8mm
   maxScrapAllowedMm?: number; // STRICT: maximum 18mm (~1.5%)
   // Outros produtos que compartilham o MESMO ferramental (largura de fita +
   // espessura) do mainProduct, cada um com sua própria demanda pendente — ex:
@@ -36,14 +36,14 @@ const STRIP_COLORS = [
 export class SlitterOptimizer {
   /**
    * Find all optimal slitter combinations for a selected coil and main product.
-   * STRICT MANDATE: Scrap MUST be between 10mm and 18mm (1.5% limit, never < 10mm).
+   * STRICT MANDATE: Scrap MUST be between 8mm and 18mm (never < 8mm).
    */
   static optimize(params: OptimizationParams): SlitterCombination[] {
     const {
       mainProduct,
       selectedCoil,
       compatibleProducts,
-      minScrapMm = 10,
+      minScrapMm = 8,
       maxScrapAllowedMm = 18,
       demandSplitGroup,
       demandaPorProduto
@@ -80,8 +80,16 @@ export class SlitterOptimizer {
       ? Math.max(1, Math.min(maxMainCount, Math.ceil(focusDemand / mainStripWeight)))
       : maxMainCount;
 
+    // Nº de fitas do produto principal: perto do que a demanda pede e também perto
+    // do máximo da bobina — este último serve para preencher a bobina quando não
+    // há outros itens para completar (o excedente resultante exige autorização).
+    const kSet = new Set<number>();
+    for (let k = kStart; k >= Math.max(1, kStart - 4); k--) kSet.add(k);
+    for (let k = maxMainCount; k >= Math.max(1, maxMainCount - 4); k--) kSet.add(k);
+    const kList = Array.from(kSet).sort((a, b) => b - a);
+
     // 1. Check pure main product cut (single product)
-    for (let k = kStart; k >= Math.max(1, kStart - 4); k--) {
+    for (const k of kList) {
       const usedWidth = k * mainWidth;
       const scrap = coilWidth - usedWidth;
 
@@ -89,7 +97,7 @@ export class SlitterOptimizer {
         ? this.splitQuantidadeByDemand(k, splitGroup, mainWidth)
         : [{ product: mainProduct, quantidade: k, larguraTotal: usedWidth }];
 
-      // Only add single cut if scrap >= 10mm
+      // Only add single cut if scrap >= minScrapMm
       if (scrap >= minScrapMm) {
         const singleComb = this.buildCombination(
           selectedCoil,
@@ -142,23 +150,29 @@ export class SlitterOptimizer {
       }
     }
 
-    // 2. Nunca menos de 10mm de refilo. Quem não passa da demanda vem antes de
+    // 2. Nunca menos de 8mm de refilo. Quem não passa da demanda vem antes de
     // quem passa (esses só seguem com autorização), e dentro de cada grupo a
-    // faixa 10-18mm vem primeiro.
+    // faixa 8-18mm vem primeiro. O refilo na faixa manda: a bobina é preenchida
+    // com outros itens e, se preciso, com excedente (que exige autorização).
     const finalPool = rawResults.filter(r => r.sobraMm >= minScrapMm);
     const inRange = (r: SlitterCombination) => r.sobraMm >= minScrapMm && r.sobraMm <= maxScrapAllowedMm;
 
     // Rank combinations:
     // 0. Sem excedente de demanda
-    // 1. Faixa de refilo 10-18mm
+    // 1. Faixa de refilo 8-18mm
     // 2. Maior demanda do produto/grupo principal atendida (t)
     // 3. Maior demanda total atendida (t)
     // 4. Highest utilization (aproveitamentoPercent)
     // 5. Minimum refilo/scrap (sobraMm) within valid range
     // 6. Higher count of main product strips
     finalPool.sort((a, b) => {
-      if (!!a.excedeDemanda !== !!b.excedeDemanda) return a.excedeDemanda ? 1 : -1;
       if (inRange(a) !== inRange(b)) return inRange(a) ? -1 : 1;
+      // Fora da faixa: o melhor aproveitamento da bobina (menor refilo) vem primeiro.
+      if (!inRange(a) && Math.abs(a.sobraMm - b.sobraMm) > 0.1) return a.sobraMm - b.sobraMm;
+      if (!!a.excedeDemanda !== !!b.excedeDemanda) return a.excedeDemanda ? 1 : -1;
+      const exA = a.excedenteT ?? 0;
+      const exB = b.excedenteT ?? 0;
+      if (Math.abs(exA - exB) > 0.05) return exA - exB;
       // 1º o produto/grupo do ferramental principal, 2º a demanda total atendida
       const fA = a.demandaFocoAtendidaT ?? 0;
       const fB = b.demandaFocoAtendidaT ?? 0;
@@ -269,7 +283,7 @@ export class SlitterOptimizer {
   }
 
   /**
-   * Combinatorial helper to find companion items that sum up to target space with 10mm <= scrap <= 18mm
+   * Combinatorial helper to find companion items that sum up to target space with 8mm <= scrap <= 18mm
    */
   private static findComplements(
     targetSpace: number,
@@ -383,9 +397,15 @@ export class SlitterOptimizer {
         (acc, i) => acc + Math.min(i.larguraTotal * tonPerMm, demandMap.get(i.product.id) ?? 0),
         0
       );
-    const scored = solutions.map(sol => ({ sol, covered: coveredOf(sol) }));
+    const excessOf = (sol: { items: { product: Product; larguraTotal: number }[] }) =>
+      sol.items.reduce(
+        (acc, i) => acc + Math.max(0, i.larguraTotal * tonPerMm - (demandMap.get(i.product.id) ?? 0)),
+        0
+      );
+    const scored = solutions.map(sol => ({ sol, covered: coveredOf(sol), excess: excessOf(sol) }));
     scored.sort((a, b) => {
       if (Math.abs(b.covered - a.covered) > 0.05) return b.covered - a.covered;
+      if (Math.abs(a.excess - b.excess) > 0.05) return a.excess - b.excess;
       return a.sol.scrap - b.sol.scrap;
     });
 
@@ -413,12 +433,12 @@ export class SlitterOptimizer {
     let classificacao: SlitterCombination['classificacao'] = 'BOM';
     let badgeTexto = `${aproveitamentoPercent}% Aproveitamento`;
 
-    if (sobraMm >= 10 && sobraMm <= 18) {
+    if (sobraMm >= 8 && sobraMm <= 18) {
       classificacao = 'PERFEITO';
       badgeTexto = `Refilo Conforme: ${sobraMm}mm (${perdaPercent}%)`;
-    } else if (sobraMm < 10) {
+    } else if (sobraMm < 8) {
       classificacao = 'ATENÇÃO';
-      badgeTexto = `Refilo Inválido: ${sobraMm}mm (< 10mm)`;
+      badgeTexto = `Refilo Inválido: ${sobraMm}mm (< 8mm)`;
     } else {
       classificacao = 'ATENÇÃO';
       badgeTexto = `Sobra Excedente: ${sobraMm}mm (> 18mm)`;

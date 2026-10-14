@@ -5,6 +5,10 @@
  * reinterpretação.
  */
 
+// Faixa de refilo lateral aceita pelo PCP (mm).
+export const REFILO_MIN_MM = 8;
+export const REFILO_MAX_MM = 18;
+
 export type ThresholdLevel = 'ok' | 'atencao' | 'critico';
 
 export function getAproveitamentoLevel(percent: number): ThresholdLevel {
@@ -14,13 +18,13 @@ export function getAproveitamentoLevel(percent: number): ThresholdLevel {
 }
 
 export function getSobraLevel(sobraMm: number): ThresholdLevel {
-  if (sobraMm < 10) return 'atencao';
-  if (sobraMm > 18) return 'critico';
+  if (sobraMm < REFILO_MIN_MM) return 'atencao';
+  if (sobraMm > REFILO_MAX_MM) return 'critico';
   return 'ok';
 }
 
 export function isSobraNaFaixaIdeal(sobraMm: number): boolean {
-  return sobraMm >= 10 && sobraMm <= 18;
+  return sobraMm >= REFILO_MIN_MM && sobraMm <= REFILO_MAX_MM;
 }
 
 export function getDificuldadeLevel(grau: string): ThresholdLevel {

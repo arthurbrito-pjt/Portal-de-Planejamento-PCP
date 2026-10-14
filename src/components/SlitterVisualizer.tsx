@@ -51,8 +51,8 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
   const scrapWeightTon = Number((coil.peso * (scrapWidth / coil.largura)).toFixed(3));
   const usedWeightTon = Number((coil.peso * (Math.min(totalUsedWidth, coil.largura) / coil.largura)).toFixed(3));
 
-  const isScrapIdeal = scrapWidth >= 10 && scrapWidth <= 18;
-  const isScrapLow = scrapWidth < 10;
+  const isScrapIdeal = scrapWidth >= 8 && scrapWidth <= 18;
+  const isScrapLow = scrapWidth < 8;
   const isScrapHigh = scrapWidth > 18;
 
   // Layout em % da trilha. Com excesso de largura as fitas são comprimidas em 88% e o bloco vermelho ocupa o resto.
@@ -129,7 +129,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
                 Simulação Gráfica do Corte Slitter
               </h3>
               <span className="px-2.5 py-0.5 rounded-full bg-[#0B1F3A]/5 text-[#0B1F3A] border border-[#0B1F3A]/20 text-[10px] font-mono font-bold">
-                Faixa Padrão: 10 a 18 mm (1,5%)
+                Faixa Padrão: 8 a 18 mm
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-2 font-mono font-medium">
@@ -149,7 +149,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
           {isScrapIdeal && !isOverflow ? (
             <div className="flex items-center gap-2 px-3.5 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-black shadow-sm">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Ideal: Refilo {scrapWidth} mm (10 a 18 mm ~1,5%)</span>
+              <span>Ideal: Refilo {scrapWidth} mm (8 a 18 mm)</span>
             </div>
           ) : isOverflow ? (
             <div className="flex items-center gap-2 px-3.5 py-1.5 bg-red-50 text-red-800 border border-red-300 rounded-xl text-xs font-black">
@@ -159,7 +159,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
           ) : isScrapLow ? (
             <div className="flex items-center gap-2 px-3.5 py-1.5 bg-amber-50 text-amber-800 border border-amber-300 rounded-xl text-xs font-black">
               <AlertTriangle className="w-4 h-4 text-amber-600" />
-              <span>Refilo Baixo ({scrapWidth} mm &lt; 10 mm)</span>
+              <span>Refilo Baixo ({scrapWidth} mm &lt; 8 mm)</span>
             </div>
           ) : (
             <div className="flex items-center gap-2 px-3.5 py-1.5 bg-red-50 text-red-800 border border-red-300 rounded-xl text-xs font-black">
@@ -319,7 +319,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
                   </div>
                 </div>
                 <div className="text-[8px] font-black uppercase">
-                  {isScrapIdeal ? '✓ IDEAL 10-18mm' : isScrapLow ? '⚠ < 10mm' : '⚠ > 18mm'}
+                  {isScrapIdeal ? '✓ IDEAL 8-18mm' : isScrapLow ? '⚠ < 8mm' : '⚠ > 18mm'}
                 </div>
               </div>
             )}

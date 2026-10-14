@@ -43,7 +43,7 @@ export const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({
         <div className="flex rounded-lg bg-slate-100 p-1">
           {[
             { id: 'TODOS', label: 'Todos' },
-            { id: 'IDEAL', label: 'Conforme (10-18mm)' },
+            { id: 'IDEAL', label: 'Conforme (8-18mm)' },
             { id: 'ALTO', label: 'Sobra > 18mm' }
           ].map(y => (
             <button

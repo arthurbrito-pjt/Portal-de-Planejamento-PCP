@@ -13,7 +13,7 @@ export interface RankedCoil {
 export class CoilCompatibilityService {
   /**
    * Rank coils compatible with a product by: estoque intermediário (WIP) primeiro,
-   * depois viabilidade de largura/sobra (banda 10-18mm), depois maior peso.
+   * depois viabilidade de largura/sobra (banda 8-18mm), depois maior peso.
    */
   static rank(
     coils: Coil[],
@@ -27,7 +27,7 @@ export class CoilCompatibilityService {
       .map(coil => {
         const fitasPossiveis = Math.floor(coil.largura / product.larguraFita);
         const sobraMm = coil.largura - fitasPossiveis * product.larguraFita;
-        const isSobraNaFaixa = sobraMm >= 10 && sobraMm <= 18;
+        const isSobraNaFaixa = sobraMm >= 8 && sobraMm <= 18;
         const violaPoliticaVolume = !!product.volumePoliticaT && (
           coil.peso < product.volumePoliticaT.minimo || coil.peso > product.volumePoliticaT.maximo
         );

@@ -572,8 +572,8 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
                       Refilo Lateral
                     </td>
                     <td colSpan={3} className="py-3 px-3 text-slate-600 font-sans border-r border-slate-200">
-                      {bobina.sobraMm >= 10 && bobina.sobraMm <= 18
-                        ? 'Refilo padrão ideal de corte (10 a 18 mm ~1,5%)'
+                      {bobina.sobraMm >= 8 && bobina.sobraMm <= 18
+                        ? 'Refilo padrão ideal de corte (8 a 18 mm)'
                         : `Refilo ajustado (${bobina.sobraMm} mm)`}
                     </td>
                     <td className="py-3 px-3 text-right text-amber-700 border-r border-slate-200 font-black">
