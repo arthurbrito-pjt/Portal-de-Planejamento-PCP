@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Navbar } from './components/Navbar';
 import { Sidebar, TabType } from './components/Sidebar';
 import { DashboardView } from './views/DashboardView';
@@ -120,6 +120,12 @@ export const App: React.FC = () => {
   const [orderJustCreated, setOrderJustCreated] = useState<boolean>(false);
   const [highlightOrderId, setHighlightOrderId] = useState<string | null>(null);
 
+  // Trilha das páginas visitadas: "Voltar"/"Cancelar" devolvem o usuário à página
+  // de onde ele veio, e não a um destino fixo.
+  const trailRef = useRef<string[]>([]);
+  const goingBackRef = useRef<boolean>(false);
+  const lastHashRef = useRef<string>(window.location.hash);
+
   const activeTab = currentRoute.tab;
   const dashboardSubview = currentRoute.tab === 'dashboard' ? currentRoute.paramId : null;
   const reportsSubTab = currentRoute.tab === 'reports' && currentRoute.subAction !== 'op' ? currentRoute.paramId : null;
@@ -146,6 +152,18 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     const handleHashChange = () => {
+      const nowHash = window.location.hash;
+      const previous = lastHashRef.current;
+      if (!goingBackRef.current && previous && previous !== nowHash) {
+        const trail = trailRef.current;
+        if (trail[trail.length - 1] !== previous) {
+          trail.push(previous);
+          if (trail.length > 30) trail.shift();
+        }
+      }
+      lastHashRef.current = nowHash;
+      goingBackRef.current = false;
+
       const parsed = parseHashRoute();
       setCurrentRoute(parsed);
 
@@ -221,6 +239,25 @@ export const App: React.FC = () => {
     setOrderJustCreated(false);
   };
 
+  const goBack = (fallback: TabType = 'dashboard') => {
+    // Sem página anterior conhecida, o destino seguro é o Painel Geral.
+    const current = window.location.hash;
+    let target: string | undefined;
+    while (trailRef.current.length > 0) {
+      const candidate = trailRef.current.pop()!;
+      if (candidate !== current) {
+        target = candidate;
+        break;
+      }
+    }
+    if (target) {
+      goingBackRef.current = true;
+      window.location.hash = target;
+    } else {
+      navigateToRoute(fallback);
+    }
+  };
+
   const handleNavigateToPlanning = (productId?: string) => {
     handleClearActiveWorkspace();
     if (productId) {
@@ -231,7 +268,12 @@ export const App: React.FC = () => {
 
   const handleCancelSimulation = () => {
     handleClearActiveWorkspace();
-    navigateToRoute('planning');
+    goBack();
+  };
+
+  const handleBackFromSimulation = () => {
+    handleClearActiveWorkspace();
+    goBack();
   };
 
   const handleNavigateToDashboardFromSimulation = () => {
@@ -393,7 +435,7 @@ export const App: React.FC = () => {
               activeSubview={dashboardSubview}
               onNavigateToSubview={(subview) => navigateToRoute('dashboard', null, subview)}
               onNavigateToPlanning={handleNavigateToPlanning}
-              onNavigateToOrders={() => handleSelectTab('reports')}
+              onNavigateToOrders={() => handleSelectTab('order')}
               onNavigateToData={() => handleSelectTab('data')}
               onNavigateToCotacao={() => handleSelectTab('cotacao')}
               onOpenProgramSimulation={handleOpenProgramInSimulation}
@@ -438,6 +480,7 @@ export const App: React.FC = () => {
               onUpdateCoilInputs={setActiveCoilInputs}
               onProceedToOrder={(c, s, all) => handleProceedToOrder(c, s, undefined, all)}
               onNavigateToPlanning={handleNavigateToPlanning}
+              onBack={handleBackFromSimulation}
               onNavigateToDashboard={handleNavigateToDashboardFromSimulation}
               onCancelSimulation={handleCancelSimulation}
             />
@@ -466,6 +509,7 @@ export const App: React.FC = () => {
                 navigateToRoute('order');
               }}
               onNavigateToPlanning={() => handleSelectTab('planning')}
+              onBack={() => goBack()}
               onNavigateToSimulation={() => handleSelectTab('simulation')}
               onNavigateToDashboard={() => handleSelectTab('dashboard')}
             />

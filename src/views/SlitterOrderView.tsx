@@ -44,6 +44,7 @@ interface SlitterOrderViewProps {
   onOpenOrder?: (order: SlitterOrder) => void;
   onBackToOrderList?: () => void;
   onNavigateToPlanning: () => void;
+  onBack?: () => void;
   onNavigateToSimulation?: () => void;
   onNavigateToDashboard?: () => void;
 }
@@ -66,6 +67,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
   onBackToOrderList,
   onCancelOrder,
   onNavigateToPlanning,
+  onBack,
   onNavigateToSimulation,
   onNavigateToDashboard
 }) => {
@@ -245,11 +247,11 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
           )}
 
           <button
-            onClick={onNavigateToPlanning}
+            onClick={onBack ?? onNavigateToPlanning}
             className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-xs flex items-center gap-1.5 text-xs font-bold"
           >
             <ArrowLeft className="w-4 h-4 text-[#0B1F3A]" />
-            <span>Voltar ao Planejamento</span>
+            <span>Voltar</span>
           </button>
 
           {onNavigateToSimulation && (

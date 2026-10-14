@@ -34,6 +34,7 @@ export interface SimulationViewProps {
   onUpdateCoilInputs?: (newInputs: OrderCoilInput[]) => void;
   onProceedToOrder: (coil: Coil, strips: SlitterStrip[], allInputs?: OrderCoilInput[]) => void;
   onNavigateToPlanning: (productId?: string) => void;
+  onBack?: () => void;
   onNavigateToDashboard?: () => void;
   onCancelSimulation: () => void;
 }
@@ -151,6 +152,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
   onUpdateCoilInputs,
   onProceedToOrder,
   onNavigateToPlanning,
+  onBack,
   onNavigateToDashboard,
   onCancelSimulation
 }) => {
@@ -401,11 +403,11 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => onNavigateToPlanning(mainProductId)}
+            onClick={() => (onBack ? onBack() : onNavigateToPlanning(mainProductId))}
             className="px-3.5 py-2 rounded-2xl bg-white hover:bg-slate-100 text-slate-700 transition-colors border border-slate-200 shadow-xs flex items-center gap-1.5 text-xs font-black"
           >
             <ArrowLeft className="w-4 h-4 text-[#0B1F3A]" />
-            <span>Voltar ao Planejamento</span>
+            <span>Voltar</span>
           </button>
 
           {onNavigateToDashboard && (
