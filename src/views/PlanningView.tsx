@@ -22,6 +22,8 @@ import { SlitterVisualizer } from '../components/SlitterVisualizer';
 import { StepIndicator } from '../components/StepIndicator';
 import { PolicyAlertBar, PolicyAlert } from '../components/PolicyAlertBar';
 import { ProgramasSlitter } from './dashboard/ProgramasSlitter';
+import { DemandExcessService } from '../services/demandExcessService';
+import { ExcessAuthorizationPanel } from '../components/ExcessAuthorizationPanel';
 import { CustomPlanLauncher } from '../components/planning/CustomPlanLauncher';
 import { DemandaSlitter } from './planning/DemandaSlitter';
 import { usePlanningFilters } from '../components/planning/planningFilters';
@@ -261,6 +263,16 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
       .filter((x): x is OrderCoilInput => !!x);
   }, [selectedCoils, perCoilCombinations]);
 
+  // Produção acima da demanda exige autorização nominal; vale só para este conjunto de cortes.
+  const excessItems = useMemo(
+    () => DemandExcessService.computeFromStrips(coilCutInputs.flatMap(c => c.strips), products),
+    [coilCutInputs, products]
+  );
+  const excessSignature = useMemo(() => DemandExcessService.signature(excessItems), [excessItems]);
+  const [excessAuth, setExcessAuth] = useState<{ nome: string; signature: string } | null>(null);
+  const excessAuthorizedBy = excessAuth && excessAuth.signature === excessSignature ? excessAuth.nome : null;
+  const needsExcessAuth = excessItems.length > 0 && !excessAuthorizedBy;
+
   const totalStripsCount = useMemo(
     () => coilCutInputs.reduce((acc, c) => acc + c.strips.length, 0),
     [coilCutInputs]
@@ -331,8 +343,16 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   };
 
   const handleGenerateOrder = () => {
-    if (coilCutInputs.length === 0 || !operador || !maquina) return;
-    const order = OrderBuilderService.buildNew(coilCutInputs, { operador, turno, maquina, observacoes });
+    if (coilCutInputs.length === 0 || !operador || !maquina || needsExcessAuth) return;
+    const order = OrderBuilderService.buildNew(coilCutInputs, {
+      operador,
+      turno,
+      maquina,
+      observacoes,
+      autorizacaoExcedente: excessAuthorizedBy
+        ? { autorizadoPor: excessAuthorizedBy, em: new Date().toISOString(), itens: excessItems.map(i => ({ codigo: i.codigo, excedenteT: i.excessT })) }
+        : undefined
+    });
     StorageService.addOrder(order);
     onOrderCreated(order);
   };
@@ -755,9 +775,16 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
               <span>Aproveitamento: <strong className="font-mono text-emerald-700">{aggregateAproveitamentoPercent}%</strong></span>
             </div>
 
+            <ExcessAuthorizationPanel
+              items={excessItems}
+              authorizedBy={excessAuthorizedBy}
+              onAuthorize={(nome) => setExcessAuth({ nome, signature: excessSignature })}
+              onRevoke={() => setExcessAuth(null)}
+            />
+
             <button
               onClick={handleGenerateOrder}
-              disabled={!operador || !maquina}
+              disabled={!operador || !maquina || needsExcessAuth}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#0B1F3A] hover:bg-[#163866] text-white text-sm font-black rounded-xl shadow-md shadow-black/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-[#163866]"
             >
               <ClipboardCheck className="w-4 h-4 text-orange-400" />

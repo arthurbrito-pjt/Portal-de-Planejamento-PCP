@@ -1,4 +1,4 @@
-import { Coil, SlitterStrip, SlitterOrder, SlitterOrderCoil } from '../types/pcp';
+import { Coil, SlitterStrip, SlitterOrder, SlitterOrderCoil, AutorizacaoExcedente } from '../types/pcp';
 
 export const MAQUINAS_SLITTER = ['SLT_01', 'SLT_02', 'SLT_03', 'SLT_04', 'SLT_05'];
 
@@ -7,6 +7,7 @@ export interface OrderFields {
   turno?: string;
   maquina?: string;
   observacoes?: string;
+  autorizacaoExcedente?: AutorizacaoExcedente;
 }
 
 export interface OrderCoilInput {
@@ -107,7 +108,8 @@ export class OrderBuilderService {
       operador: fields.operador,
       turno: fields.turno,
       maquina: fields.maquina,
-      observacoes: fields.observacoes
+      observacoes: fields.observacoes,
+      autorizacaoExcedente: fields.autorizacaoExcedente
     };
   }
 

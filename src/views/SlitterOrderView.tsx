@@ -4,6 +4,8 @@ import { ExcelService } from '../services/excelService';
 import { StorageService } from '../services/storageService';
 import { MAQUINAS_SLITTER, OrderBuilderService, OrderCoilInput } from '../services/orderBuilderService';
 import { OrderExecutionService } from '../services/orderExecutionService';
+import { DemandExcessService } from '../services/demandExcessService';
+import { ExcessAuthorizationPanel } from '../components/ExcessAuthorizationPanel';
 import { OrderExecutionPanel } from '../components/OrderExecutionPanel';
 import { SlitterCatalogService } from '../services/slitterCatalogService';
 import { PrintTagsPortal } from '../components/PrintTagsPortal';
@@ -83,6 +85,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
   // `order`, então sem isso "Finalizar" não achava a OP para marcar Concluída.
   const savedOrderRef = useRef<SlitterOrder | null>(order);
   const [liveOrder, setLiveOrder] = useState<SlitterOrder | null>(null);
+  const [excessAuthBy, setExcessAuthBy] = useState<string | null>(order?.autorizacaoExcedente?.autorizadoPor ?? null);
   const [execucao, setExecucao] = useState<OrderExecucao>(order?.execucao || {});
 
   // Rascunho estável: monta a OP (com numeroOP/id fixos) uma única vez a partir
@@ -98,6 +101,13 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
   });
 
   const displayOrder = liveOrder || order || draftOrder;
+
+  // Produção acima da demanda só segue com autorização — vale para OPs novas; as já gravadas mantêm o que foi autorizado.
+  const excessItems = useMemo(
+    () => (displayOrder ? DemandExcessService.computeFromStrips(displayOrder.fitas, StorageService.getProducts()) : []),
+    [displayOrder]
+  );
+  const needsExcessAuth = !isSaved && excessItems.length > 0 && !excessAuthBy;
 
   // Faltas de MP: prévia enquanto a OP está aberta; depois de concluída, o que foi gravado.
   const faltasMp = useMemo(() => {
@@ -141,7 +151,14 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
 
   const handleSaveOrder = (): SlitterOrder => {
     const base = savedOrderRef.current || order || draftOrder!;
-    const toSave: SlitterOrder = { ...OrderBuilderService.updateFields(base, { operador, turno, maquina, observacoes }), execucao };
+    if (needsExcessAuth) return base;
+    const toSave: SlitterOrder = {
+      ...OrderBuilderService.updateFields(base, { operador, turno, maquina, observacoes }),
+      execucao,
+      autorizacaoExcedente: excessAuthBy && excessItems.length > 0
+        ? { autorizadoPor: excessAuthBy, em: new Date().toISOString(), itens: excessItems.map(i => ({ codigo: i.codigo, excedenteT: i.excessT })) }
+        : base.autorizacaoExcedente
+    };
 
     StorageService.addOrder(toSave);
     savedOrderRef.current = toSave;
@@ -156,7 +173,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
   };
 
   const handleLancarNaMaquina = () => {
-    if (!maquina) return;
+    if (!maquina || needsExcessAuth) return;
     const saved = handleSaveOrder();
     const launched = StorageService.lancarOrderNaMaquina(saved.id, maquina);
     if (!launched) return;
@@ -167,6 +184,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
   };
 
   const handleFinalizeAndClear = () => {
+    if (needsExcessAuth) return;
     const savedOrder = handleSaveOrder();
     const orderId = savedOrder.id;
 
@@ -319,7 +337,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
           {!isLocked && orderStatus !== 'Em Corte' && (
             <button
               onClick={handleLancarNaMaquina}
-              disabled={!maquina}
+              disabled={!maquina || needsExcessAuth}
               title={maquina ? `Lançar o plano de corte na máquina ${maquina} e iniciar o tempo de processo` : 'Selecione a máquina em "Dados Operacionais" para lançar'}
               className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl shadow-xs transition-all ${
                 maquina ? 'bg-[#0B1F3A] hover:bg-[#163866] text-white' : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
@@ -332,7 +350,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
 
           <button
             onClick={handleSaveOrder}
-            disabled={isLocked}
+            disabled={isLocked || needsExcessAuth}
             title={isLocked ? `OP ${orderStatus === 'Cancelada' ? 'cancelada' : 'concluída'} — não pode mais ser editada` : undefined}
             className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl shadow-xs transition-all ${
               isLocked
@@ -364,7 +382,7 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
 
           <button
             onClick={handleFinalizeAndClear}
-            disabled={isLocked}
+            disabled={isLocked || needsExcessAuth}
             title={isLocked ? `OP ${orderStatus === 'Cancelada' ? 'cancelada' : 'já concluída'}` : undefined}
             className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl shadow-xs transition-all ${
               isLocked
@@ -377,6 +395,23 @@ export const SlitterOrderView: React.FC<SlitterOrderViewProps> = ({
           </button>
         </div>
       </div>
+
+      {!isSaved && (
+        <ExcessAuthorizationPanel
+          items={excessItems}
+          authorizedBy={excessAuthBy}
+          onAuthorize={setExcessAuthBy}
+          onRevoke={() => setExcessAuthBy(null)}
+        />
+      )}
+
+      {isSaved && displayOrder.autorizacaoExcedente && (
+        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold print:hidden">
+          Produção acima da demanda autorizada por {displayOrder.autorizacaoExcedente.autorizadoPor} em{' '}
+          {new Date(displayOrder.autorizacaoExcedente.em).toLocaleString('pt-BR')} (
+          {displayOrder.autorizacaoExcedente.itens.map(i => `${i.codigo} +${i.excedenteT} t`).join(', ')}).
+        </div>
+      )}
 
       {isLocked && (
         <div className={`p-3.5 rounded-xl border text-xs font-bold flex items-center gap-2 print:hidden ${

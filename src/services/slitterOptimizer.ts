@@ -72,8 +72,16 @@ export class SlitterOptimizer {
 
     const maxMainCount = Math.floor(coilWidth / mainWidth);
 
+    // Sem passar da demanda: parte do nº de fitas que atende a demanda do grupo
+    // principal (sem demanda informada, parte do máximo que cabe na bobina).
+    const focusDemand = Array.from(focusIds).reduce((acc, id) => acc + (demandMap.get(id) ?? 0), 0);
+    const mainStripWeight = tonPerMm * mainWidth;
+    const kStart = focusDemand > 0 && mainStripWeight > 0
+      ? Math.max(1, Math.min(maxMainCount, Math.ceil(focusDemand / mainStripWeight)))
+      : maxMainCount;
+
     // 1. Check pure main product cut (single product)
-    for (let k = maxMainCount; k >= Math.max(1, maxMainCount - 4); k--) {
+    for (let k = kStart; k >= Math.max(1, kStart - 4); k--) {
       const usedWidth = k * mainWidth;
       const scrap = coilWidth - usedWidth;
 
@@ -102,7 +110,7 @@ export class SlitterOptimizer {
       if (scrap > minScrapMm) {
         const companionSolutions = this.findComplements(
           scrap,
-          candidates,
+          candidates.filter(c => !focusIds.has(c.id)),
           minScrapMm,
           maxScrapAllowedMm,
           demandMap,
@@ -134,22 +142,27 @@ export class SlitterOptimizer {
       }
     }
 
-    // 2. Strict Filter: NEVER allow less than 10mm! (10mm <= sobra <= 18mm)
-    const validResults = rawResults.filter(
-      r => r.sobraMm >= minScrapMm && r.sobraMm <= maxScrapAllowedMm
-    );
-
-    // Fallback if no solution in 10-18mm: allow combinations with sobraMm >= 10mm
-    const finalPool = validResults.length > 0 
-      ? validResults 
-      : rawResults.filter(r => r.sobraMm >= minScrapMm);
+    // 2. Nunca menos de 10mm de refilo. Quem não passa da demanda vem antes de
+    // quem passa (esses só seguem com autorização), e dentro de cada grupo a
+    // faixa 10-18mm vem primeiro.
+    const finalPool = rawResults.filter(r => r.sobraMm >= minScrapMm);
+    const inRange = (r: SlitterCombination) => r.sobraMm >= minScrapMm && r.sobraMm <= maxScrapAllowedMm;
 
     // Rank combinations:
-    // 1. Maior demanda pendente atendida (t) — a demanda manda no plano
-    // 2. Highest utilization (aproveitamentoPercent)
-    // 3. Minimum refilo/scrap (sobraMm) within valid range
-    // 4. Higher count of main product strips
+    // 0. Sem excedente de demanda
+    // 1. Faixa de refilo 10-18mm
+    // 2. Maior demanda do produto/grupo principal atendida (t)
+    // 3. Maior demanda total atendida (t)
+    // 4. Highest utilization (aproveitamentoPercent)
+    // 5. Minimum refilo/scrap (sobraMm) within valid range
+    // 6. Higher count of main product strips
     finalPool.sort((a, b) => {
+      if (!!a.excedeDemanda !== !!b.excedeDemanda) return a.excedeDemanda ? 1 : -1;
+      if (inRange(a) !== inRange(b)) return inRange(a) ? -1 : 1;
+      // 1º o produto/grupo do ferramental principal, 2º a demanda total atendida
+      const fA = a.demandaFocoAtendidaT ?? 0;
+      const fB = b.demandaFocoAtendidaT ?? 0;
+      if (Math.abs(fB - fA) > 0.05) return fB - fA;
       const dA = a.demandaAtendidaT ?? 0;
       const dB = b.demandaAtendidaT ?? 0;
       if (Math.abs(dB - dA) > 0.05) return dB - dA;
@@ -204,13 +217,15 @@ export class SlitterOptimizer {
     let coveredT = 0;
     let focusCoveredT = 0;
     const producedByProduct = new Map<string, number>();
-    for (const f of combination.fitas) {
-      const produced = coil.peso * (f.larguraTotal / coil.largura);
-      const pending = demand.get(f.product.id) ?? 0;
+    const widthByProduct = new Map<string, number>();
+    combination.fitas.forEach(f => widthByProduct.set(f.product.id, (widthByProduct.get(f.product.id) ?? 0) + f.larguraTotal));
+    for (const [productId, larguraTotal] of widthByProduct) {
+      const produced = coil.peso * (larguraTotal / coil.largura);
+      const pending = demand.get(productId) ?? 0;
       const covered = Math.min(produced, pending);
       coveredT += covered;
-      if (!focusIds || focusIds.has(f.product.id)) focusCoveredT += covered;
-      producedByProduct.set(f.product.id, (producedByProduct.get(f.product.id) ?? 0) + covered);
+      if (!focusIds || focusIds.has(productId)) focusCoveredT += covered;
+      producedByProduct.set(productId, covered);
     }
     return { coveredT, focusCoveredT, producedByProduct };
   }
@@ -413,11 +428,19 @@ export class SlitterOptimizer {
 
     let demandaAtendidaT = 0;
     let focusCovered = 0;
-    for (const f of fitas) {
-      const produced = coil.peso * (f.larguraTotal / coil.largura);
-      const covered = Math.min(produced, demandMap.get(f.product.id) ?? 0);
+    let excedenteT = 0;
+    const widthByProduct = new Map<string, number>();
+    fitas.forEach(f => widthByProduct.set(f.product.id, (widthByProduct.get(f.product.id) ?? 0) + f.larguraTotal));
+    for (const [productId, larguraTotal] of widthByProduct) {
+      const produced = coil.peso * (larguraTotal / coil.largura);
+      const pending = demandMap.get(productId) ?? 0;
+      const covered = Math.min(produced, pending);
       demandaAtendidaT += covered;
-      if (focusIds.has(f.product.id)) focusCovered += covered;
+      if (focusIds.has(productId)) focusCovered += covered;
+      // Produzir acima da demanda pendente (ou item sem demanda) é excedente.
+      if (demandMap.size > 0 && produced - pending > Math.max(0.05, pending * 0.01)) {
+        excedenteT += produced - pending;
+      }
     }
     const focusDemand = Array.from(focusIds).reduce((acc, id) => acc + (demandMap.get(id) ?? 0), 0);
     const atendimentoDemandaPercent = focusDemand > 0 ? Math.min(100, Math.round((focusCovered / focusDemand) * 100)) : 0;
@@ -436,7 +459,10 @@ export class SlitterOptimizer {
       badgeTexto,
       prioridadeDemanda: hasPriorityDemand,
       demandaAtendidaT: Number(demandaAtendidaT.toFixed(3)),
-      atendimentoDemandaPercent
+      demandaFocoAtendidaT: Number(focusCovered.toFixed(3)),
+      atendimentoDemandaPercent,
+      excedenteT: Number(excedenteT.toFixed(3)),
+      excedeDemanda: excedenteT > 0
     };
   }
 

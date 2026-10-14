@@ -120,6 +120,10 @@ export class OpPlannerService {
     const combinations: (SlitterCombination | null)[] = [];
     let focusCoveredTotal = 0;
 
+    // 1ª tentativa sem passar da demanda; só se nenhuma bobina atender dessa forma
+    // o plano usa um corte com excedente (marcado, e que exige autorização).
+    for (const allowExcess of [false, true]) {
+    if (allowExcess && chosenCoils.length > 0) break;
     while (pool.length > 0 && focusRemaining > tolerance && chosenCoils.length < 8) {
       const demandObj = Object.fromEntries(remaining);
       const evaluated = pool
@@ -139,7 +143,7 @@ export class OpPlannerService {
           const cov = SlitterOptimizer.computeCoverage(top, coil, remaining, focusIds);
           return { coil, top, cov };
         })
-        .filter((e): e is NonNullable<typeof e> => !!e && e.cov.focusCoveredT > 0);
+        .filter((e): e is NonNullable<typeof e> => !!e && e.cov.focusCoveredT > 0 && (allowExcess || !e.top.excedeDemanda));
 
       if (evaluated.length === 0) break;
 
@@ -154,6 +158,7 @@ export class OpPlannerService {
       focusRemaining -= best.cov.focusCoveredT;
       best.cov.producedByProduct.forEach((t, id) => remaining.set(id, Math.max(0, (remaining.get(id) ?? 0) - t)));
       pool.splice(pool.findIndex(c => c.id === best.coil.id), 1);
+    }
     }
 
     const totalCoilsWeightTon = Number(chosenCoils.reduce((acc, c) => acc + c.peso, 0).toFixed(3));
@@ -171,7 +176,8 @@ export class OpPlannerService {
       combination: combinations[0] || null,
       coverageTon: cappedCoverage,
       coveragePercent: totalDemandaT > 0 ? Math.min(100, Math.round((cappedCoverage / totalDemandaT) * 100)) : 100,
-      isFullyCovered: totalDemandaT > 0 ? cappedCoverage >= totalDemandaT - tolerance : chosenCoils.length > 0
+      // Sobra menor que uma fita não dá para produzir sem passar da demanda.
+      isFullyCovered: totalDemandaT > 0 ? cappedCoverage >= totalDemandaT - Math.max(tolerance, totalDemandaT * 0.02) : chosenCoils.length > 0
     };
   }
 }

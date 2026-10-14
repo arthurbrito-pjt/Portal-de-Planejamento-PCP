@@ -185,7 +185,11 @@ export interface SlitterCombination {
   // Toneladas de demanda pendente que este corte atende (produção de cada item
   // limitada à demanda dele) e % da demanda do grupo principal coberta.
   demandaAtendidaT?: number;
+  demandaFocoAtendidaT?: number; // parte de demandaAtendidaT que é do produto/grupo do ferramental principal
   atendimentoDemandaPercent?: number;
+  // Produção acima da demanda pendente (t) — exige autorização para seguir.
+  excedenteT?: number;
+  excedeDemanda?: boolean;
 }
 
 // Uma bobina matriz física cortada dentro de uma OP, com seu próprio plano de
@@ -245,6 +249,13 @@ export interface PlanTemplate {
   fitas: { productId: string; productCode: string; largura: number }[];
 }
 
+// Autorização nominal para produzir acima da demanda pendente.
+export interface AutorizacaoExcedente {
+  autorizadoPor: string;
+  em: string; // ISO
+  itens: { codigo: string; excedenteT: number }[];
+}
+
 export interface SlitterOrder {
   id: string;
   numeroOP: string; // ex: OP-SLT-2026-001
@@ -281,6 +292,7 @@ export interface SlitterOrder {
   turno?: string;
   maquina?: string;
   execucao?: OrderExecucao;
+  autorizacaoExcedente?: AutorizacaoExcedente;
 }
 
 export interface CutHistoryItem {

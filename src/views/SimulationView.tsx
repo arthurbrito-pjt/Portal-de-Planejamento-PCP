@@ -3,6 +3,7 @@ import { Coil, SlitterStrip, Product } from '../types/pcp';
 import { SlitterVisualizer } from '../components/SlitterVisualizer';
 import { SlitterCatalogService } from '../services/slitterCatalogService';
 import { OrderCoilInput } from '../services/orderBuilderService';
+import { DemandExcessService } from '../services/demandExcessService';
 import { StorageService } from '../services/storageService';
 import { CommitNumberInput } from '../components/CommitNumberInput';
 import { SlitterTagModal } from '../components/SlitterTagModal';
@@ -389,6 +390,10 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
     })
     .filter(r => r.prod && r.demandaT > 0)
     .sort((a, b) => b.faltaT - a.faltaT);
+  const excessItems = DemandExcessService.computeFromStrips(
+    activeInputs.flatMap(i => i.strips),
+    products
+  );
   const demandTotalT = demandRows.reduce((acc, r) => acc + r.demandaT, 0);
   const demandCoveredT = demandRows.reduce((acc, r) => acc + Math.min(r.plannedT, r.demandaT), 0);
   const demandPercent = demandTotalT > 0 ? Math.round((demandCoveredT / demandTotalT) * 100) : 0;
@@ -578,6 +583,15 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
               </span>
             </div>
           </div>
+          {excessItems.length > 0 && (
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-xs text-amber-900 font-bold flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>
+                O plano produz acima da demanda em {excessItems.map(i => `${i.codigo} (+${i.excessT} t)`).join(', ')}.
+                Para gerar a OP, quem confere o plano precisa autorizar o excedente.
+              </span>
+            </div>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs font-mono">
               <thead>

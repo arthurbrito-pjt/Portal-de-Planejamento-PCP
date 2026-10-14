@@ -14,6 +14,7 @@ import {
 import { SlitterOptimizer } from './slitterOptimizer';
 import { SlitterCatalogService } from './slitterCatalogService';
 import { OpPlannerService } from './opPlannerService';
+import { StorageService } from './storageService';
 
 export type ReadinessStatus = 'PRONTO' | 'PARCIAL' | 'BLOQUEADO';
 
@@ -208,15 +209,39 @@ export class ReadinessService {
   /**
    * Generates the complete Ready Slitter Programs (Bobina -> Slitter -> Materiais Produzidos).
    * STRICT CRITERIA: Scrap MUST be between 10mm and 18mm (1.5% limit). Programs with < 10mm are discarded!
+   *
+   * A demanda manda: cada ferramental recebe quantas bobinas forem necessárias
+   * (OpPlannerService) para produzir o máximo possível da demanda dos itens dele,
+   * e a fila respeita o ferramental — Classe A (sempre roda) antes de B e C, e
+   * ferramental Classe C ainda sem lote mínimo acumulado vai para o fim.
    */
   static generateSlitterPrograms(
     products: Product[],
     coils: Coil[],
-    intermediarySlitters: SlitterIntermediaryItem[] = []
+    intermediarySlitters: SlitterIntermediaryItem[] = [],
+    ferramentais: Ferramental[] = StorageService.getFerramentais()
   ): SlitterProductionProgram[] {
     const availableCoils = coils.filter(c => c.status === 'Disponível');
-    const slittersWithDemand = this.analyzeSlitters(products, coils, intermediarySlitters)
-      .sort((a, b) => b.totalDemandaT - a.totalDemandaT);
+
+    const toolingByCode = new Map(
+      this.analyzeToolingABC(ferramentais, products, StorageService.getFerramentalHistorico()).map(t => [t.ferramental.codigo, t])
+    );
+    const classWeight: Record<FerramentalClasse, number> = { A: 3, B: 2, C: 1 };
+    const priorityOf = (item: SlitterDemandItem) => {
+      const tooling = toolingByCode.get(item.codigoSlitter);
+      return {
+        ready: tooling ? (tooling.prontaParaSetup ? 1 : 0) : 1,
+        classe: tooling ? classWeight[tooling.classeGiro] : 2
+      };
+    };
+
+    const slittersWithDemand = this.analyzeSlitters(products, coils, intermediarySlitters).sort((a, b) => {
+      const pa = priorityOf(a);
+      const pb = priorityOf(b);
+      if (pa.ready !== pb.ready) return pb.ready - pa.ready;
+      if (pa.classe !== pb.classe) return pb.classe - pa.classe;
+      return b.totalDemandaT - a.totalDemandaT;
+    });
 
     const programs: SlitterProductionProgram[] = [];
     const usedCoilIds = new Set<string>();
@@ -227,66 +252,37 @@ export class ReadinessService {
       // Estoque de slitter intermediário já cortado é priorizado — se ele já
       // cobre toda a demanda, não há necessidade de cortar uma bobina nova.
       if (slitterItem.coveredByWipOnly) continue;
-      const effectiveDemandTon = slitterItem.effectiveDemandTon ?? slitterItem.totalDemandaT;
-
-      const matchingCoils = availableCoils.filter(
-        c => !usedCoilIds.has(c.id) && Math.abs(c.espessura - prod.espessura) < 0.001
-      );
-
-      if (matchingCoils.length === 0) continue;
-
-      let bestCoil: Coil | null = null;
-      let bestCombination: SlitterCombination | null = null;
 
       const demandSplitGroup = slitterItem.produtos.map(p => ({ product: p.product, demandaT: p.demandaT }));
 
-      for (const coil of matchingCoils.slice(0, 8)) {
-        const combList = SlitterOptimizer.optimize({
+      let coilsToUse = slitterItem.recommendedCoils || [];
+      let combosToUse = slitterItem.recommendedCombinations || [];
+
+      // Bobinas já destinadas a ferramentais anteriores: replaneja com o que sobrou.
+      if (coilsToUse.some(c => usedCoilIds.has(c.id))) {
+        const replanned = OpPlannerService.plan({
           mainProduct: prod,
-          desiredQuantityTon: effectiveDemandTon || 10,
-          selectedCoil: coil,
+          larguraFita: slitterItem.larguraFita,
+          espessura: slitterItem.espessura,
+          totalDemandaT: slitterItem.totalDemandaT,
           compatibleProducts: products,
-          minScrapMm: 10,
-          maxScrapAllowedMm: 18,
+          availableCoils: availableCoils.filter(c => !usedCoilIds.has(c.id)),
+          intermediarySlitters,
           demandSplitGroup
         });
-
-        // Filter out any combination with scrap < 10mm
-        const compliantCombs = combList.filter(c => c.sobraMm >= 10);
-        if (compliantCombs.length > 0) {
-          const topComb = compliantCombs[0];
-          const isTopInIdeal = topComb.sobraMm >= 10 && topComb.sobraMm <= 18;
-
-          if (!bestCombination) {
-            bestCoil = coil;
-            bestCombination = topComb;
-          } else {
-            const isCurrentInIdeal = bestCombination.sobraMm >= 10 && bestCombination.sobraMm <= 18;
-            if (isTopInIdeal && !isCurrentInIdeal) {
-              bestCoil = coil;
-              bestCombination = topComb;
-            } else if (isTopInIdeal && isCurrentInIdeal) {
-              if (topComb.aproveitamentoPercent > bestCombination.aproveitamentoPercent) {
-                bestCoil = coil;
-                bestCombination = topComb;
-              }
-            } else if (!isTopInIdeal && !isCurrentInIdeal && topComb.sobraMm < bestCombination.sobraMm) {
-              bestCoil = coil;
-              bestCombination = topComb;
-            }
-          }
-
-          if (isTopInIdeal) break;
-        }
+        coilsToUse = replanned.coils;
+        combosToUse = replanned.combinations;
       }
 
-      // STRICT VALIDATION: Only include if sobraMm >= 10
-      if (bestCoil && bestCombination && bestCombination.sobraMm >= 10) {
-        usedCoilIds.add(bestCoil.id);
+      coilsToUse.forEach((coil, idx) => {
+        const combination = combosToUse[idx];
+        // STRICT VALIDATION: Only include if sobraMm >= 10
+        if (!combination || combination.sobraMm < 10 || usedCoilIds.has(coil.id)) return;
+        usedCoilIds.add(coil.id);
 
-        const materialsProduced = bestCombination.fitas.map(f => {
+        const materialsProduced = combination.fitas.map(f => {
           const isMain = f.product.id === prod.id || (f.product.larguraFita === slitterItem.larguraFita && f.product.espessura === slitterItem.espessura);
-          const pesoTon = Number((bestCoil!.peso * (f.larguraTotal / bestCoil!.largura)).toFixed(3));
+          const pesoTon = Number((coil.peso * (f.larguraTotal / coil.largura)).toFixed(3));
           const kgPerMeter = f.product.pesoPorMetro || (f.product.larguraFita * f.product.espessura * 7.85 / 1000);
           const metros = kgPerMeter > 0 ? Math.round((pesoTon * 1000) / kgPerMeter) : 0;
           const sInfo = SlitterCatalogService.getSlitterInfo(f.product.larguraFita, f.product.espessura, f.product);
@@ -305,34 +301,27 @@ export class ReadinessService {
           };
         });
 
-        const totalFitas = bestCombination.fitas.reduce((acc, f) => acc + f.quantidade, 0);
+        const totalFitas = combination.fitas.reduce((acc, f) => acc + f.quantidade, 0);
 
         programs.push({
-          id: `PROG_${bestCoil.id}_${prod.id}`,
-          coil: bestCoil,
+          id: `PROG_${coil.id}_${prod.id}`,
+          coil,
           mainProduct: prod,
-          combination: bestCombination,
+          combination,
           materialsProduced,
           totalFitas,
-          larguraUtilMm: bestCombination.totalLarguraUsada,
-          sobraMm: bestCombination.sobraMm,
-          aproveitamentoPercent: bestCombination.aproveitamentoPercent,
-          sobraPesoTon: bestCombination.pesoSobraTon,
-          status: bestCombination.sobraMm <= 18 ? 'Conforme (10 a 18 mm)' : 'Sobra Excedente (> 18 mm)',
+          larguraUtilMm: combination.totalLarguraUsada,
+          sobraMm: combination.sobraMm,
+          aproveitamentoPercent: combination.aproveitamentoPercent,
+          sobraPesoTon: combination.pesoSobraTon,
+          status: combination.sobraMm <= 18 ? 'Conforme (10 a 18 mm)' : 'Sobra Excedente (> 18 mm)',
           demandGroup: demandSplitGroup
         });
-      }
+      });
     }
 
-    // Sort programs: strictly 10 to 18mm first, then by highest aproveitamento percent
-    programs.sort((a, b) => {
-      const aIdeal = a.sobraMm >= 10 && a.sobraMm <= 18 ? 1 : 0;
-      const bIdeal = b.sobraMm >= 10 && b.sobraMm <= 18 ? 1 : 0;
-      if (aIdeal !== bIdeal) return bIdeal - aIdeal;
-
-      return b.aproveitamentoPercent - a.aproveitamentoPercent;
-    });
-
+    // Mantém a ordem de prioridade (ferramental/demanda); só agrupa conforme x excedente
+    // dentro de cada ferramental pela ordem em que foram geradas.
     return programs;
   }
 
