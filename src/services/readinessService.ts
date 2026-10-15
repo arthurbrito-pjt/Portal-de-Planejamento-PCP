@@ -57,6 +57,7 @@ export interface SlitterProductionProgram {
   // demanda individual — usado para re-otimizar o corte (ex: ao ajustar a
   // quantidade desejada na Etapa 2) sem perder o rateio por material.
   demandGroup: { product: Product; demandaT: number }[];
+  proximaData?: string; // data de programação mais próxima dos itens do ferramental
 }
 
 export class ReadinessService {
@@ -156,8 +157,13 @@ export class ReadinessService {
 
       const slitterInfo = SlitterCatalogService.getSlitterInfo(larguraFita, espessura, mainProduct);
 
+      const datasProg = produtos
+        .flatMap(p => (p.product.demandaPorData || []).filter(d => d.qtdT > 0 && d.data).map(d => d.data))
+        .sort();
+
       slitterList.push({
         id: `SLT_${larguraFita}_${espessura}`,
+        proximaData: datasProg[0],
         codigoSlitter: slitterInfo.code,
         nomeSlitter: slitterInfo.name,
         larguraFita,
@@ -201,6 +207,8 @@ export class ReadinessService {
       const diffStatus = statusWeight[b.status] - statusWeight[a.status];
       if (diffStatus !== 0) return diffStatus;
 
+      if (a.proximaData !== b.proximaData) return (a.proximaData || '9999').localeCompare(b.proximaData || '9999');
+
       if (b.totalDemandaT !== a.totalDemandaT) return b.totalDemandaT - a.totalDemandaT;
 
       return b.totalCompatibleWeightTon - a.totalCompatibleWeightTon;
@@ -240,6 +248,7 @@ export class ReadinessService {
       const pa = priorityOf(a);
       const pb = priorityOf(b);
       if (pa.ready !== pb.ready) return pb.ready - pa.ready;
+      if (a.proximaData !== b.proximaData) return (a.proximaData || '9999').localeCompare(b.proximaData || '9999');
       if (pa.classe !== pb.classe) return pb.classe - pa.classe;
       return b.totalDemandaT - a.totalDemandaT;
     });
@@ -316,7 +325,8 @@ export class ReadinessService {
           aproveitamentoPercent: combination.aproveitamentoPercent,
           sobraPesoTon: combination.pesoSobraTon,
           status: combination.sobraMm <= 18 ? 'Conforme (8 a 18 mm)' : 'Sobra Excedente (> 18 mm)',
-          demandGroup: demandSplitGroup
+          demandGroup: demandSplitGroup,
+          proximaData: slitterItem.proximaData
         });
       });
     }

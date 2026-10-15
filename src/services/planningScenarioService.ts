@@ -816,7 +816,8 @@ export class PlanningScenarioService {
     const m = resultados.find(r => r.visao === visao && r.cenario === 'MESCLADA');
     const s = resultados.find(r => r.visao === visao && r.cenario === 'SEPARADA');
     if (!m || !s) return { melhor: 'MESCLADA', motivo: '' };
-    if (s.equivalenteA) return { melhor: 'MESCLADA', motivo: 'Mesclada e separada resultam no mesmo plano (um único material, sem complementos).' };
+    if (m.planos.length === 0 && s.planos.length === 0) return { melhor: 'MESCLADA', motivo: 'Nenhum dos dois cenários gerou plano válido (veja as restrições abaixo).' };
+    if (s.equivalenteA) return { melhor: 'MESCLADA', motivo: 'Mesclada e separada resultam no mesmo plano para este escopo.' };
     const melhor = this.comparar(m, s) <= 0 ? m : s;
     const outro = melhor === m ? s : m;
     const dif: string[] = [];

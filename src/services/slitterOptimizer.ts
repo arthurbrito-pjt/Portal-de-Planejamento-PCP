@@ -155,7 +155,8 @@ export class SlitterOptimizer {
     // quem passa (esses só seguem com autorização), e dentro de cada grupo a
     // faixa 8-18mm vem primeiro. O refilo na faixa manda: a bobina é preenchida
     // com outros itens e, se preciso, com excedente (que exige autorização).
-    const finalPool = rawResults.filter(r => r.sobraMm >= minScrapMm);
+    // Plano só é válido com refilo de 4–9 mm por lado e 8–18 mm no total.
+    const finalPool = rawResults.filter(r => r.sobraMm >= minScrapMm && r.refiloValido !== false);
     const inRange = (r: SlitterCombination) => r.sobraMm >= minScrapMm && r.sobraMm <= maxScrapAllowedMm;
 
     // Rank combinations:

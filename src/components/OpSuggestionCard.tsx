@@ -1,3 +1,4 @@
+import { RefiloService } from '../services/refiloService';
 import React from 'react';
 import { SlitterDemandItem, FerramentalClasse } from '../types/pcp';
 import { MetricsBadge } from './MetricsBadge';
@@ -110,6 +111,13 @@ export const OpSuggestionCard: React.FC<OpSuggestionCardProps> = ({
         </div>
       )}
 
+      {item.proximaData && (
+        <div className="p-1.5 bg-[#0B1F3A]/5 text-[#0B1F3A] rounded-lg text-[11px] font-bold flex items-center justify-between">
+          <span>Programado para</span>
+          <span className="font-mono">{item.proximaData.split('-').reverse().join('/')}</span>
+        </div>
+      )}
+
       {/* Plano sugerido pelo sistema — já pré-computado, considerando estoque intermediário */}
       {!isBlocked && !item.coveredByWipOnly && item.bestCoil && (
         <div className="p-2.5 rounded-lg bg-orange-50/60 border border-orange-200/80 text-[11px] text-orange-950 space-y-1">
@@ -121,7 +129,7 @@ export const OpSuggestionCard: React.FC<OpSuggestionCardProps> = ({
             <span>Bobina lote {item.bestCoil.lote}</span>
             <span>{item.bestCoil.peso}t</span>
             <span>Rendimento {item.estimatedYieldPercent}%</span>
-            <span>Refilo {item.estimatedScrapMm}mm</span>
+            <span>Refilo E {RefiloService.calcular(item.estimatedScrapMm).esquerdoMm} / D {RefiloService.calcular(item.estimatedScrapMm).direitoMm} = {item.estimatedScrapMm}mm</span>
           </div>
         </div>
       )}

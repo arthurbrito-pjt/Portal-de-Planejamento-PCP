@@ -54,6 +54,67 @@ function toIsoDate(v: unknown): string | null {
   return null;
 }
 
+interface LinhaProgramacao {
+  codigo: string;
+  descricao: string;
+  data: string; // yyyy-mm-dd ('' = sem data)
+  pendenteT: number; // Programado - Realizado
+}
+
+const SHEETS_PROGRAMACAO = ['dadosprograma', 'programacao', 'tubos', 'perfilu', 'memoria'];
+
+/**
+ * Lê a programação diária (aba "Dados Programa" dos perfis; "Programação"/"Tubos" dos
+ * tubos): código, toneladas programadas, toneladas realizadas e a data prevista de
+ * produção (coluna Início ou Data). O que falta produzir é Programado - Realizado.
+ */
+function parseProgramacaoSheet(workbook: XLSX.WorkBook): LinhaProgramacao[] {
+  for (const alvo of SHEETS_PROGRAMACAO) {
+    const nome = workbook.SheetNames.find(n => normalizeSheetName(n) === alvo);
+    if (!nome) continue;
+    const rows = XLSX.utils.sheet_to_json<any>(workbook.Sheets[nome], { header: 1, raw: true, defval: null }) as any[][];
+    const hIdx = rows.slice(0, 8).findIndex(r => (r || []).some(c => /^c[oó]d/i.test(String(c ?? '').trim())) && (r || []).some(c => /program|progr\./i.test(String(c ?? ''))));
+    if (hIdx < 0) continue;
+    const head = rows[hIdx].map(c => normalizeSheetName(String(c ?? '')));
+    // Na Zikeli há "COD MATERIA PRIMA" antes do "Cód. PRODUTO FINAL": vale o do produto.
+    let idxCod = head.findIndex(h => h.startsWith('cod') && (h.includes('produto') || h.includes('final')));
+    if (idxCod < 0) idxCod = head.findIndex(h => h.startsWith('cod') && !h.includes('materia'));
+    const idxDesc = head.findIndex(h => h.startsWith('descr'));
+    const idxProg = head.findIndex(h => h === 'programado' || h === 'toneladaprogr');
+    const idxReal = head.findIndex(h => h === 'realizado' || h === 'toneladarealizada');
+    let idxData = head.findIndex(h => h === 'inicio');
+    if (idxData < 0) idxData = head.findIndex(h => h === 'data');
+    if (idxData < 0) idxData = head.findIndex(h => h === 'termino');
+    if (idxData < 0) idxData = head.findIndex(h => h.includes('comercial'));
+    if (idxCod < 0 || idxProg < 0) continue;
+
+    const num = (v: unknown) => {
+      const n = typeof v === 'number' ? v : parseFloat(String(v ?? '').replace(',', '.'));
+      return Number.isFinite(n) ? n : 0;
+    };
+    const out: LinhaProgramacao[] = [];
+    for (let i = hIdx + 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r) continue;
+      const codigo = String(r[idxCod] ?? '').trim();
+      if (!/^[A-Za-z]{2,6}\d/.test(codigo)) continue;
+      const programado = num(r[idxProg]);
+      if (programado <= 0) continue;
+      const realizado = idxReal >= 0 ? num(r[idxReal]) : 0;
+      const pendenteT = Math.max(0, programado - Math.max(0, realizado));
+      if (pendenteT <= 0) continue;
+      out.push({
+        codigo,
+        descricao: idxDesc >= 0 ? String(r[idxDesc] ?? '').trim() : '',
+        data: (idxData >= 0 ? toIsoDate(r[idxData]) : null) ?? '',
+        pendenteT: Number(pendenteT.toFixed(3))
+      });
+    }
+    if (out.length > 0) return out;
+  }
+  return [];
+}
+
 function inferFamilia(codigo: string, descricao: string): 'TUBO' | 'PERFIL' | null {
   const c = codigo.toUpperCase();
   if (c.startsWith('PRF') || c.startsWith('PMG')) return 'PERFIL';
@@ -163,20 +224,32 @@ export class ExcelService {
    */
   static parseProductsFile(fileBuffer: ArrayBuffer, existingProducts: Product[] = []): ProductImportResult {
     const workbook = XLSX.read(fileBuffer, { type: 'array' });
+    const programacao = parseProgramacaoSheet(workbook);
     const sheetName = findProgImSheet(workbook.SheetNames);
-    if (!sheetName) return { products: [], naoEncontrados: [] };
+    if (!sheetName && programacao.length === 0) return { products: [], naoEncontrados: [] };
 
-    const worksheet = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json<any>(worksheet, { header: 1 });
+    let rows: any[][] = [];
+    let idxItem = 0;
+    let idxDesc = 1;
+    let idxQtd = 2;
+    if (sheetName) {
+      rows = XLSX.utils.sheet_to_json<any>(workbook.Sheets[sheetName], { header: 1 }) as any[][];
+      const header = (rows[0] as any[] || []).map(c => String(c ?? '').toLowerCase().trim());
+      idxItem = header.findIndex(h => h.includes('item') || h.includes('cód') || h.includes('cod'));
+      idxDesc = header.findIndex(h => h.includes('descr'));
+      idxQtd = header.findIndex(h => h.includes('qtd') || h.includes('quant'));
+      if (rows.length < 2 || idxItem < 0 || idxQtd < 0) rows = [];
+    }
+    // Itens que só existem na programação entram como linhas extras (a demanda deles vem dela).
+    const codigosProgIm = new Set(rows.slice(1).map(r => String(r?.[idxItem] ?? '').trim()));
+    const header0 = rows.length > 0 ? rows[0] : ['Item', 'Descrição', 'Qtd'];
+    const extras = new Map<string, string>();
+    programacao.forEach(l => { if (!codigosProgIm.has(l.codigo) && !extras.has(l.codigo)) extras.set(l.codigo, l.descricao); });
+    rows = [header0, ...rows.slice(1), ...Array.from(extras.entries()).map(([c, d]) => { const r: any[] = []; r[idxItem] = c; if (idxDesc >= 0) r[idxDesc] = d; r[idxQtd] = 1; return r; })];
     if (rows.length < 2) return { products: [], naoEncontrados: [] };
 
-    const header = (rows[0] as any[]).map(c => String(c ?? '').toLowerCase().trim());
-    const idxItem = header.findIndex(h => h.includes('item') || h.includes('cód') || h.includes('cod'));
-    const idxDesc = header.findIndex(h => h.includes('descr'));
-    const idxQtd = header.findIndex(h => h.includes('qtd') || h.includes('quant'));
-    if (idxItem < 0 || idxQtd < 0) return { products: [], naoEncontrados: [] };
-
-    const idxData = header.findIndex(h => h === 'data' || h.startsWith('data '));
+    const headerLow = (rows[0] as any[]).map(c => String(c ?? '').toLowerCase().trim());
+    const idxData = headerLow.findIndex(h => h === 'data' || h.startsWith('data '));
     const products: Product[] = [];
     const naoEncontrados: ProductImportResult['naoEncontrados'] = [];
 
@@ -194,7 +267,23 @@ export class ExcelService {
       if (iso) acc.datas.set(iso, (acc.datas.get(iso) ?? 0) + qtd);
       porItem.set(codigo, acc);
     }
+    const progPorItem = new Map<string, Map<string, number>>();
+    programacao.forEach(l => {
+      const m = progPorItem.get(l.codigo) ?? new Map<string, number>();
+      m.set(l.data, (m.get(l.data) ?? 0) + l.pendenteT);
+      progPorItem.set(l.codigo, m);
+    });
     const demandaDe = (codigo: string, qtdLinha: number) => {
+      // A programação (data prevista de produção e t a produzir) manda sobre a PROG IM.
+      const prog = progPorItem.get(codigo);
+      if (prog) {
+        const entradas = Array.from(prog.entries())
+          .sort((a, b) => (a[0] || '9999').localeCompare(b[0] || '9999'))
+          .map(([data, qtdT]) => ({ data, qtdT: Number(qtdT.toFixed(3)) }));
+        const total = Number(entradas.reduce((a, e) => a + e.qtdT, 0).toFixed(3));
+        const datadas = entradas.filter(e => e.data);
+        return { qtd: total, demandaPorData: datadas.length > 0 ? entradas : undefined };
+      }
       const acc = porItem.get(codigo);
       if (!acc) return { qtd: qtdLinha, demandaPorData: undefined as Product['demandaPorData'] };
       const demandaPorData = acc.datas.size > 0

@@ -1,3 +1,4 @@
+import { RefiloService } from '../../services/refiloService';
 import React, { useMemo, useState } from 'react';
 import { Coil, Product, SlitterIntermediaryItem } from '../../types/pcp';
 import { Disc, Scissors, Layers, Boxes, CheckCircle2, ChevronDown, ChevronUp, Gauge } from 'lucide-react';
@@ -154,8 +155,11 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
                   <div className="text-right pr-2">
                     <div className="text-xs text-slate-400 font-bold">Aproveitamento Slitter</div>
                     <div className={`text-sm font-black ${isIdeal ? 'text-emerald-700' : 'text-slate-700'}`}>
-                      {prog.aproveitamentoPercent}% ({prog.sobraMm}mm refilo)
+                      {prog.aproveitamentoPercent}% (refilo E {RefiloService.calcular(prog.sobraMm).esquerdoMm} / D {RefiloService.calcular(prog.sobraMm).direitoMm} = {prog.sobraMm}mm)
                     </div>
+                    {prog.proximaData && (
+                      <div className="text-[11px] text-[#0B1F3A] font-bold">Programado para {prog.proximaData.split('-').reverse().join('/')}</div>
+                    )}
                     {!!capacidadeTonHora && (
                       <div className="text-[11px] text-slate-500 flex items-center justify-end gap-1">
                         <Gauge className="w-3 h-3" /> {capacidadeTonHora.toFixed(2)} t/h

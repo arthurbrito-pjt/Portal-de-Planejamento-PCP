@@ -99,6 +99,7 @@ export interface SlitterDemandItem {
   bestCombination?: SlitterCombination | null;
   wipAvailableTon?: number; // estoque de slitter intermediário já cortado, disponível para esse item
   effectiveDemandTon?: number; // demanda que ainda precisa ser cortada após descontar o estoque intermediário
+  proximaData?: string; // data de programação mais próxima entre os itens do slitter (yyyy-mm-dd); ausente = sem data
   coveredByWipOnly?: boolean; // demanda 100% atendida só com estoque intermediário
 }
 

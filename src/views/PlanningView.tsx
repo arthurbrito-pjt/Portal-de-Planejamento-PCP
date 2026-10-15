@@ -27,6 +27,7 @@ import { ExcessAuthorizationPanel } from '../components/ExcessAuthorizationPanel
 import { CustomPlanLauncher } from '../components/planning/CustomPlanLauncher';
 import { DemandaSlitter } from './planning/DemandaSlitter';
 import { OtimizacaoCenarios } from './planning/OtimizacaoCenarios';
+import { MIN_BOBINAS_PLANEJAMENTO } from '../services/planningScenarioService';
 import { usePlanningFilters } from '../components/planning/planningFilters';
 import {
   CheckCircle2,
@@ -326,6 +327,17 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
       }
     }
 
+    if (selectedCoils.length > 0 && selectedCoils.length < MIN_BOBINAS_PLANEJAMENTO) {
+      const compativeis = rankedCoils.length;
+      alerts.push({
+        id: 'min-bobinas',
+        tone: 'amber',
+        message: compativeis < MIN_BOBINAS_PLANEJAMENTO
+          ? `Regra de mínimo de ${MIN_BOBINAS_PLANEJAMENTO} bobinas não atendida: só há ${compativeis} bobina(s) compatível(is) em estoque para ${selectedProduct.espessura} mm.`
+          : `Regra de mínimo de ${MIN_BOBINAS_PLANEJAMENTO} bobinas não atendida: o plano usa ${selectedCoils.length}. Use "Trocar bobina(s)" para incluir mais bobinas compatíveis se a demanda permitir (sem produzir acima dela).`
+      });
+    }
+
     if (totalSelectedCoilsWeightTon > 0 && totalSelectedCoilsWeightTon < 20) {
       alerts.push({
         id: 'fragmentacao-lote',
@@ -335,7 +347,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     }
 
     return alerts;
-  }, [selectedProduct, matchedFerramental, totalSelectedCoilsWeightTon, abcByFerramentalCodigo]);
+  }, [selectedProduct, matchedFerramental, totalSelectedCoilsWeightTon, abcByFerramentalCodigo, selectedCoils.length, rankedCoils.length]);
 
   const handleSimulate = () => {
     if (coilCutInputs.length === 0) return;

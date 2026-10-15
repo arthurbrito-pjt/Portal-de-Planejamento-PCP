@@ -58,6 +58,15 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
   const isScrapHigh = scrapWidth > 18;
 
   // Layout em % da trilha. Com excesso de largura as fitas são comprimidas em 88% e o bloco vermelho ocupa o resto.
+  // Refilo repartido nos dois lados da bobina: as fitas começam depois do refilo esquerdo.
+  const showSides = scrapWidth > 0 && !isOverflow;
+  const leftPct = showSides ? (refiloLados.esquerdoMm / coil.largura) * 100 : 0;
+  const rightPct = showSides ? (refiloLados.direitoMm / coil.largura) * 100 : 0;
+  const zoneClass = isScrapIdeal
+    ? 'scrap-stripes-green border-emerald-500'
+    : isScrapLow
+    ? 'scrap-stripes border-amber-500'
+    : 'scrap-stripes border-red-400';
   const layoutK = isOverflow ? 88 / ((totalUsedWidth / coil.largura) * 100) : 1;
   const widthPct = (s: SlitterStrip) => (s.largura / coil.largura) * 100 * layoutK;
   const usedPct = strips.reduce((acc, s) => acc + widthPct(s), 0);
@@ -201,7 +210,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
             {drag && layout.slots[layout.insertIdx] && (
               <div
                 className="absolute top-0 bottom-0 rounded-lg border-2 border-dashed border-orange-400 bg-orange-400/15 transition-all duration-200 ease-out"
-                style={{ left: `${layout.slots[layout.insertIdx].left}%`, width: `${layout.slots[layout.insertIdx].width}%` }}
+                style={{ left: `${leftPct + layout.slots[layout.insertIdx].left}%`, width: `${layout.slots[layout.insertIdx].width}%` }}
               />
             )}
 
@@ -216,7 +225,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
                 <div
                   key={strip.id}
                   style={{
-                    left: `${left}%`,
+                    left: `${leftPct + left}%`,
                     width: `${slot.width}%`,
                     backgroundColor: strip.cor,
                     touchAction: canReorder ? 'none' : undefined,
@@ -293,37 +302,20 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
               );
             })}
 
-            {/* Scrap Zone */}
-            {scrapWidth > 0 && !isOverflow && (
-              <div
-                style={{
-                  left: `${layout.usedPct}%`,
-                  width: `${scrapPercent}%`,
-                  transition: 'left 260ms cubic-bezier(0.22, 1, 0.36, 1)'
-                }}
-                className={`absolute top-0 bottom-0 flex flex-col justify-between items-center p-2 border-2 border-dashed rounded-lg ${
-                  isScrapIdeal
-                    ? 'scrap-stripes-green border-emerald-500 text-emerald-800'
-                    : isScrapLow
-                    ? 'scrap-stripes border-amber-500 text-amber-800'
-                    : 'scrap-stripes border-red-400 text-red-800'
-                }`}
-              >
-                <div className="text-[9px] uppercase font-black tracking-wider bg-white/90 px-1.5 py-0.5 rounded shadow-sm">
-                  Refilo
-                </div>
-                <div className="text-center">
-                  <div className="text-sm font-black font-mono">
-                    {scrapWidth} mm
-                  </div>
-                  <div className="text-[9px] font-mono font-bold">
-                    {scrapPercent}% ({scrapWeightTon} t)
-                  </div>
-                </div>
-                <div className="text-[8px] font-black uppercase">
-                  {isScrapIdeal ? '✓ IDEAL 8-18mm' : isScrapLow ? '⚠ < 8mm' : '⚠ > 18mm'}
-                </div>
-              </div>
+            {/* Refilo esquerdo e direito */}
+            {showSides && (
+              <>
+                <div
+                  title={`Refilo esquerdo: ${refiloLados.esquerdoMm} mm`}
+                  style={{ left: 0, width: `${leftPct}%` }}
+                  className={`absolute top-0 bottom-0 border-2 border-dashed rounded-lg ${zoneClass}`}
+                />
+                <div
+                  title={`Refilo direito: ${refiloLados.direitoMm} mm`}
+                  style={{ left: `${leftPct + layout.usedPct}%`, width: `${rightPct}%`, transition: 'left 260ms cubic-bezier(0.22, 1, 0.36, 1)' }}
+                  className={`absolute top-0 bottom-0 border-2 border-dashed rounded-lg ${zoneClass}`}
+                />
+              </>
             )}
 
             {isOverflow && (
@@ -336,6 +328,14 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
             )}
           </div>
         </div>
+
+        {showSides && (
+          <div className={`flex justify-between text-[11px] font-mono font-black px-1 ${isScrapIdeal ? 'text-emerald-700' : isScrapLow ? 'text-amber-700' : 'text-red-700'}`}>
+            <span>◀ Refilo esquerdo: {refiloLados.esquerdoMm} mm</span>
+            <span>{isScrapIdeal ? '✓ lados 4–9 mm · total 8–18 mm' : `⚠ ${refiloLados.motivo ?? 'fora dos limites'}`}</span>
+            <span>Refilo direito: {refiloLados.direitoMm} mm ▶</span>
+          </div>
+        )}
 
         {/* Lower Millimeter Scale Ticks */}
         <div className="w-full flex justify-between text-[11px] font-mono text-slate-400 px-1 pt-1 font-bold">
