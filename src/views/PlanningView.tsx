@@ -26,6 +26,7 @@ import { DemandExcessService } from '../services/demandExcessService';
 import { ExcessAuthorizationPanel } from '../components/ExcessAuthorizationPanel';
 import { CustomPlanLauncher } from '../components/planning/CustomPlanLauncher';
 import { DemandaSlitter } from './planning/DemandaSlitter';
+import { OtimizacaoCenarios } from './planning/OtimizacaoCenarios';
 import { usePlanningFilters } from '../components/planning/planningFilters';
 import {
   CheckCircle2,
@@ -78,7 +79,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
 
   // Etapa 1 tem duas visões sobre os mesmos filtros: por demanda (fluxo
   // clássico, segue para Revisar & Confirmar) e combinações otimizadas por bobina.
-  const [step1Mode, setStep1Mode] = useState<'demanda' | 'combinacoes'>('demanda');
+  const [step1Mode, setStep1Mode] = useState<'demanda' | 'combinacoes' | 'cenarios'>('demanda');
   const planningFilters = usePlanningFilters(products);
   const [showCustomPlan, setShowCustomPlan] = useState<boolean>(false);
 
@@ -362,11 +363,12 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     <div className="inline-flex rounded-xl bg-white border border-slate-200 p-1 shadow-sm">
       {[
         { id: 'demanda', label: 'Por Demanda (Planejamento Clássico)' },
-        { id: 'combinacoes', label: 'Combinações Otimizadas' }
+        { id: 'combinacoes', label: 'Combinações Otimizadas' },
+        { id: 'cenarios', label: 'Visões A/B & Cenários' }
       ].map(m => (
         <button
           key={m.id}
-          onClick={() => setStep1Mode(m.id as 'demanda' | 'combinacoes')}
+          onClick={() => setStep1Mode(m.id as 'demanda' | 'combinacoes' | 'cenarios')}
           className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
             step1Mode === m.id ? 'bg-[#0B1F3A] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
           }`}
@@ -424,7 +426,9 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
               <p className="text-xs text-slate-500 mt-0.5">
                 {step1Mode === 'demanda'
                   ? 'Demanda por slitter, agrupada por ferramental — aceite o plano sugerido ou personalize bobina e quantidade.'
-                  : 'Melhor bobina e plano de corte já calculados para cada ferramental, com todos os materiais de destino.'}
+                  : step1Mode === 'combinacoes'
+                    ? 'Melhor bobina e plano de corte já calculados para cada ferramental, com todos os materiais de destino.'
+                    : 'Compare aproveitamento real x menos trocas de facas e produção mesclada x separada, respeitando as datas da programação.'}
               </p>
             </div>
           </div>
@@ -452,6 +456,14 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
               viewToggle={step1Toggle}
               onAccept={handleAcceptSuggestion}
               onCustomize={handleCustomize}
+            />
+          ) : step1Mode === 'cenarios' ? (
+            <OtimizacaoCenarios
+              products={products}
+              coils={coils}
+              intermediarySlitters={intermediarySlitters}
+              viewToggle={step1Toggle}
+              onOpenInStudio={(inputs) => onProceedToSimulation(inputs[0].coil, inputs[0].strips, undefined, inputs)}
             />
           ) : (
             <ProgramasSlitter

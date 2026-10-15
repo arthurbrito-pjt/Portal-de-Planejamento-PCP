@@ -1,4 +1,5 @@
 import { Product, Coil, SlitterCombination, SlitterStrip } from '../types/pcp';
+import { RefiloService } from './refiloService';
 
 export interface OptimizationParams {
   mainProduct: Product;
@@ -195,6 +196,17 @@ export class SlitterOptimizer {
     });
 
     return finalPool.slice(0, 15);
+  }
+
+  /** Pontua um corte já definido (fitas fixas) com as mesmas métricas do otimizador — usado para repetir uma configuração de facas em outra bobina. */
+  static evaluate(
+    coil: Coil,
+    fitas: { product: Product; quantidade: number; larguraTotal: number }[],
+    descricao: string,
+    demandMap: Map<string, number>,
+    focusIds: Set<string>
+  ): SlitterCombination {
+    return this.buildCombination(coil, fitas, descricao, demandMap, focusIds);
   }
 
   /** Demanda pendente (t) por produto considerada ao pontuar cada corte. */
@@ -462,6 +474,7 @@ export class SlitterOptimizer {
         excedenteT += produced - pending;
       }
     }
+    const refilo = RefiloService.calcular(sobraMm);
     const focusDemand = Array.from(focusIds).reduce((acc, id) => acc + (demandMap.get(id) ?? 0), 0);
     const atendimentoDemandaPercent = focusDemand > 0 ? Math.min(100, Math.round((focusCovered / focusDemand) * 100)) : 0;
 
@@ -482,7 +495,10 @@ export class SlitterOptimizer {
       demandaFocoAtendidaT: Number(focusCovered.toFixed(3)),
       atendimentoDemandaPercent,
       excedenteT: Number(excedenteT.toFixed(3)),
-      excedeDemanda: excedenteT > 0
+      excedeDemanda: excedenteT > 0,
+      refiloEsquerdoMm: refilo.esquerdoMm,
+      refiloDireitoMm: refilo.direitoMm,
+      refiloValido: refilo.valido
     };
   }
 

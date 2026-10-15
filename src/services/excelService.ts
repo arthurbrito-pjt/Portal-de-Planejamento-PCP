@@ -36,6 +36,24 @@ function extractCoilDims(desc: string): [number, number] | null {
   return [espessura, largura];
 }
 
+// Data da planilha (Date, serial do Excel ou texto dd/mm/aaaa) -> yyyy-mm-dd.
+function toIsoDate(v: unknown): string | null {
+  if (v instanceof Date && !Number.isNaN(v.getTime())) {
+    // O parser devolve a data em UTC; +12h absorve o fuso e mantém o dia da planilha.
+    return new Date(v.getTime() + 12 * 3600 * 1000).toISOString().slice(0, 10);
+  }
+  if (typeof v === 'number' && v > 20000 && v < 80000) {
+    return new Date(Math.round((v - 25569) * 86400 * 1000)).toISOString().slice(0, 10);
+  }
+  if (typeof v === 'string') {
+    const t = v.trim();
+    const m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+    if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
+  }
+  return null;
+}
+
 function inferFamilia(codigo: string, descricao: string): 'TUBO' | 'PERFIL' | null {
   const c = codigo.toUpperCase();
   if (c.startsWith('PRF') || c.startsWith('PMG')) return 'PERFIL';
@@ -158,8 +176,33 @@ export class ExcelService {
     const idxQtd = header.findIndex(h => h.includes('qtd') || h.includes('quant'));
     if (idxItem < 0 || idxQtd < 0) return { products: [], naoEncontrados: [] };
 
+    const idxData = header.findIndex(h => h === 'data' || h.startsWith('data '));
     const products: Product[] = [];
     const naoEncontrados: ProductImportResult['naoEncontrados'] = [];
+
+    // Um mesmo item pode aparecer em várias datas; soma por item e guarda a abertura por data.
+    const porItem = new Map<string, { qtd: number; datas: Map<string, number> }>();
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i] as any[];
+      if (!row) continue;
+      const codigo = String(row[idxItem] ?? '').trim();
+      const qtd = Number(parseFloat(String(row[idxQtd] ?? '0').replace(',', '.')) || 0);
+      if (!codigo || qtd === 0) continue;
+      const acc = porItem.get(codigo) || { qtd: 0, datas: new Map<string, number>() };
+      acc.qtd += qtd;
+      const iso = idxData >= 0 ? toIsoDate(row[idxData]) : null;
+      if (iso) acc.datas.set(iso, (acc.datas.get(iso) ?? 0) + qtd);
+      porItem.set(codigo, acc);
+    }
+    const demandaDe = (codigo: string, qtdLinha: number) => {
+      const acc = porItem.get(codigo);
+      if (!acc) return { qtd: qtdLinha, demandaPorData: undefined as Product['demandaPorData'] };
+      const demandaPorData = acc.datas.size > 0
+        ? Array.from(acc.datas.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([data, qtdT]) => ({ data, qtdT: Number(qtdT.toFixed(3)) }))
+        : undefined;
+      return { qtd: Number(acc.qtd.toFixed(3)), demandaPorData };
+    };
+    const jaImportados = new Set<string>();
 
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i] as any[];
@@ -170,6 +213,8 @@ export class ExcelService {
       const descricao = idxDesc >= 0 ? String(row[idxDesc] ?? '').trim() : '';
       const qtd = Number(parseFloat(String(row[idxQtd] ?? '0').replace(',', '.')) || 0);
 
+      if (jaImportados.has(codigo)) continue;
+
       const existing = existingProducts.find(p => p.codigo === codigo);
 
       // Algumas planilhas têm um bloco de totais/resumo logo abaixo da tabela
@@ -178,8 +223,13 @@ export class ExcelService {
       // real (letras+números) e/ou não tem quantidade, então é seguro descartar.
       if (!existing && (!descricao || qtd === 0 || !/^[A-Za-z]{2,6}\d/.test(codigo))) continue;
 
+      const demanda = demandaDe(codigo, qtd);
+      const comDatas = demanda.demandaPorData ? { demandaPorData: demanda.demandaPorData } : {};
+
       if (existing) {
-        products.push({ ...existing, descricao: descricao || existing.descricao, demandaT: qtd });
+        jaImportados.add(codigo);
+        const { demandaPorData: _antiga, ...resto } = existing;
+        products.push({ ...resto, descricao: descricao || existing.descricao, demandaT: demanda.qtd, ...comDatas });
         continue;
       }
 
@@ -206,9 +256,11 @@ export class ExcelService {
           tipo: familia,
           espessura,
           larguraFita,
-          demandaT: qtd,
-          familia
+          demandaT: demanda.qtd,
+          familia,
+          ...comDatas
         });
+        jaImportados.add(codigo);
       } else {
         naoEncontrados.push({ codigo, descricao, qtd });
       }

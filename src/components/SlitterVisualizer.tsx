@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { SlitterStrip, Coil } from '../types/pcp';
 import { SlitterCatalogService } from '../services/slitterCatalogService';
+import { RefiloService } from '../services/refiloService';
 import { 
   Scissors, 
   AlertTriangle, 
@@ -51,7 +52,8 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
   const scrapWeightTon = Number((coil.peso * (scrapWidth / coil.largura)).toFixed(3));
   const usedWeightTon = Number((coil.peso * (Math.min(totalUsedWidth, coil.largura) / coil.largura)).toFixed(3));
 
-  const isScrapIdeal = scrapWidth >= 8 && scrapWidth <= 18;
+  const refiloLados = RefiloService.calcular(scrapWidth);
+  const isScrapIdeal = refiloLados.valido;
   const isScrapLow = scrapWidth < 8;
   const isScrapHigh = scrapWidth > 18;
 
@@ -149,7 +151,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
           {isScrapIdeal && !isOverflow ? (
             <div className="flex items-center gap-2 px-3.5 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-black shadow-sm">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Ideal: Refilo {scrapWidth} mm (8 a 18 mm)</span>
+              <span>Ideal: Refilo {scrapWidth} mm (E {refiloLados.esquerdoMm} / D {refiloLados.direitoMm} mm)</span>
             </div>
           ) : isOverflow ? (
             <div className="flex items-center gap-2 px-3.5 py-1.5 bg-red-50 text-red-800 border border-red-300 rounded-xl text-xs font-black">
@@ -433,7 +435,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
             {scrapWidth} mm
           </div>
           <div className="text-xs text-slate-500 font-mono mt-0.5">
-            {scrapWeightTon} t ({scrapPercent}%)
+            E {refiloLados.esquerdoMm} / D {refiloLados.direitoMm} mm · {scrapWeightTon} t ({scrapPercent}%)
           </div>
         </div>
 

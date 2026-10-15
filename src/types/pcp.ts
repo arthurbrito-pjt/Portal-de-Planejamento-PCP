@@ -11,7 +11,9 @@ export interface Product {
   larguraFita: number; // in mm, e.g. 238, 240, 50, 101
   pesoPorMetro?: number; // kg/m
   familia: ProductFamily;
-  demandaT?: number; // Demanda planejada em toneladas
+  demandaT?: number; // Demanda planejada em toneladas (soma de demandaPorData)
+  // Demanda do Excel de Programação aberta por data (aba "PROG IM", coluna Data). Ausente quando a planilha não traz data.
+  demandaPorData?: { data: string; qtdT: number }[]; // data ISO yyyy-mm-dd
   comprimentoPadrao?: number; // em metros, ex: 6m
   grauDificuldade?: GrauDificuldade; // Grau de dificuldade de produção
   volumePoliticaT?: { minimo: number; ideal: number; maximo: number }; // Política de lote (toneladas)
@@ -190,6 +192,10 @@ export interface SlitterCombination {
   // Produção acima da demanda pendente (t) — exige autorização para seguir.
   excedenteT?: number;
   excedeDemanda?: boolean;
+  // Refilo por lado (mm): 4–9 cada, total 8–18.
+  refiloEsquerdoMm?: number;
+  refiloDireitoMm?: number;
+  refiloValido?: boolean;
 }
 
 // Uma bobina matriz física cortada dentro de uma OP, com seu próprio plano de
