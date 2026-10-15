@@ -280,8 +280,8 @@ export const OtimizacaoCenarios: React.FC<OtimizacaoCenariosProps> = ({
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <label className="space-y-1 md:col-span-2">
+        <div className="grid grid-cols-1 gap-3">
+          <label className="space-y-1">
             <span className="text-[11px] font-bold uppercase text-slate-500">{modo === 'slitter' ? 'Slitter' : 'Ferramental'}</span>
             <select
               value={codigo}
@@ -294,17 +294,6 @@ export const OtimizacaoCenarios: React.FC<OtimizacaoCenariosProps> = ({
                   {g.nome} — {fmt(g.demandaT)} t · {g.produtos.length} material(is)
                 </option>
               ))}
-            </select>
-          </label>
-          <label className="space-y-1">
-            <span className="text-[11px] font-bold uppercase text-slate-500 flex items-center gap-1"><CalendarDays className="w-3 h-3" /> Programação até</span>
-            <select
-              value={ateData}
-              onChange={e => setAteData(e.target.value)}
-              className="w-full py-2 px-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400"
-            >
-              <option value="">Todas as datas</option>
-              {datas.map(d => <option key={d} value={d}>{PlanningScenarioService.formatData(d)}</option>)}
             </select>
           </label>
         </div>

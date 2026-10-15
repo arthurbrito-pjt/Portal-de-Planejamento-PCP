@@ -263,7 +263,8 @@ export class ExcelService {
       if (!codigo || qtd === 0) continue;
       const acc = porItem.get(codigo) || { qtd: 0, datas: new Map<string, number>() };
       acc.qtd += qtd;
-      const iso = idxData >= 0 ? toIsoDate(row[idxData]) : null;
+      // Com a programação na planilha, a Data da PROG IM é só a de exportação do ERP — não é data de produção.
+      const iso = idxData >= 0 && programacao.length === 0 ? toIsoDate(row[idxData]) : null;
       if (iso) acc.datas.set(iso, (acc.datas.get(iso) ?? 0) + qtd);
       porItem.set(codigo, acc);
     }

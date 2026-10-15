@@ -17,6 +17,7 @@ import { FerramentalConformacaoService } from './ferramentalConformacaoService';
 
 export type VisaoOtimizacao = 'A' | 'B';
 export type CenarioProducao = 'MESCLADA' | 'SEPARADA';
+export type ModoData = 'dia' | 'ate' | 'todas';
 
 export const MIN_BOBINAS_PLANEJAMENTO = 3;
 const YIELD_TOL_B_PP = 2;
@@ -192,6 +193,38 @@ export class PlanningScenarioService {
     return base
       .filter(d => d.qtdT > 0 && (!ateData || d.data === SEM_DATA || d.data <= ateData))
       .sort((a, b) => dataKey(a.data).localeCompare(dataKey(b.data)));
+  }
+
+  static dataIso(d: Date): string {
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }
+
+  static hojeIso(): string {
+    return this.dataIso(new Date());
+  }
+
+  /** Demanda por data somada (t), em ordem de data; itens sem data não entram. */
+  static resumoDatas(products: Product[]): { data: string; qtdT: number }[] {
+    const mapa = new Map<string, number>();
+    products.forEach(p => (p.demandaPorData || []).forEach(d => { if (d.data && d.qtdT > 0) mapa.set(d.data, (mapa.get(d.data) ?? 0) + d.qtdT); }));
+    return Array.from(mapa.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([data, qtdT]) => ({ data, qtdT: round(qtdT, 2) }));
+  }
+
+  /**
+   * Recorta a demanda pela data de planejamento: 'dia' = só o que está programado para a data,
+   * 'ate' = a data e as anteriores (atrasos), 'todas' = sem recorte. Itens sem data (pedidos fora
+   * da programação) só entram em 'todas', pois não há dia de produção definido para eles.
+   */
+  static filtrarPorData(products: Product[], modo: ModoData, data: string): Product[] {
+    if (modo === 'todas') return products;
+    return products.map(p => {
+      if (!p.demandaPorData || p.demandaPorData.length === 0) return { ...p, demandaT: 0 };
+      const entradas = p.demandaPorData.filter(e => !e.data || (modo === 'dia' ? e.data === data : e.data <= data));
+      const total = round(entradas.reduce((a, e) => a + e.qtdT, 0), 3);
+      const { demandaPorData: _antiga, ...resto } = p;
+      return { ...resto, demandaT: total, ...(entradas.length > 0 ? { demandaPorData: entradas } : {}) };
+    });
   }
 
   static datasDeProgramacao(products: Product[]): string[] {

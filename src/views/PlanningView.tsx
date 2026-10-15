@@ -27,7 +27,8 @@ import { ExcessAuthorizationPanel } from '../components/ExcessAuthorizationPanel
 import { CustomPlanLauncher } from '../components/planning/CustomPlanLauncher';
 import { DemandaSlitter } from './planning/DemandaSlitter';
 import { OtimizacaoCenarios } from './planning/OtimizacaoCenarios';
-import { MIN_BOBINAS_PLANEJAMENTO } from '../services/planningScenarioService';
+import { DataPlanejamentoBar } from '../components/planning/DataPlanejamentoBar';
+import { MIN_BOBINAS_PLANEJAMENTO, ModoData, PlanningScenarioService } from '../services/planningScenarioService';
 import { usePlanningFilters } from '../components/planning/planningFilters';
 import {
   CheckCircle2,
@@ -61,7 +62,7 @@ const TURNOS = ['1º Turno', '2º Turno', '3º Turno'];
 const MAQUINAS = MAQUINAS_SLITTER;
 
 export const PlanningView: React.FC<PlanningViewProps> = ({
-  products,
+  products: productsAll,
   coils,
   ferramentais,
   intermediarySlitters = [],
@@ -73,6 +74,15 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   onOpenProgramOrder
 }) => {
   const [currentStep, setCurrentStep] = useState<number>(1);
+
+  // Data do planejamento: abre no dia de hoje; o operador escolhe o dia que quer programar.
+  const [modoData, setModoData] = useState<ModoData>('dia');
+  const [dataPlan, setDataPlan] = useState<string>(() => PlanningScenarioService.hojeIso());
+  const products = useMemo(() => PlanningScenarioService.filtrarPorData(productsAll, modoData, dataPlan), [productsAll, modoData, dataPlan]);
+  const demandaFiltrada = useMemo(
+    () => products.filter(p => (p.demandaT || 0) > 0),
+    [products]
+  );
 
   // Etapa A: Escolher o que produzir
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -376,6 +386,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   };
 
   const step1Toggle = (
+    <div className="space-y-3">
     <div className="flex flex-wrap items-center gap-3">
     <div className="inline-flex rounded-xl bg-white border border-slate-200 p-1 shadow-sm">
       {[
@@ -405,6 +416,15 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         <Sliders className="w-3.5 h-3.5" />
         Plano Personalizado
       </button>
+    </div>
+    <DataPlanejamentoBar
+      products={productsAll}
+      modo={modoData}
+      data={dataPlan}
+      onChange={(m, d) => { setModoData(m); setDataPlan(d); }}
+      demandaFiltradaT={Number(demandaFiltrada.reduce((a, p) => a + (p.demandaT || 0), 0).toFixed(1))}
+      itensFiltrados={demandaFiltrada.length}
+    />
     </div>
   );
 
