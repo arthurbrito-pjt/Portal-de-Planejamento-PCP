@@ -112,54 +112,84 @@ export class OpPlannerService {
       .forEach(p => remaining.set(p.id, p.demandaT || 0));
     focusGroup.forEach(g => remaining.set(g.product.id, Number((Math.max(0, g.demandaT || 0) * ratio).toFixed(3))));
 
-    let focusRemaining = focusGroup.reduce((acc, g) => acc + (remaining.get(g.product.id) ?? 0), 0);
+    const focusRemainingBase = focusGroup.reduce((acc, g) => acc + (remaining.get(g.product.id) ?? 0), 0);
     const tolerance = 0.05;
 
-    const pool = [...matchingCoils].sort((a, b) => b.peso - a.peso).slice(0, 10);
-    const chosenCoils: Coil[] = [];
-    const combinations: (SlitterCombination | null)[] = [];
-    let focusCoveredTotal = 0;
+    // minCoils > 0: divide a demanda em bobinas menores para chegar ao mínimo de bobinas do planejamento.
+    const rodar = (minCoils: number) => {
+      const rem = new Map(remaining);
+      let focusRemaining = focusRemainingBase;
+      const pool = [...matchingCoils].sort((a, b) => b.peso - a.peso).slice(0, 10);
+      const chosenCoils: Coil[] = [];
+      const combinations: (SlitterCombination | null)[] = [];
+      let focusCoveredTotal = 0;
 
-    // 1ª tentativa sem passar da demanda; só se nenhuma bobina atender dessa forma
-    // o plano usa um corte com excedente (marcado, e que exige autorização).
-    for (const allowExcess of [false, true]) {
-    if (allowExcess && chosenCoils.length > 0) break;
-    while (pool.length > 0 && focusRemaining > tolerance && chosenCoils.length < 8) {
-      const demandObj = Object.fromEntries(remaining);
-      const evaluated = pool
-        .map(coil => {
-          const combos = SlitterOptimizer.optimize({
-            mainProduct,
-            desiredQuantityTon: focusRemaining,
-            selectedCoil: coil,
-            compatibleProducts,
-            minScrapMm: 8,
-            maxScrapAllowedMm: 18,
-            demandSplitGroup,
-            demandaPorProduto: demandObj
-          });
-          const top = combos[0];
-          if (!top) return null;
-          const cov = SlitterOptimizer.computeCoverage(top, coil, remaining, focusIds);
-          return { coil, top, cov };
-        })
-        .filter((e): e is NonNullable<typeof e> => !!e && e.cov.focusCoveredT > 0 && (allowExcess || (!e.top.excedeDemanda && e.top.sobraMm <= 18)));
+      // 1ª tentativa sem passar da demanda; só se nenhuma bobina atender dessa forma
+      // o plano usa um corte com excedente (marcado, e que exige autorização).
+      for (const allowExcess of [false, true]) {
+        if (allowExcess && chosenCoils.length > 0) break;
+        while (pool.length > 0 && focusRemaining > tolerance && chosenCoils.length < 8) {
+          const demandObj = Object.fromEntries(rem);
+          const evaluated = pool
+            .map(coil => {
+              const combos = SlitterOptimizer.optimize({
+                mainProduct,
+                desiredQuantityTon: focusRemaining,
+                selectedCoil: coil,
+                compatibleProducts,
+                minScrapMm: 8,
+                maxScrapAllowedMm: 18,
+                demandSplitGroup,
+                demandaPorProduto: demandObj
+              });
+              const top = combos[0];
+              if (!top) return null;
+              const cov = SlitterOptimizer.computeCoverage(top, coil, rem, focusIds);
+              return { coil, top, cov };
+            })
+            .filter((e): e is NonNullable<typeof e> => !!e && e.cov.focusCoveredT > 0 && (allowExcess || (!e.top.excedeDemanda && e.top.sobraMm <= 18)));
 
-      if (evaluated.length === 0) break;
+          if (evaluated.length === 0) break;
 
-      const full = evaluated.filter(e => e.cov.focusCoveredT >= focusRemaining - tolerance);
-      const best = full.length > 0
-        ? full.sort((a, b) => b.top.aproveitamentoPercent - a.top.aproveitamentoPercent || a.coil.peso - b.coil.peso)[0]
-        : evaluated.sort((a, b) => b.cov.focusCoveredT - a.cov.focusCoveredT || b.top.aproveitamentoPercent - a.top.aproveitamentoPercent)[0];
+          const restantes = minCoils - chosenCoils.length;
+          let best: (typeof evaluated)[number];
+          if (minCoils > 0 && restantes >= 1) {
+            const alvo = focusRemaining / restantes;
+            best = [...evaluated].sort((a, b) =>
+              Math.abs(a.cov.focusCoveredT - alvo) - Math.abs(b.cov.focusCoveredT - alvo) || b.top.aproveitamentoPercent - a.top.aproveitamentoPercent
+            )[0];
+          } else {
+            const full = evaluated.filter(e => e.cov.focusCoveredT >= focusRemaining - tolerance);
+            best = full.length > 0
+              ? full.sort((a, b) => b.top.aproveitamentoPercent - a.top.aproveitamentoPercent || a.coil.peso - b.coil.peso)[0]
+              : evaluated.sort((a, b) => b.cov.focusCoveredT - a.cov.focusCoveredT || b.top.aproveitamentoPercent - a.top.aproveitamentoPercent)[0];
+          }
 
-      chosenCoils.push(best.coil);
-      combinations.push(best.top);
-      focusCoveredTotal += best.cov.focusCoveredT;
-      focusRemaining -= best.cov.focusCoveredT;
-      best.cov.producedByProduct.forEach((t, id) => remaining.set(id, Math.max(0, (remaining.get(id) ?? 0) - t)));
-      pool.splice(pool.findIndex(c => c.id === best.coil.id), 1);
+          chosenCoils.push(best.coil);
+          combinations.push(best.top);
+          focusCoveredTotal += best.cov.focusCoveredT;
+          focusRemaining -= best.cov.focusCoveredT;
+          best.cov.producedByProduct.forEach((t, id) => rem.set(id, Math.max(0, (rem.get(id) ?? 0) - t)));
+          pool.splice(pool.findIndex(c => c.id === best.coil.id), 1);
+        }
+      }
+      return { chosenCoils, combinations, focusCoveredTotal };
+    };
+
+    let resultado = rodar(0);
+    // Regra padrão: mínimo de 3 bobinas por planejamento. Só troca se atende a mesma demanda, sem excedente novo.
+    if (resultado.chosenCoils.length < 3 && matchingCoils.length >= 3) {
+      const alt = rodar(3);
+      const excesso = (r: typeof resultado) => r.combinations.reduce((acc, c) => acc + (c?.excedenteT ?? 0), 0);
+      if (
+        alt.chosenCoils.length > resultado.chosenCoils.length &&
+        alt.focusCoveredTotal >= resultado.focusCoveredTotal - tolerance &&
+        excesso(alt) <= excesso(resultado) + tolerance
+      ) {
+        resultado = alt;
+      }
     }
-    }
+    const { chosenCoils, combinations, focusCoveredTotal } = resultado;
 
     const totalCoilsWeightTon = Number(chosenCoils.reduce((acc, c) => acc + c.peso, 0).toFixed(3));
     const coverageTon = Number((wipAvailableTon + focusCoveredTotal / (ratio || 1)).toFixed(2));

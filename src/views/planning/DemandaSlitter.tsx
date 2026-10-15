@@ -22,6 +22,7 @@ interface DemandaSlitterProps {
   viewToggle?: React.ReactNode;
   onAccept: (item: SlitterDemandItem) => void;
   onCustomize: (item: SlitterDemandItem) => void;
+  onPlanFerramental?: (codigo: string) => void;
 }
 
 /**
@@ -37,7 +38,8 @@ export const DemandaSlitter: React.FC<DemandaSlitterProps> = ({
   filters,
   viewToggle,
   onAccept,
-  onCustomize
+  onCustomize,
+  onPlanFerramental
 }) => {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('TODOS');
 
@@ -132,6 +134,7 @@ export const DemandaSlitter: React.FC<DemandaSlitterProps> = ({
               nome={group.nome}
               demandaT={group.demandaT}
               countLabel={`${group.entries.length} ${group.entries.length === 1 ? 'slitter' : 'slitters'}`}
+              onPlanejarCompleto={onPlanFerramental && group.codigo !== 'COMPLEMENTAR' ? () => onPlanFerramental(group.codigo) : undefined}
             />
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {group.entries.map(item => {

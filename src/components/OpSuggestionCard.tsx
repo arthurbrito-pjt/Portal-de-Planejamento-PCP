@@ -111,6 +111,13 @@ export const OpSuggestionCard: React.FC<OpSuggestionCardProps> = ({
         </div>
       )}
 
+      {!isBlocked && !item.coveredByWipOnly && (item.recommendedCoils?.length ?? 0) > 0 && (item.recommendedCoils?.length ?? 0) < 3 && (
+        <div className="p-1.5 bg-amber-50 text-amber-800 rounded-lg text-[11px] font-medium">
+          Mínimo de 3 bobinas não atingido: {item.recommendedCoils!.length} no plano
+          {item.compatibleLotCount < 3 ? `, só ${item.compatibleLotCount} compatível(is) em estoque` : ' — a demanda não pede mais bobinas sem passar dela'}.
+        </div>
+      )}
+
       {item.proximaData && (
         <div className="p-1.5 bg-[#0B1F3A]/5 text-[#0B1F3A] rounded-lg text-[11px] font-bold flex items-center justify-between">
           <span>Programado para</span>

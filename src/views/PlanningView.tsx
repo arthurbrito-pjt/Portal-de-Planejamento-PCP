@@ -83,6 +83,11 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   const [step1Mode, setStep1Mode] = useState<'demanda' | 'combinacoes' | 'cenarios'>('demanda');
   const planningFilters = usePlanningFilters(products);
   const [showCustomPlan, setShowCustomPlan] = useState<boolean>(false);
+  const [escopoCenarios, setEscopoCenarios] = useState<{ modo: 'slitter' | 'ferramental'; codigo: string; nonce: number } | null>(null);
+  const planejarFerramentalCompleto = (codigo: string) => {
+    setEscopoCenarios({ modo: 'ferramental', codigo, nonce: Date.now() });
+    setStep1Mode('cenarios');
+  };
 
   const [desiredQtyTon, setDesiredQtyTon] = useState<number>(10);
   const [showManualCoilPicker, setShowManualCoilPicker] = useState<boolean>(false);
@@ -468,6 +473,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
               viewToggle={step1Toggle}
               onAccept={handleAcceptSuggestion}
               onCustomize={handleCustomize}
+              onPlanFerramental={planejarFerramentalCompleto}
             />
           ) : step1Mode === 'cenarios' ? (
             <OtimizacaoCenarios
@@ -475,6 +481,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
               coils={coils}
               intermediarySlitters={intermediarySlitters}
               viewToggle={step1Toggle}
+              escopoInicial={escopoCenarios}
               onOpenInStudio={(inputs) => onProceedToSimulation(inputs[0].coil, inputs[0].strips, undefined, inputs)}
             />
           ) : (
@@ -486,6 +493,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
               viewToggle={step1Toggle}
               onOpenProgramSimulation={onOpenProgramSimulation}
               onOpenProgramOrder={onOpenProgramOrder}
+              onPlanFerramental={planejarFerramentalCompleto}
             />
           )}
         </div>

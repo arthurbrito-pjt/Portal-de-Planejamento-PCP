@@ -199,7 +199,7 @@ export function groupByFerramental<T>(
   return ordered;
 }
 
-export const FerramentalGroupHeader: React.FC<{ nome: string; demandaT: number; countLabel: string }> = ({ nome, demandaT, countLabel }) => (
+export const FerramentalGroupHeader: React.FC<{ nome: string; demandaT: number; countLabel: string; onPlanejarCompleto?: () => void }> = ({ nome, demandaT, countLabel, onPlanejarCompleto }) => (
   <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 rounded-xl bg-[#0B1F3A] text-white">
     <div className="flex items-center gap-2">
       <Wrench className="w-4 h-4 text-orange-400" />
@@ -208,6 +208,15 @@ export const FerramentalGroupHeader: React.FC<{ nome: string; demandaT: number; 
     <div className="flex items-center gap-3 text-xs">
       <span>Demanda do ferramental: <strong className="font-black text-orange-300">{demandaT} t</strong></span>
       <span className="text-white/60">{countLabel}</span>
+      {onPlanejarCompleto && (
+        <button
+          onClick={onPlanejarCompleto}
+          className="px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-[11px] font-black"
+          title="Planeja toda a demanda do ferramental junta: Visão A/B, mesclada x separada, mínimo de 3 bobinas"
+        >
+          Planejar ferramental completo
+        </button>
+      )}
     </div>
   </div>
 );

@@ -27,6 +27,7 @@ interface OtimizacaoCenariosProps {
   coils: Coil[];
   intermediarySlitters: SlitterIntermediaryItem[];
   viewToggle?: React.ReactNode;
+  escopoInicial?: { modo: Modo; codigo: string; nonce: number } | null;
   onOpenInStudio: (inputs: OrderCoilInput[]) => void;
 }
 
@@ -49,6 +50,7 @@ export const OtimizacaoCenarios: React.FC<OtimizacaoCenariosProps> = ({
   coils,
   intermediarySlitters,
   viewToggle,
+  escopoInicial,
   onOpenInStudio
 }) => {
   const [modo, setModo] = useState<Modo>('slitter');
@@ -61,6 +63,7 @@ export const OtimizacaoCenarios: React.FC<OtimizacaoCenariosProps> = ({
   const [cenarioVista, setCenarioVista] = useState<CenarioProducao>('MESCLADA');
   const [visaoDetalhe, setVisaoDetalhe] = useState<VisaoOtimizacao>('A');
   const [expandidas, setExpandidas] = useState<Set<number>>(new Set());
+  const [autoCalcular, setAutoCalcular] = useState<number>(0);
 
   const datas = useMemo(() => PlanningScenarioService.datasDeProgramacao(products), [products]);
   const horizonte = ateData || null;
@@ -87,6 +90,24 @@ export const OtimizacaoCenarios: React.FC<OtimizacaoCenariosProps> = ({
     () => (modo === 'ferramental' && grupo ? PlanningScenarioService.detalharFerramental(grupo.codigo, products, coils, horizonte) : null),
     [modo, grupo, products, coils, horizonte]
   );
+
+  // Vindo do botão "Planejar ferramental completo": já abre o ferramental escolhido e calcula.
+  useEffect(() => {
+    if (!escopoInicial) return;
+    setModo(escopoInicial.modo);
+    setCodigo(escopoInicial.codigo);
+    setAteData('');
+    setAutoCalcular(escopoInicial.nonce);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [escopoInicial?.nonce]);
+
+  useEffect(() => {
+    if (autoCalcular && grupo && escopoInicial && grupo.codigo === escopoInicial.codigo && modo === escopoInicial.modo) {
+      setAutoCalcular(0);
+      calcular();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoCalcular, grupo, modo]);
 
   const calcular = () => {
     if (!grupo) return;

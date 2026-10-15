@@ -20,6 +20,7 @@ interface ProgramasSlitterProps {
   intermediarySlitters?: SlitterIntermediaryItem[];
   onOpenProgramSimulation: (program: SlitterProductionProgram) => void;
   onOpenProgramOrder: (program: SlitterProductionProgram) => void;
+  onPlanFerramental?: (codigo: string) => void;
   filters: PlanningFilters;
   viewToggle?: React.ReactNode;
 }
@@ -30,6 +31,7 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
   intermediarySlitters = [],
   onOpenProgramSimulation,
   onOpenProgramOrder,
+  onPlanFerramental,
   filters,
   viewToggle
 }) => {
@@ -124,6 +126,7 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
             nome={group.nome}
             demandaT={group.demandaT}
             countLabel={`${group.entries.length} ${group.entries.length === 1 ? 'combinação' : 'combinações'}`}
+            onPlanejarCompleto={onPlanFerramental && group.codigo !== 'COMPLEMENTAR' ? () => onPlanFerramental(group.codigo) : undefined}
           />
         {group.entries.map((prog, idx) => {
           const coil = prog.coil;
