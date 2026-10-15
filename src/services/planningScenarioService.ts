@@ -71,6 +71,7 @@ export interface PlanoBobina {
   setup: number; // nº da configuração de facas (1, 2, ...)
   setupSig: string;
   trocasAntes: number; // facas movimentadas em relação ao corte anterior (0 no primeiro)
+  trocaDetalhe: string; // o que montar/retirar em relação ao corte anterior ('' = mesma configuração)
   dataFoco: string; // data de programação que motivou este corte ('' = sem data)
   producaoT: number;
   perdaT: number;
@@ -371,9 +372,12 @@ export class PlanningScenarioService {
       const ib = out.findIndex(r => r.visao === 'B' && r.cenario === c);
       const a = out[ia];
       const b = out[ib];
-      const piorB = b.metricas.trocasFacas > a.metricas.trocasFacas || (b.metricas.trocasFacas === a.metricas.trocasFacas && b.metricas.setups > a.metricas.setups);
-      if (piorB && a.metricas.atendimentoPercent >= b.metricas.atendimentoPercent - 1) {
-        out[ib] = { ...a, visao: 'B', nota: 'O plano de maior aproveitamento (Visão A) já é também o de menos trocas de facas para este escopo.' };
+      if (a.planos.length > 0 && a.metricas.atendimentoPercent >= b.metricas.atendimentoPercent - 1) {
+        const reB = this.resequenciar(a, 'B');
+        const melhor = reB.metricas.trocasFacas < b.metricas.trocasFacas || (reB.metricas.trocasFacas === b.metricas.trocasFacas && reB.metricas.setups < b.metricas.setups);
+        if (melhor) {
+          out[ib] = { ...reB, nota: 'As bobinas do plano de maior aproveitamento (Visão A), na sequência de menos trocas, já são o melhor plano de menos trocas de facas para este escopo.' };
+        }
       }
     });
     // Mesclada e separada são o mesmo plano quando só há um material e nenhum complemento.
@@ -658,6 +662,124 @@ export class PlanningScenarioService {
   // Consolidação: ordem de corte, setups, métricas e atendimento
   // ---------------------------------------------------------------------------
 
+  private static textoTroca(anterior: Map<number, number> | null, novo: Map<number, number>): string {
+    if (!anterior) return '';
+    const partes: string[] = [];
+    novo.forEach((n, w) => { const d = n - (anterior.get(w) ?? 0); if (d > 0) partes.push(`montar ${d}× ${w} mm`); });
+    anterior.forEach((n, w) => { const d = n - (novo.get(w) ?? 0); if (d > 0) partes.push(`retirar ${d}× ${w} mm`); });
+    return partes.join(' · ');
+  }
+
+  /**
+   * Sequência de corte conforme a visão. A data de programação manda (grupos por data e espessura em ordem);
+   * dentro de cada grupo:
+   *  - Visão B: ordena as configurações de facas para somar o MENOR número de facas movimentadas
+   *    (testa todas as ordens quando são até 7 configurações; senão, vizinho mais próximo);
+   *  - Visão A: começa pelos cortes de maior aproveitamento, sem se preocupar com as trocas.
+   */
+  private static sequenciar(
+    brutos: { coil: Coil; combo: SlitterCombination; dataFoco: string; sig: string; idx: number }[],
+    visao: VisaoOtimizacao
+  ): { planos: PlanoBobina[]; setups: number; trocas: number } {
+    const chaveBloco = (c: Coil) => String(Math.round(c.espessura * 1000)).padStart(6, '0');
+    const grupos = new Map<string, typeof brutos>();
+    brutos.forEach(p => {
+      const k = `${dataKey(p.dataFoco)}|${chaveBloco(p.coil)}`;
+      grupos.set(k, [...(grupos.get(k) ?? []), p]);
+    });
+
+    const ordenados: typeof brutos = [];
+    let anterior: Map<number, number> | null = null;
+    Array.from(grupos.keys()).sort().forEach(k => {
+      const lista = grupos.get(k)!;
+      const porSig = new Map<string, typeof brutos>();
+      lista.forEach(p => porSig.set(p.sig, [...(porSig.get(p.sig) ?? []), p]));
+      let configs = Array.from(porSig.values()).map(g => ({ itens: g, mapa: this.assinatura(g[0].combo).mapa }));
+
+      if (visao === 'B') {
+        const custo = (ordem: typeof configs) => {
+          let c = 0;
+          let ant = anterior;
+          ordem.forEach(x => { c += this.facasMovidas(ant, x.mapa); ant = x.mapa; });
+          return c;
+        };
+        if (configs.length <= 7) {
+          let melhor = configs;
+          let melhorCusto = Infinity;
+          const permutar = (resto: typeof configs, atual: typeof configs) => {
+            if (resto.length === 0) {
+              const c = custo(atual);
+              if (c < melhorCusto) { melhorCusto = c; melhor = atual; }
+              return;
+            }
+            resto.forEach((x, i) => permutar([...resto.slice(0, i), ...resto.slice(i + 1)], [...atual, x]));
+          };
+          permutar(configs, []);
+          configs = melhor;
+        } else {
+          const resto = [...configs];
+          const ord: typeof configs = [];
+          let ant = anterior;
+          while (resto.length) {
+            let bi = 0;
+            resto.forEach((x, i) => { if (this.facasMovidas(ant, x.mapa) < this.facasMovidas(ant, resto[bi].mapa)) bi = i; });
+            const [x] = resto.splice(bi, 1);
+            ord.push(x);
+            ant = x.mapa;
+          }
+          configs = ord;
+        }
+      } else {
+        const yieldMax = (x: (typeof configs)[number]) => Math.max(...x.itens.map(p => p.combo.aproveitamentoPercent));
+        configs.forEach(x => x.itens.sort((a, b) => b.combo.aproveitamentoPercent - a.combo.aproveitamentoPercent));
+        configs = [...configs].sort((a, b) => yieldMax(b) - yieldMax(a) || b.itens.length - a.itens.length);
+      }
+
+      configs.forEach(x => { ordenados.push(...x.itens); anterior = x.mapa; });
+    });
+
+    let ant: Map<number, number> | null = null;
+    let antSig = '';
+    let setups = 0;
+    let trocas = 0;
+    const planos: PlanoBobina[] = ordenados.map((p, i) => {
+      const { sig, mapa } = this.assinatura(p.combo);
+      const mudou = sig !== antSig;
+      if (mudou) setups++;
+      // Mesma configuração em outra bobina não troca facas; configuração diferente conta as facas movidas.
+      const movidas = mudou ? this.facasMovidas(ant, mapa) : 0;
+      const detalhe = mudou ? (ant ? this.textoTroca(ant, mapa) : 'montagem inicial das facas') : '';
+      trocas += movidas;
+      ant = mapa;
+      antSig = sig;
+      const usado = p.combo.totalLarguraUsada;
+      return {
+        ordem: i + 1,
+        coil: p.coil,
+        combination: p.combo,
+        refilo: RefiloService.calcular(p.coil.largura - usado),
+        setup: setups,
+        setupSig: sig,
+        trocasAntes: movidas,
+        trocaDetalhe: detalhe,
+        dataFoco: p.dataFoco,
+        producaoT: round(p.coil.peso * (usado / p.coil.largura), 3),
+        perdaT: round(p.coil.peso * ((p.coil.largura - usado) / p.coil.largura), 3),
+        excedeDemanda: !!p.combo.excedeDemanda
+      };
+    });
+    return { planos, setups, trocas };
+  }
+
+  /** Mesmo plano com a sequência refeita para outra visão (ex.: o plano da A servindo à B com menos trocas). */
+  private static resequenciar(r: ResultadoCenario, visao: VisaoOtimizacao): ResultadoCenario {
+    const { planos, setups, trocas } = this.sequenciar(
+      r.planos.map((p, idx) => ({ coil: p.coil, combo: p.combination, dataFoco: p.dataFoco, sig: p.setupSig, idx })),
+      visao
+    );
+    return { ...r, visao, planos, metricas: { ...r.metricas, setups, trocasFacas: trocas } };
+  }
+
   private static montarResultado(
     visao: VisaoOtimizacao,
     cenario: CenarioProducao,
@@ -666,52 +788,8 @@ export class PlanningScenarioService {
     idsFoco: Set<string>,
     bobinasCompativeis: number
   ): ResultadoCenario {
-    // Ordem de corte: data de programação, depois espessura; dentro de cada grupo as bobinas
-    // que usam a mesma configuração de facas ficam seguidas (menos trocas).
-    const brutos = resultados.flatMap((r, bi) => r.planos.map((p, idx) => ({ ...p, bi, idx })));
-    const grupos = new Map<string, typeof brutos>();
-    brutos.forEach(p => {
-      const k = `${dataKey(p.dataFoco)}|${p.bi}`;
-      grupos.set(k, [...(grupos.get(k) ?? []), p]);
-    });
-    const ordenados: typeof brutos = [];
-    Array.from(grupos.keys()).sort().forEach(k => {
-      const lista = grupos.get(k)!;
-      const porSig = new Map<string, typeof brutos>();
-      lista.forEach(p => porSig.set(p.sig, [...(porSig.get(p.sig) ?? []), p]));
-      Array.from(porSig.values())
-        .sort((a, b) => b.length - a.length || a[0].idx - b[0].idx)
-        .forEach(g => ordenados.push(...g));
-    });
-
-    let anterior: Map<number, number> | null = null;
-    let anteriorSig = '';
-    let setup = 0;
-    let trocas = 0;
-    const planos: PlanoBobina[] = ordenados.map((p, i) => {
-      const { sig, mapa } = this.assinatura(p.combo);
-      const mudou = sig !== anteriorSig;
-      if (mudou) setup++;
-      // Mesma configuração em outra bobina não troca facas; configuração diferente conta as facas movidas.
-      const movidas = mudou ? this.facasMovidas(anterior, mapa) : 0;
-      trocas += movidas;
-      anterior = mapa;
-      anteriorSig = sig;
-      const usado = p.combo.totalLarguraUsada;
-      return {
-        ordem: i + 1,
-        coil: p.coil,
-        combination: p.combo,
-        refilo: RefiloService.calcular(p.coil.largura - usado),
-        setup,
-        setupSig: sig,
-        trocasAntes: movidas,
-        dataFoco: p.dataFoco,
-        producaoT: round(p.coil.peso * (usado / p.coil.largura), 3),
-        perdaT: round(p.coil.peso * ((p.coil.largura - usado) / p.coil.largura), 3),
-        excedeDemanda: !!p.combo.excedeDemanda
-      };
-    });
+    const brutos = resultados.flatMap(r => r.planos.map((p, idx) => ({ ...p, idx })));
+    const { planos, setups: setup, trocas } = this.sequenciar(brutos, visao);
 
     const linhas: LinhaDemanda[] = [];
     const produtos: ProdutoAtendimento[] = [];

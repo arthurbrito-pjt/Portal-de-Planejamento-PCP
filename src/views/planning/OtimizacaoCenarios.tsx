@@ -678,9 +678,13 @@ export const OtimizacaoCenarios: React.FC<OtimizacaoCenariosProps> = ({
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
                   <div className="text-sm font-black text-[#0B1F3A]">Bobinas e configurações de corte ({atual.planos.length})</div>
-                  {trocasDoCenario.length > 0 && (
-                    <div className="text-[11px] text-slate-500">{trocasDoCenario.length} corte(s) exigem troca de facas; os demais repetem a configuração anterior.</div>
-                  )}
+                  <div className="text-[11px] text-slate-500">
+                    {visaoDetalhe === 'B'
+                      ? 'Sequência ordenada para somar o menor número de facas trocadas (respeitando a data de programação).'
+                      : 'Sequência com os cortes de maior aproveitamento primeiro (respeitando a data de programação); aceita mais trocas de facas.'}
+                    {trocasDoCenario.length > 0 ? ` ${trocasDoCenario.length} corte(s) exigem troca de facas.` : ''}
+                    {' '}Total: <strong>{atual.metricas.trocasFacas}</strong> faca(s) trocada(s) em <strong>{atual.metricas.setups}</strong> setup(s).
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
@@ -694,7 +698,8 @@ export const OtimizacaoCenarios: React.FC<OtimizacaoCenariosProps> = ({
                         <th className="text-right px-2 py-2">Refilo E / D / T (mm)</th>
                         <th className="text-right px-2 py-2">Aproveit.</th>
                         <th className="text-right px-2 py-2">Setup</th>
-                        <th className="text-right px-3 py-2">Facas trocadas</th>
+                        <th className="text-right px-2 py-2">Facas trocadas</th>
+                        <th className="text-left px-3 py-2">O que fazer nas facas</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -709,11 +714,12 @@ export const OtimizacaoCenarios: React.FC<OtimizacaoCenariosProps> = ({
                             <td className={`px-2 py-1.5 text-right font-mono ${p.refilo.valido ? '' : 'text-red-600 font-bold'}`}>{fmt(p.refilo.esquerdoMm, 1)} / {fmt(p.refilo.direitoMm, 1)} / <strong>{fmt(p.refilo.totalMm, 1)}</strong></td>
                             <td className="px-2 py-1.5 text-right font-mono">{fmt(p.combination.aproveitamentoPercent)}%</td>
                             <td className="px-2 py-1.5 text-right font-mono">S{p.setup}</td>
-                            <td className="px-3 py-1.5 text-right font-mono">{p.trocasAntes}</td>
+                            <td className="px-2 py-1.5 text-right font-mono">{p.trocasAntes}</td>
+                            <td className="px-3 py-1.5 text-slate-600">{p.trocaDetalhe || (p.ordem === 1 ? '' : 'mesma configuração do corte anterior')}</td>
                           </tr>
                           {expandidas.has(i) && (
                             <tr className="bg-slate-50/60">
-                              <td colSpan={9} className="px-4 py-3">
+                              <td colSpan={10} className="px-4 py-3">
                                 <SlitterVisualizer coil={p.coil} strips={SlitterOptimizer.generateStripsFromCombination(p.combination, p.coil)} interactive={false} />
                               </td>
                             </tr>
@@ -721,7 +727,7 @@ export const OtimizacaoCenarios: React.FC<OtimizacaoCenariosProps> = ({
                         </React.Fragment>
                       ))}
                       {atual.planos.length === 0 && (
-                        <tr><td colSpan={9} className="px-4 py-6 text-center text-slate-400">Nenhuma bobina gerou corte válido para este escopo.</td></tr>
+                        <tr><td colSpan={10} className="px-4 py-6 text-center text-slate-400">Nenhuma bobina gerou corte válido para este escopo.</td></tr>
                       )}
                     </tbody>
                   </table>

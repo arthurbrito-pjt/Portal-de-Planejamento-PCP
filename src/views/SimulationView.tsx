@@ -4,6 +4,8 @@ import { SlitterVisualizer } from '../components/SlitterVisualizer';
 import { SlitterCatalogService } from '../services/slitterCatalogService';
 import { OrderCoilInput } from '../services/orderBuilderService';
 import { DemandExcessService } from '../services/demandExcessService';
+import { RefiloService } from '../services/refiloService';
+import { FerramentalConformacaoService } from '../services/ferramentalConformacaoService';
 import { StorageService } from '../services/storageService';
 import { CommitNumberInput } from '../components/CommitNumberInput';
 import { SlitterTagModal } from '../components/SlitterTagModal';
@@ -394,9 +396,44 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
     activeInputs.flatMap(i => i.strips),
     products
   );
-  const demandTotalT = demandRows.reduce((acc, r) => acc + r.demandaT, 0);
-  const demandCoveredT = demandRows.reduce((acc, r) => acc + Math.min(r.plannedT, r.demandaT), 0);
+  // O total do plano é a demanda do ferramental principal (o que mais produz no plano). Itens de outros
+  // ferramentais que entram só para fechar o refilo aparecem à parte, sem somar na demanda do plano.
+  const ferrDe = (p?: Product) => (p ? FerramentalConformacaoService.resolve(p)?.codigo ?? 'SEM_FERRAMENTAL' : 'SEM_FERRAMENTAL');
+  const producaoPorFerr = new Map<string, number>();
+  plannedByProduct.forEach((t, id) => {
+    const k = ferrDe(products.find(p => p.id === id));
+    producaoPorFerr.set(k, (producaoPorFerr.get(k) ?? 0) + t);
+  });
+  const ferrPrincipal = Array.from(producaoPorFerr.entries()).sort((a, b) => b[1] - a[1])[0]?.[0];
+  const ferrPrincipalNome = ferrPrincipal && ferrPrincipal !== 'SEM_FERRAMENTAL'
+    ? FerramentalConformacaoService.resolve(products.find(p => ferrDe(p) === ferrPrincipal)!)?.nome
+    : undefined;
+  const rowsEscopo = demandRows.filter(r => ferrDe(r.prod) === ferrPrincipal);
+  const rowsComplemento = demandRows.filter(r => ferrDe(r.prod) !== ferrPrincipal);
+  const demandTotalT = rowsEscopo.reduce((acc, r) => acc + r.demandaT, 0);
+  const demandCoveredT = rowsEscopo.reduce((acc, r) => acc + Math.min(r.plannedT, r.demandaT), 0);
+  const complementoT = rowsComplemento.reduce((acc, r) => acc + r.plannedT, 0);
   const demandPercent = demandTotalT > 0 ? Math.round((demandCoveredT / demandTotalT) * 100) : 0;
+
+  // Resumo do planejamento: todas as bobinas do plano somadas.
+  const resumoBobinas = activeInputs.map(item => {
+    const usado = Math.min(item.strips.reduce((a, s) => a + s.largura, 0), item.coil.largura);
+    const producaoT = item.coil.peso * (usado / item.coil.largura);
+    const refiloMm = Math.max(0, item.coil.largura - item.strips.reduce((a, s) => a + s.largura, 0));
+    return {
+      coil: item.coil,
+      fitas: item.strips.length,
+      producaoT,
+      refiloT: item.coil.peso - producaoT,
+      refiloMm,
+      lados: RefiloService.calcular(refiloMm)
+    };
+  });
+  const resumoPesoT = resumoBobinas.reduce((a, r) => a + r.coil.peso, 0);
+  const resumoProducaoT = resumoBobinas.reduce((a, r) => a + r.producaoT, 0);
+  const resumoRefiloT = resumoBobinas.reduce((a, r) => a + r.refiloT, 0);
+  const resumoAproveitamento = resumoPesoT > 0 ? (resumoProducaoT / resumoPesoT) * 100 : 0;
+  const resumoFitas = resumoBobinas.reduce((a, r) => a + r.fitas, 0);
 
   const coilsNotInPlan = availableCoils
     .filter(c => c.status === 'Disponível' && !activeInputs.some(i => i.coil.id === c.id))
@@ -570,6 +607,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
             <h3 className="text-sm font-black text-slate-900 flex items-center gap-2 tracking-tight">
               <CheckCircle2 className="w-4 h-4 text-orange-500" />
               Atendimento da Demanda neste Plano
+              {ferrPrincipalNome && <span className="text-[11px] font-medium text-slate-500 truncate max-w-[340px]">· {ferrPrincipalNome}</span>}
             </h3>
             <div className="flex items-center gap-3">
               <div className="w-40 h-2 rounded-full bg-slate-100 overflow-hidden">
@@ -604,8 +642,16 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {demandRows.map(r => (
-                  <tr key={r.productId}>
+                {[...rowsEscopo, ...rowsComplemento].map((r, i) => (
+                  <React.Fragment key={r.productId}>
+                  {i === rowsEscopo.length && rowsComplemento.length > 0 && (
+                    <tr className="bg-slate-50">
+                      <td colSpan={5} className="py-2 px-2 text-[10px] font-sans font-bold uppercase text-slate-500">
+                        Complementos de outros ferramentais, usados para fechar o refilo ({Number(complementoT.toFixed(1))} t no plano) — não somam na demanda acima
+                      </td>
+                    </tr>
+                  )}
+                  <tr className={i >= rowsEscopo.length ? 'opacity-70' : ''}>
                     <td className="py-2 px-2 font-bold text-[#0B1F3A]">{r.prod!.codigo} <span className="text-slate-400 font-normal">· {r.prod!.larguraFita} mm</span></td>
                     <td className="py-2 px-2 text-right text-slate-900">{r.demandaT} t</td>
                     <td className="py-2 px-2 text-right text-emerald-700">{r.plannedT} t</td>
@@ -626,6 +672,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
                       )}
                     </td>
                   </tr>
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -1062,6 +1109,62 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Resumo do planejamento — soma de todas as bobinas */}
+      {activeInputs.length > 0 && (
+        <div className="bg-white p-5 rounded-3xl border-2 border-[#0B1F3A]/15 shadow-sm space-y-4">
+          <h3 className="text-sm font-black text-slate-900 flex items-center gap-2 tracking-tight">
+            <CheckCircle2 className="w-4 h-4 text-orange-500" />
+            Resumo do Planejamento — {activeInputs.length} {activeInputs.length === 1 ? 'bobina' : 'bobinas'}, {resumoFitas} fitas
+          </h3>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+              <div className="text-[10px] font-bold uppercase text-slate-500">Matéria-prima das bobinas</div>
+              <div className="text-xl font-black font-mono text-slate-900 mt-1">{resumoPesoT.toFixed(2)} t</div>
+            </div>
+            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
+              <div className="text-[10px] font-bold uppercase text-emerald-700">Total a produzir (fitas)</div>
+              <div className="text-xl font-black font-mono text-emerald-800 mt-1">{resumoProducaoT.toFixed(2)} t</div>
+            </div>
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200">
+              <div className="text-[10px] font-bold uppercase text-amber-700">Refilo gerado (sucata)</div>
+              <div className="text-xl font-black font-mono text-amber-800 mt-1">{resumoRefiloT.toFixed(3)} t</div>
+              <div className="text-[11px] font-mono text-amber-700">{resumoPesoT > 0 ? ((resumoRefiloT / resumoPesoT) * 100).toFixed(2) : '0'}% do peso</div>
+            </div>
+            <div className="p-4 rounded-2xl bg-[#0B1F3A] text-white">
+              <div className="text-[10px] font-bold uppercase text-white/70">Aproveitamento geral</div>
+              <div className="text-xl font-black font-mono mt-1">{resumoAproveitamento.toFixed(2)}%</div>
+              <div className="text-[11px] font-mono text-white/70">todas as bobinas somadas</div>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-mono">
+              <thead>
+                <tr className="text-slate-500 uppercase text-[10px] border-b border-slate-200">
+                  <th className="py-2 px-2">Bobina</th>
+                  <th className="py-2 px-2 text-right">Peso (t)</th>
+                  <th className="py-2 px-2 text-right">Produz (t)</th>
+                  <th className="py-2 px-2 text-right">Refilo E / D / T (mm)</th>
+                  <th className="py-2 px-2 text-right">Refilo (t)</th>
+                  <th className="py-2 px-2 text-right">Aproveit.</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {resumoBobinas.map((r, i) => (
+                  <tr key={r.coil.id + i}>
+                    <td className="py-1.5 px-2 font-bold text-[#0B1F3A]">{i + 1}. Lote {r.coil.lote} <span className="text-slate-400 font-normal">· {r.coil.largura}×{r.coil.espessura}</span></td>
+                    <td className="py-1.5 px-2 text-right">{r.coil.peso.toFixed(2)}</td>
+                    <td className="py-1.5 px-2 text-right text-emerald-700">{r.producaoT.toFixed(2)}</td>
+                    <td className={`py-1.5 px-2 text-right ${r.lados.valido ? '' : 'text-red-600 font-bold'}`}>{r.lados.esquerdoMm} / {r.lados.direitoMm} / <strong>{r.refiloMm}</strong></td>
+                    <td className="py-1.5 px-2 text-right text-amber-700">{r.refiloT.toFixed(3)}</td>
+                    <td className="py-1.5 px-2 text-right">{((r.producaoT / r.coil.peso) * 100).toFixed(2)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
