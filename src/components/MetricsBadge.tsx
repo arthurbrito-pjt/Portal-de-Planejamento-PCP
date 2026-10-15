@@ -40,9 +40,9 @@ export const MetricsBadge: React.FC<MetricsBadgeProps> = ({ type, value, size = 
       ? 'bg-amber-50 text-amber-800 border-amber-300'
       : 'bg-red-50 text-red-800 border-red-300';
     const text = level === 'ok'
-      ? `${val} mm (Ideal 8 a 18 mm)`
+      ? `${val} mm (Ideal 12 a 18 mm)`
       : level === 'atencao'
-      ? `${val} mm (Refilo < 8 mm)`
+      ? `${val} mm (Refilo < 12 mm)`
       : `${val} mm (Sobra > 18 mm)`;
 
     return (
@@ -132,7 +132,7 @@ export const MetricsBadge: React.FC<MetricsBadgeProps> = ({ type, value, size = 
     statusColor = 'bg-emerald-50 text-emerald-800 border-emerald-300';
   } else if (statusStr === 'Em Produção' || statusStr === 'Em Corte' || statusStr === 'Planejada' || statusStr === 'Liberada') {
     statusColor = 'bg-orange-50 text-orange-900 border-orange-300';
-  } else if (statusStr.includes('< 8') || statusStr.includes('> 18')) {
+  } else if (statusStr.includes('< 12') || statusStr.includes('> 18')) {
     statusColor = 'bg-amber-50 text-amber-800 border-amber-300';
   } else if (statusStr === 'Consumida') {
     statusColor = 'bg-slate-100 text-slate-500 border-slate-200';

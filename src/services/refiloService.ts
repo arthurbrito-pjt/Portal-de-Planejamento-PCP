@@ -1,7 +1,7 @@
-// Limites de refilo (mm): cada lado 4–9 e total 8–18.
-export const REFILO_LADO_MIN_MM = 4;
+// Limites de refilo (mm): cada lado 6–9 e total 12–18.
+export const REFILO_LADO_MIN_MM = 6;
 export const REFILO_LADO_MAX_MM = 9;
-export const REFILO_TOTAL_MIN_MM = 8;
+export const REFILO_TOTAL_MIN_MM = 12;
 export const REFILO_TOTAL_MAX_MM = 18;
 
 export interface RefiloLados {
@@ -15,8 +15,8 @@ export interface RefiloLados {
 export class RefiloService {
   /**
    * Divide a sobra da bobina entre os dois lados (centralizando o corte) e
-   * confere os limites de cada lado e do total. Com total entre 8 e 18 mm a
-   * divisão central sempre respeita 4–9 mm por lado; fora disso o plano é inválido.
+   * confere os limites de cada lado e do total. Com total entre 12 e 18 mm a
+   * divisão central sempre respeita 6–9 mm por lado; fora disso o plano é inválido.
    */
   static calcular(sobraMm: number): RefiloLados {
     const totalMm = Number(sobraMm.toFixed(2));

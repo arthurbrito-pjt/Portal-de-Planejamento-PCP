@@ -6,7 +6,7 @@ export interface OptimizationParams {
   desiredQuantityTon: number;
   selectedCoil: Coil;
   compatibleProducts: Product[];
-  minScrapMm?: number; // STRICT: minimum 8mm
+  minScrapMm?: number; // STRICT: minimum 12mm
   maxScrapAllowedMm?: number; // STRICT: maximum 18mm (~1.5%)
   // Outros produtos que compartilham o MESMO ferramental (largura de fita +
   // espessura) do mainProduct, cada um com sua própria demanda pendente — ex:
@@ -37,14 +37,14 @@ const STRIP_COLORS = [
 export class SlitterOptimizer {
   /**
    * Find all optimal slitter combinations for a selected coil and main product.
-   * STRICT MANDATE: Scrap MUST be between 8mm and 18mm (never < 8mm).
+   * STRICT MANDATE: Scrap MUST be between 12mm and 18mm (never < 12mm).
    */
   static optimize(params: OptimizationParams): SlitterCombination[] {
     const {
       mainProduct,
       selectedCoil,
       compatibleProducts,
-      minScrapMm = 8,
+      minScrapMm = 12,
       maxScrapAllowedMm = 18,
       demandSplitGroup,
       demandaPorProduto
@@ -151,17 +151,17 @@ export class SlitterOptimizer {
       }
     }
 
-    // 2. Nunca menos de 8mm de refilo. Quem não passa da demanda vem antes de
+    // 2. Nunca menos de 12mm de refilo. Quem não passa da demanda vem antes de
     // quem passa (esses só seguem com autorização), e dentro de cada grupo a
-    // faixa 8-18mm vem primeiro. O refilo na faixa manda: a bobina é preenchida
+    // faixa 12-18mm vem primeiro. O refilo na faixa manda: a bobina é preenchida
     // com outros itens e, se preciso, com excedente (que exige autorização).
-    // Plano só é válido com refilo de 4–9 mm por lado e 8–18 mm no total.
+    // Plano só é válido com refilo de 6–9 mm por lado e 12–18 mm no total.
     const finalPool = rawResults.filter(r => r.sobraMm >= minScrapMm && r.refiloValido !== false);
     const inRange = (r: SlitterCombination) => r.sobraMm >= minScrapMm && r.sobraMm <= maxScrapAllowedMm;
 
     // Rank combinations:
     // 0. Sem excedente de demanda
-    // 1. Faixa de refilo 8-18mm
+    // 1. Faixa de refilo 12-18mm
     // 2. Maior demanda do produto/grupo principal atendida (t)
     // 3. Maior demanda total atendida (t)
     // 4. Highest utilization (aproveitamentoPercent)
@@ -296,7 +296,7 @@ export class SlitterOptimizer {
   }
 
   /**
-   * Combinatorial helper to find companion items that sum up to target space with 8mm <= scrap <= 18mm
+   * Combinatorial helper to find companion items that sum up to target space with 12mm <= scrap <= 18mm
    */
   private static findComplements(
     targetSpace: number,
@@ -446,12 +446,12 @@ export class SlitterOptimizer {
     let classificacao: SlitterCombination['classificacao'] = 'BOM';
     let badgeTexto = `${aproveitamentoPercent}% Aproveitamento`;
 
-    if (sobraMm >= 8 && sobraMm <= 18) {
+    if (sobraMm >= 12 && sobraMm <= 18) {
       classificacao = 'PERFEITO';
       badgeTexto = `Refilo Conforme: ${sobraMm}mm (${perdaPercent}%)`;
-    } else if (sobraMm < 8) {
+    } else if (sobraMm < 12) {
       classificacao = 'ATENÇÃO';
-      badgeTexto = `Refilo Inválido: ${sobraMm}mm (< 8mm)`;
+      badgeTexto = `Refilo Inválido: ${sobraMm}mm (< 12mm)`;
     } else {
       classificacao = 'ATENÇÃO';
       badgeTexto = `Sobra Excedente: ${sobraMm}mm (> 18mm)`;

@@ -206,7 +206,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
       desiredQuantityTon: desiredQtyTon,
       selectedCoil,
       compatibleProducts: products,
-      minScrapMm: 8,
+      minScrapMm: 12,
       maxScrapAllowedMm: 18,
       demandSplitGroup: selectedDemandGroup
     });
@@ -245,7 +245,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
         desiredQuantityTon: desiredQtyTon,
         selectedCoil: coil,
         compatibleProducts: products,
-        minScrapMm: 8,
+        minScrapMm: 12,
         maxScrapAllowedMm: 18,
         demandSplitGroup: selectedDemandGroup,
         demandaPorProduto: Object.fromEntries(pending)

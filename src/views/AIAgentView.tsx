@@ -159,7 +159,7 @@ export const AIAgentView: React.FC<AIAgentViewProps> = ({
               Agente de IA do PCP
             </h2>
             <p className="text-sm text-slate-500">
-              Usa inteligência sobre os dados já calculados pelo motor de otimização para priorizar, alertar e resumir — sem substituir a regra de refilo de 8 a 18 mm.
+              Usa inteligência sobre os dados já calculados pelo motor de otimização para priorizar, alertar e resumir — sem substituir a regra de refilo de 12 a 18 mm.
             </p>
           </div>
         </div>

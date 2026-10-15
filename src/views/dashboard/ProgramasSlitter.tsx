@@ -72,7 +72,7 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
 
       const matchesScrap =
         scrapFilter === 'TODOS' ||
-        (scrapFilter === 'IDEAL' && prog.sobraMm >= 8 && prog.sobraMm <= 18) ||
+        (scrapFilter === 'IDEAL' && prog.sobraMm >= 12 && prog.sobraMm <= 18) ||
         (scrapFilter === 'ALTO' && prog.sobraMm > 18);
 
       return matchesSearch &&
@@ -95,7 +95,7 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
         <div className="flex rounded-lg bg-slate-100 p-1">
           {[
             { id: 'TODOS', label: 'Todos' },
-            { id: 'IDEAL', label: 'Conforme (8-18mm)' },
+            { id: 'IDEAL', label: 'Conforme (12-18mm)' },
             { id: 'ALTO', label: 'Sobra > 18mm' }
           ].map(y => (
             <button
@@ -115,7 +115,7 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
         <span>Exibindo <strong className="font-medium text-slate-700">{filteredPrograms.length}</strong> combinações de corte em <strong className="font-medium text-slate-700">{groupedPrograms.filter(g => g.codigo !== 'COMPLEMENTAR').length}</strong> ferramentais</span>
         <span className="text-emerald-700 flex items-center gap-1">
           <CheckCircle2 className="w-3.5 h-3.5" />
-          Regra PCP: refilo padrão de 8 a 18 mm (~1,5%)
+          Regra PCP: refilo padrão de 12 a 18 mm (~1,5%)
         </span>
       </div>
 
@@ -130,7 +130,7 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
           />
         {group.entries.map((prog, idx) => {
           const coil = prog.coil;
-          const isIdeal = prog.sobraMm >= 8 && prog.sobraMm <= 18;
+          const isIdeal = prog.sobraMm >= 12 && prog.sobraMm <= 18;
           const mainMaterial = prog.materialsProduced.find(m => m.finalidade === 'PRINCIPAL');
           const capacidadeTonHora = mainMaterial ? produtividadeByFerramental.get(mainMaterial.codigoSlitter) : undefined;
 
@@ -224,7 +224,7 @@ export const ProgramasSlitter: React.FC<ProgramasSlitterProps> = ({
                     <div
                       style={{ width: `${(prog.sobraMm / coil.largura) * 100}%` }}
                       className={`h-full border border-dashed text-[11px] font-mono font-medium flex items-center justify-center px-1 rounded-md ${
-                        isIdeal ? 'bg-emerald-100 border-emerald-400 text-emerald-800' : prog.sobraMm < 8 ? 'bg-amber-100 border-amber-400 text-amber-800' : 'bg-red-100 border-red-400 text-red-800'
+                        isIdeal ? 'bg-emerald-100 border-emerald-400 text-emerald-800' : prog.sobraMm < 12 ? 'bg-amber-100 border-amber-400 text-amber-800' : 'bg-red-100 border-red-400 text-red-800'
                       }`}
                     >
                       {prog.sobraMm}mm refilo

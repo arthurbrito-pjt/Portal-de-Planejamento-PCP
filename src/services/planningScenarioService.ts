@@ -53,6 +53,16 @@ export interface DetalheFerramental {
   semBobina: number[]; // espessuras com demanda e nenhuma bobina em estoque
 }
 
+export interface CoberturaEspessura {
+  espessura: number;
+  demandaT: number; // demanda a cortar (já sem o estoque de slitter)
+  qtdBobinas: number;
+  estoqueT: number; // bobinas disponíveis dessa espessura
+  atendidoT: number; // atendido por este cenário
+  faltaMpT: number; // demanda que nem todo o estoque de bobinas cobre
+  limiteCorteT: number; // pendente mesmo havendo bobina (precisa produzir acima da demanda ou não fecha refilo)
+}
+
 export interface PlanoBobina {
   ordem: number;
   coil: Coil;
@@ -499,7 +509,7 @@ export class PlanningScenarioService {
               desiredQuantityTon: grupo.reduce((a, id) => a + restante(id), 0),
               selectedCoil: coil,
               compatibleProducts: compat,
-              minScrapMm: 8,
+              minScrapMm: 12,
               maxScrapAllowedMm: 18,
               demandSplitGroup: grupo.length > 1 ? grupo.map(id => ({ product: produtos.get(id)!, demandaT: restante(id) })) : undefined,
               demandaPorProduto: Object.fromEntries(demandaMap)
@@ -550,7 +560,7 @@ export class PlanningScenarioService {
         if (!escolhido) {
           const motivo = comExcesso.length > 0
             ? 'Saldo menor que o mínimo produzível sem passar da demanda (produzir exigiria autorização de excedente)'
-            : 'Sem combinação de corte com refilo válido (4–9 mm por lado, 8–18 mm no total) para este item';
+            : 'Sem combinação de corte com refilo válido (6–9 mm por lado, 12–18 mm no total) para este item';
           grupo.forEach(id => bloqueios.set(id, motivo));
           continue;
         }
@@ -783,7 +793,7 @@ export class PlanningScenarioService {
       } else if (metricas.saldoT <= Math.max(TOL_T, demandaT * 0.02)) {
         motivoMin = `Demanda atendida com ${planos.length} bobina(s); chegar a ${MIN_BOBINAS_PLANEJAMENTO} exigiria produzir acima da demanda ou usar bobina que não gera corte válido.`;
       } else {
-        motivoMin = `Apenas ${planos.length} bobina(s) geraram corte válido; as demais bobinas compatíveis não fecham refilo de 4–9 mm por lado (8–18 mm total) com a demanda restante.`;
+        motivoMin = `Apenas ${planos.length} bobina(s) geraram corte válido; as demais bobinas compatíveis não fecham refilo de 6–9 mm por lado (12–18 mm total) com a demanda restante.`;
       }
       restricoes.push(`Mínimo de ${MIN_BOBINAS_PLANEJAMENTO} bobinas não atingido: ${motivoMin}`);
     }
@@ -829,6 +839,34 @@ export class PlanningScenarioService {
     if (mm.trocasFacas !== mo.trocasFacas) dif.push(`${mm.trocasFacas} troca(s) de facas contra ${mo.trocasFacas}`);
     if (dif.length === 0) dif.push(`aproveitamento de ${mm.aproveitamentoPercent}% contra ${mo.aproveitamentoPercent}%`);
     return { melhor: melhor.cenario, motivo: `${melhor.cenario === 'MESCLADA' ? 'Mesclada' : 'Separada'}: ${dif.join('; ')}.` };
+  }
+
+  /** Quanto da demanda pendente é falta de bobina em estoque e quanto é limite do corte — por espessura. */
+  static coberturaPorEspessura(r: ResultadoCenario, coils: Coil[]): CoberturaEspessura[] {
+    const disponiveis = coils.filter(c => c.status === 'Disponível');
+    const mapa = new Map<number, { demanda: number; atendido: number }>();
+    r.produtos.filter(p => p.noEscopo).forEach(p => {
+      const e = round(p.product.espessura, 3);
+      const m = mapa.get(e) ?? { demanda: 0, atendido: 0 };
+      m.demanda += Math.max(0, p.demandaT - p.wipT);
+      m.atendido += Math.max(0, p.atendidoT - p.wipT);
+      mapa.set(e, m);
+    });
+    return Array.from(mapa.entries()).sort((a, b) => a[0] - b[0]).map(([espessura, m]) => {
+      const cs = disponiveis.filter(c => Math.abs(c.espessura - espessura) < 0.001);
+      const estoqueT = cs.reduce((a, c) => a + c.peso, 0);
+      const faltaMpT = Math.max(0, m.demanda - estoqueT);
+      const pendente = Math.max(0, m.demanda - m.atendido);
+      return {
+        espessura,
+        demandaT: round(m.demanda, 2),
+        qtdBobinas: cs.length,
+        estoqueT: round(estoqueT, 2),
+        atendidoT: round(m.atendido, 2),
+        faltaMpT: round(faltaMpT, 2),
+        limiteCorteT: round(Math.max(0, pendente - faltaMpT), 2)
+      };
+    });
   }
 
   /** Cortes do cenário prontos para o Estúdio de Corte / emissão da OP. */

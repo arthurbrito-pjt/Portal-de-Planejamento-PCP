@@ -54,7 +54,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
 
   const refiloLados = RefiloService.calcular(scrapWidth);
   const isScrapIdeal = refiloLados.valido;
-  const isScrapLow = scrapWidth < 8;
+  const isScrapLow = scrapWidth < 12;
   const isScrapHigh = scrapWidth > 18;
 
   // Layout em % da trilha. Com excesso de largura as fitas são comprimidas em 88% e o bloco vermelho ocupa o resto.
@@ -140,7 +140,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
                 Simulação Gráfica do Corte Slitter
               </h3>
               <span className="px-2.5 py-0.5 rounded-full bg-[#0B1F3A]/5 text-[#0B1F3A] border border-[#0B1F3A]/20 text-[10px] font-mono font-bold">
-                Faixa Padrão: 8 a 18 mm
+                Faixa Padrão: 12 a 18 mm
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-2 font-mono font-medium">
@@ -170,7 +170,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
           ) : isScrapLow ? (
             <div className="flex items-center gap-2 px-3.5 py-1.5 bg-amber-50 text-amber-800 border border-amber-300 rounded-xl text-xs font-black">
               <AlertTriangle className="w-4 h-4 text-amber-600" />
-              <span>Refilo Baixo ({scrapWidth} mm &lt; 8 mm)</span>
+              <span>Refilo Baixo ({scrapWidth} mm &lt; 12 mm)</span>
             </div>
           ) : (
             <div className="flex items-center gap-2 px-3.5 py-1.5 bg-red-50 text-red-800 border border-red-300 rounded-xl text-xs font-black">
@@ -332,7 +332,7 @@ export const SlitterVisualizer: React.FC<SlitterVisualizerProps> = ({
         {showSides && (
           <div className={`flex justify-between text-[11px] font-mono font-black px-1 ${isScrapIdeal ? 'text-emerald-700' : isScrapLow ? 'text-amber-700' : 'text-red-700'}`}>
             <span>◀ Refilo esquerdo: {refiloLados.esquerdoMm} mm</span>
-            <span>{isScrapIdeal ? '✓ lados 4–9 mm · total 8–18 mm' : `⚠ ${refiloLados.motivo ?? 'fora dos limites'}`}</span>
+            <span>{isScrapIdeal ? '✓ lados 6–9 mm · total 12–18 mm' : `⚠ ${refiloLados.motivo ?? 'fora dos limites'}`}</span>
             <span>Refilo direito: {refiloLados.direitoMm} mm ▶</span>
           </div>
         )}

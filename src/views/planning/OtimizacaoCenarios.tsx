@@ -13,6 +13,7 @@ import {
 import { Coil, Product, SlitterIntermediaryItem } from '../../types/pcp';
 import {
   CenarioProducao,
+  CoberturaEspessura,
   MIN_BOBINAS_PLANEJAMENTO,
   PlanningScenarioService,
   ResultadoCenario,
@@ -64,6 +65,7 @@ export const OtimizacaoCenarios: React.FC<OtimizacaoCenariosProps> = ({
   const [visaoDetalhe, setVisaoDetalhe] = useState<VisaoOtimizacao>('A');
   const [expandidas, setExpandidas] = useState<Set<number>>(new Set());
   const [autoCalcular, setAutoCalcular] = useState<number>(0);
+  const [recalcular, setRecalcular] = useState<boolean>(false);
 
   const datas = useMemo(() => PlanningScenarioService.datasDeProgramacao(products), [products]);
   const horizonte = ateData || null;
@@ -108,6 +110,15 @@ export const OtimizacaoCenarios: React.FC<OtimizacaoCenariosProps> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoCalcular, grupo, modo]);
+
+  // "Permitir excedente e recalcular": espera o cálculo anterior ser descartado e roda de novo.
+  useEffect(() => {
+    if (recalcular && resultados === null && grupo) {
+      setRecalcular(false);
+      calcular();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recalcular, resultados]);
 
   const calcular = () => {
     if (!grupo) return;
@@ -235,6 +246,13 @@ export const OtimizacaoCenarios: React.FC<OtimizacaoCenariosProps> = ({
   const paraMatriz = resultados
     ? (['A', 'B'] as VisaoOtimizacao[]).flatMap(v => (['MESCLADA', 'SEPARADA'] as CenarioProducao[]).map(c => get(v, c)!))
     : [];
+
+  const cobertura: CoberturaEspessura[] = useMemo(
+    () => (atual ? PlanningScenarioService.coberturaPorEspessura(atual, coils) : []),
+    [atual, coils]
+  );
+  const totFalta = cobertura.reduce((a, c) => a + c.faltaMpT, 0);
+  const totLimite = cobertura.reduce((a, c) => a + c.limiteCorteT, 0);
 
   const trocasDoCenario = atual?.planos.filter(p => p.trocasAntes > 0) ?? [];
 
@@ -461,6 +479,53 @@ export const OtimizacaoCenarios: React.FC<OtimizacaoCenariosProps> = ({
               Perda = peso do refilo (proporcional à largura da bobina). Setup = configuração de facas; troca = faca movimentada entre configurações.
             </div>
           </div>
+
+          {atual && cobertura.length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100">
+                <div className="text-sm font-black text-[#0B1F3A]">Cobertura da demanda — o que o plano atende e o que falta</div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  O plano tenta atender o máximo da demanda de {grupo?.nome}. O limite é o estoque de bobinas de cada espessura e as regras de refilo e de não passar da demanda.
+                </p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 text-[10px] uppercase text-slate-500">
+                    <tr>
+                      <th className="text-left px-4 py-2">Espessura</th>
+                      <th className="text-right px-2 py-2">Demanda a cortar (t)</th>
+                      <th className="text-right px-2 py-2">Estoque de bobinas (t)</th>
+                      <th className="text-right px-2 py-2">Atendido (t)</th>
+                      <th className="text-right px-2 py-2">Falta bobina (t)</th>
+                      <th className="text-right px-4 py-2">Pendente por regra de corte (t)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cobertura.map(c => (
+                      <tr key={c.espessura} className="border-t border-slate-100">
+                        <td className="px-4 py-1.5 font-mono font-bold">{c.espessura} mm</td>
+                        <td className="px-2 py-1.5 text-right font-mono">{fmt(c.demandaT)}</td>
+                        <td className="px-2 py-1.5 text-right font-mono">{fmt(c.estoqueT)} <span className="text-slate-400">({c.qtdBobinas})</span></td>
+                        <td className="px-2 py-1.5 text-right font-mono text-emerald-700 font-bold">{fmt(c.atendidoT)}</td>
+                        <td className={`px-2 py-1.5 text-right font-mono ${c.faltaMpT > 0 ? 'text-red-600 font-bold' : 'text-slate-300'}`}>{fmt(c.faltaMpT)}</td>
+                        <td className={`px-4 py-1.5 text-right font-mono ${c.limiteCorteT > 0.05 ? 'text-amber-700 font-bold' : 'text-slate-300'}`}>{fmt(c.limiteCorteT)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-4 py-3 border-t border-slate-100 text-xs text-slate-700 space-y-1">
+                {totFalta > 0.05 && <div><strong className="text-red-600">{fmt(totFalta)} t</strong> da demanda não podem ser atendidos por falta de bobina em estoque (peso total das bobinas menor que a demanda da espessura).</div>}
+                {totLimite > 0.05 && (
+                  <div>
+                    <strong className="text-amber-700">{fmt(totLimite)} t</strong> ficam pendentes mesmo havendo bobina: fechar o corte exigiria produzir acima da demanda ou não fecha o refilo de 6–9 mm por lado.{' '}
+                    {!permitirExcedente && <button onClick={() => { setPermitirExcedente(true); setRecalcular(true); }} className="underline font-bold text-[#0B1F3A]">Permitir excedente e recalcular</button>}
+                  </div>
+                )}
+                {totFalta <= 0.05 && totLimite <= 0.05 && <div className="text-emerald-700 font-bold">Demanda completa atendida neste cenário.</div>}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {visaoCard('A', rA)}

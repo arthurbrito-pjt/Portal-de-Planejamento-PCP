@@ -6,7 +6,7 @@
  */
 
 // Faixa de refilo lateral aceita pelo PCP (mm).
-export const REFILO_MIN_MM = 8;
+export const REFILO_MIN_MM = 12;
 export const REFILO_MAX_MM = 18;
 
 export type ThresholdLevel = 'ok' | 'atencao' | 'critico';

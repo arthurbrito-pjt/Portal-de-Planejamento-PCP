@@ -193,7 +193,7 @@ export interface SlitterCombination {
   // Produção acima da demanda pendente (t) — exige autorização para seguir.
   excedenteT?: number;
   excedeDemanda?: boolean;
-  // Refilo por lado (mm): 4–9 cada, total 8–18.
+  // Refilo por lado (mm): 6–9 cada, total 12–18.
   refiloEsquerdoMm?: number;
   refiloDireitoMm?: number;
   refiloValido?: boolean;

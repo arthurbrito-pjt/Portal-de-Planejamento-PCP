@@ -305,7 +305,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       <td className="py-3.5 px-3 text-right text-slate-900 font-bold">{o.totalFitas}</td>
                       <td className="py-3.5 px-3 text-right">
                         <div className="font-black text-emerald-700">{o.aproveitamentoPercent}%</div>
-                        <div className={`text-[10px] font-sans ${o.sobraMm >= 8 && o.sobraMm <= 18 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                        <div className={`text-[10px] font-sans ${o.sobraMm >= 12 && o.sobraMm <= 18 ? 'text-emerald-600' : 'text-slate-400'}`}>
                           refilo {o.sobraMm} mm
                         </div>
                       </td>
@@ -548,7 +548,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
               <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Refilo Médio</span>
               <span className="text-2xl font-black font-mono text-emerald-700 mt-1.5 block">
-                {avgScrapMm} mm (Faixa 8 a 18 mm)
+                {avgScrapMm} mm (Faixa 12 a 18 mm)
               </span>
             </div>
 

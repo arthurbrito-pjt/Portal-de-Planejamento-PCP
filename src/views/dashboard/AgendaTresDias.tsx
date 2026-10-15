@@ -38,7 +38,7 @@ export const AgendaTresDias: React.FC<AgendaTresDiasProps> = ({
         </div>
         <div className="flex items-center gap-3 text-xs font-mono">
           <span className="text-slate-300">Capacidade: <strong className="text-white font-bold">120 t/dia</strong></span>
-          <span className="text-slate-300">Refilo alvo: <strong className="text-emerald-400 font-bold">8-18 mm</strong></span>
+          <span className="text-slate-300">Refilo alvo: <strong className="text-emerald-400 font-bold">12-18 mm</strong></span>
         </div>
       </div>
 

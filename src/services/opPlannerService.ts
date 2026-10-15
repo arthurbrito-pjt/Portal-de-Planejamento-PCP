@@ -32,7 +32,7 @@ export interface PlanOpParams {
 /**
  * Motor único de montagem da "melhor OP": cruza demanda, estoque de slitter
  * intermediário (fitas já cortadas), estoque de bobina matriz e aproveitamento
- * de corte (banda 8-18mm) para decidir o que efetivamente precisa ser cortado.
+ * de corte (banda 12-18mm) para decidir o que efetivamente precisa ser cortado.
  *
  * Regra de negócio: fitas de slitter já cortadas e disponíveis na baia
  * intermediária são sempre priorizadas antes de cortar uma bobina matriz nova —
@@ -137,7 +137,7 @@ export class OpPlannerService {
                 desiredQuantityTon: focusRemaining,
                 selectedCoil: coil,
                 compatibleProducts,
-                minScrapMm: 8,
+                minScrapMm: 12,
                 maxScrapAllowedMm: 18,
                 demandSplitGroup,
                 demandaPorProduto: demandObj

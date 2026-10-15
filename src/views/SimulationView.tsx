@@ -403,13 +403,13 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
     .sort((a, b) => Math.abs(a.espessura - currentCoil.espessura) - Math.abs(b.espessura - currentCoil.espessura) || b.peso - a.peso);
 
   // Refilo alto: sugere itens da mesma espessura — mesmo fora da programação —
-  // que cabem na sobra deixando refilo técnico (>= 8 mm). Quanto menor o refilo
+  // que cabem na sobra deixando refilo técnico (>= 12 mm). Quanto menor o refilo
   // resultante, melhor; empate vai para o item com maior demanda.
   const currentUsedWidth = currentStrips.reduce((acc, s) => acc + s.largura, 0);
   const currentScrapMm = Number((currentCoil.largura - currentUsedWidth).toFixed(2));
   const refiloSuggestions = currentScrapMm > 18
     ? compatibleProducts
-        .filter(p => p.larguraFita > 0 && currentScrapMm - p.larguraFita >= 8)
+        .filter(p => p.larguraFita > 0 && currentScrapMm - p.larguraFita >= 12)
         .sort((a, b) => {
           const faltaA = Math.max(0, (a.demandaT || 0) - (plannedByProduct.get(a.id) ?? 0));
           const faltaB = Math.max(0, (b.demandaT || 0) - (plannedByProduct.get(b.id) ?? 0));
@@ -681,7 +681,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
               const usedWidth = item.strips.reduce((acc, s) => acc + s.largura, 0);
               const scrapMm = Math.max(0, item.coil.largura - usedWidth);
               const yieldPct = Number(((usedWidth / item.coil.largura) * 100).toFixed(1));
-              const isScrapIdeal = scrapMm >= 8 && scrapMm <= 18;
+              const isScrapIdeal = scrapMm >= 12 && scrapMm <= 18;
 
               return (
                 <div
@@ -1016,7 +1016,7 @@ export const SimulationView: React.FC<SimulationViewProps> = ({
             const usedWidth = item.strips.reduce((acc, s) => acc + s.largura, 0);
             const scrapMm = Math.max(0, item.coil.largura - usedWidth);
             const yieldPct = Number(((usedWidth / item.coil.largura) * 100).toFixed(1));
-            const isScrapIdeal = scrapMm >= 8 && scrapMm <= 18;
+            const isScrapIdeal = scrapMm >= 12 && scrapMm <= 18;
 
             return (
               <div key={item.coil.id || idx} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
