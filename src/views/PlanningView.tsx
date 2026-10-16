@@ -29,6 +29,7 @@ import { OtimizacaoCenarios } from './planning/OtimizacaoCenarios';
 import { DataPlanejamentoBar } from '../components/planning/DataPlanejamentoBar';
 import { MIN_BOBINAS_PLANEJAMENTO, PeriodoData, PlanningScenarioService, VisaoOtimizacao } from '../services/planningScenarioService';
 import { VisoesAB } from '../components/VisoesABCard';
+import { PlanningPeriodStore } from '../services/planningPeriodStore';
 import { usePlanningFilters } from '../components/planning/planningFilters';
 import {
   CheckCircle2,
@@ -76,10 +77,14 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   const [currentStep, setCurrentStep] = useState<number>(1);
 
   // Data do planejamento: abre no dia de hoje; o operador escolhe o dia que quer programar.
-  const [periodo, setPeriodo] = useState<PeriodoData>(() => {
-    const hoje = PlanningScenarioService.hojeIso();
-    return { inicio: hoje, fim: hoje };
-  });
+  const [periodo, setPeriodoState] = useState<PeriodoData>(() => PlanningPeriodStore.carregar());
+  // O período escolhido fica guardado: ao sair do planejamento e voltar, continua o mesmo.
+  const setPeriodo = (p: PeriodoData | ((atual: PeriodoData) => PeriodoData)) =>
+    setPeriodoState(atual => {
+      const novo = typeof p === 'function' ? p(atual) : p;
+      PlanningPeriodStore.salvar(novo);
+      return novo;
+    });
   const products = useMemo(() => PlanningScenarioService.filtrarPorPeriodo(productsAll, periodo), [productsAll, periodo]);
 
   // Visões A e B de cada slitter da lista: calculadas em segundo plano, um slitter por vez, para ficarem
