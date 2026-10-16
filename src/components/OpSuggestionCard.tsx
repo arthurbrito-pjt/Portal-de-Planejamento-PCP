@@ -1,3 +1,5 @@
+import { VisoesABCard, VisoesAB } from './VisoesABCard';
+import { VisaoOtimizacao } from '../services/planningScenarioService';
 import { RefiloService } from '../services/refiloService';
 import React from 'react';
 import { SlitterDemandItem, FerramentalClasse } from '../types/pcp';
@@ -13,6 +15,9 @@ interface OpSuggestionCardProps {
   capacidadeTonHora?: number;
   onAccept: () => void;
   onCustomize: () => void;
+  onCompararVisoes?: () => void;
+  visoes?: VisoesAB | 'carregando';
+  onUsarVisao?: (visao: VisaoOtimizacao) => void;
 }
 
 /** Card de demanda do planejamento clássico: um slitter (largura x espessura) e todos os materiais que saem dele. */
@@ -24,7 +29,10 @@ export const OpSuggestionCard: React.FC<OpSuggestionCardProps> = ({
   ferramentalStatusAcumulo,
   capacidadeTonHora,
   onAccept,
-  onCustomize
+  onCustomize,
+  onCompararVisoes,
+  visoes,
+  onUsarVisao
 }) => {
   const p = item.mainProduct;
   const isReady = item.status === 'PRONTO';
@@ -141,6 +149,10 @@ export const OpSuggestionCard: React.FC<OpSuggestionCardProps> = ({
         </div>
       )}
 
+      {onUsarVisao && !isBlocked && !item.coveredByWipOnly && (
+        <VisoesABCard visoes={visoes} onUsar={onUsarVisao} />
+      )}
+
       {isFerramentalWaiting && (
         <div className="p-1.5 bg-violet-50 text-violet-700 rounded-lg text-[11px] font-medium flex items-center gap-1.5">
           <Hourglass className="w-3.5 h-3.5 shrink-0" />
@@ -206,6 +218,17 @@ export const OpSuggestionCard: React.FC<OpSuggestionCardProps> = ({
           <Sliders className="w-3.5 h-3.5" />
           <span>Personalizar</span>
         </button>
+
+        {onCompararVisoes && !isBlocked && (
+          <button
+            type="button"
+            onClick={onCompararVisoes}
+            className="px-3 py-2 rounded-lg text-xs font-medium bg-[#0B1F3A]/5 hover:bg-[#0B1F3A]/10 text-[#0B1F3A] border border-[#0B1F3A]/15"
+            title="Compara melhor aproveitamento x menos trocas de facas e mesclada x separada"
+          >
+            Visões A/B
+          </button>
+        )}
       </div>
     </div>
   );

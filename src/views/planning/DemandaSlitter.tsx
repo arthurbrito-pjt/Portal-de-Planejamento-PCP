@@ -1,3 +1,5 @@
+import { VisoesAB } from '../../components/VisoesABCard';
+import { VisaoOtimizacao } from '../../services/planningScenarioService';
 import React, { useMemo, useState } from 'react';
 import { Coil, Ferramental, Product, SlitterDemandItem, SlitterIntermediaryItem } from '../../types/pcp';
 import { ReadinessService } from '../../services/readinessService';
@@ -23,6 +25,9 @@ interface DemandaSlitterProps {
   onAccept: (item: SlitterDemandItem) => void;
   onCustomize: (item: SlitterDemandItem) => void;
   onPlanFerramental?: (codigo: string) => void;
+  onCompareSlitter?: (item: SlitterDemandItem) => void;
+  visoesDe?: (item: SlitterDemandItem) => VisoesAB | 'carregando' | undefined;
+  onUsarVisao?: (item: SlitterDemandItem, visao: VisaoOtimizacao) => void;
 }
 
 /**
@@ -39,7 +44,10 @@ export const DemandaSlitter: React.FC<DemandaSlitterProps> = ({
   viewToggle,
   onAccept,
   onCustomize,
-  onPlanFerramental
+  onPlanFerramental,
+  onCompareSlitter,
+  visoesDe,
+  onUsarVisao
 }) => {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('TODOS');
 
@@ -150,6 +158,9 @@ export const DemandaSlitter: React.FC<DemandaSlitterProps> = ({
                     capacidadeTonHora={produtividadeByCodigo.get(item.codigoSlitter)}
                     onAccept={() => onAccept(item)}
                     onCustomize={() => onCustomize(item)}
+                    onCompararVisoes={onCompareSlitter ? () => onCompareSlitter(item) : undefined}
+                    visoes={visoesDe ? visoesDe(item) : undefined}
+                    onUsarVisao={onUsarVisao ? (v) => onUsarVisao(item, v) : undefined}
                   />
                 );
               })}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Product,
   Coil,
@@ -21,14 +21,14 @@ import { MetricsBadge } from '../components/MetricsBadge';
 import { SlitterVisualizer } from '../components/SlitterVisualizer';
 import { StepIndicator } from '../components/StepIndicator';
 import { PolicyAlertBar, PolicyAlert } from '../components/PolicyAlertBar';
-import { ProgramasSlitter } from './dashboard/ProgramasSlitter';
 import { DemandExcessService } from '../services/demandExcessService';
 import { ExcessAuthorizationPanel } from '../components/ExcessAuthorizationPanel';
 import { CustomPlanLauncher } from '../components/planning/CustomPlanLauncher';
 import { DemandaSlitter } from './planning/DemandaSlitter';
 import { OtimizacaoCenarios } from './planning/OtimizacaoCenarios';
 import { DataPlanejamentoBar } from '../components/planning/DataPlanejamentoBar';
-import { MIN_BOBINAS_PLANEJAMENTO, PeriodoData, PlanningScenarioService } from '../services/planningScenarioService';
+import { MIN_BOBINAS_PLANEJAMENTO, PeriodoData, PlanningScenarioService, VisaoOtimizacao } from '../services/planningScenarioService';
+import { VisoesAB } from '../components/VisoesABCard';
 import { usePlanningFilters } from '../components/planning/planningFilters';
 import {
   CheckCircle2,
@@ -81,6 +81,54 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     return { inicio: hoje, fim: hoje };
   });
   const products = useMemo(() => PlanningScenarioService.filtrarPorPeriodo(productsAll, periodo), [productsAll, periodo]);
+
+  // Visões A e B de cada slitter da lista: calculadas em segundo plano, um slitter por vez, para ficarem
+  // sempre ao lado do plano sugerido.
+  const [visoesSlitter, setVisoesSlitter] = useState<Record<string, VisoesAB>>({});
+  useEffect(() => {
+    let cancelado = false;
+    setVisoesSlitter({});
+    const grupos = PlanningScenarioService.agruparPorSlitter(products);
+    const cache = new Map<string, any>();
+    const acumulado: Record<string, VisoesAB> = {};
+    let ultimaAtualizacao = 0;
+    let i = 0;
+    const passo = () => {
+      if (cancelado) return;
+      if (i >= grupos.length) { setVisoesSlitter({ ...acumulado }); return; }
+      const g = grupos[i++];
+      const params = PlanningScenarioService.paramsDoEscopo(g.produtos, products, coils, {
+        intermediary: intermediarySlitters,
+        completar: true,
+        permitirExcedente: false
+      });
+      const v = PlanningScenarioService.compararVisoes(params, cache);
+      acumulado[g.codigo] = v;
+      // Atualiza a tela em lotes (a cada ~250 ms) para a lista não ficar redesenhando a cada slitter.
+      if (Date.now() - ultimaAtualizacao > 250) { ultimaAtualizacao = Date.now(); setVisoesSlitter({ ...acumulado }); }
+      setTimeout(passo, 0);
+    };
+    const t = setTimeout(passo, 50);
+    return () => { cancelado = true; clearTimeout(t); };
+  }, [products, coils, intermediarySlitters]);
+
+  const visoesDe = (item: SlitterDemandItem): VisoesAB | 'carregando' | undefined => {
+    const v = visoesSlitter[PlanningScenarioService.chaveSlitter(item.mainProduct)];
+    return v ?? 'carregando';
+  };
+
+  // Sistema aberto de um dia para o outro: se o período era "hoje", acompanha a data da máquina.
+  const hojeRef = useRef<string>(PlanningScenarioService.hojeIso());
+  useEffect(() => {
+    const t = setInterval(() => {
+      const h = PlanningScenarioService.hojeIso();
+      if (h === hojeRef.current) return;
+      const antigo = hojeRef.current;
+      hojeRef.current = h;
+      setPeriodo(p => (p.inicio === antigo && p.fim === antigo ? { inicio: h, fim: h } : p));
+    }, 60000);
+    return () => clearInterval(t);
+  }, []);
   const demandaFiltrada = useMemo(
     () => products.filter(p => (p.demandaT || 0) > 0),
     [products]
@@ -92,13 +140,20 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
 
   // Etapa 1 tem duas visões sobre os mesmos filtros: por demanda (fluxo
   // clássico, segue para Revisar & Confirmar) e combinações otimizadas por bobina.
-  const [step1Mode, setStep1Mode] = useState<'demanda' | 'combinacoes' | 'cenarios'>('demanda');
+  // Planejamento é sempre por demanda; as Visões A/B abrem a partir de um slitter ou ferramental da própria lista.
+  const [cenarioAberto, setCenarioAberto] = useState<boolean>(false);
   const planningFilters = usePlanningFilters(products);
   const [showCustomPlan, setShowCustomPlan] = useState<boolean>(false);
   const [escopoCenarios, setEscopoCenarios] = useState<{ modo: 'slitter' | 'ferramental'; codigo: string; nonce: number } | null>(null);
   const planejarFerramentalCompleto = (codigo: string) => {
     setEscopoCenarios({ modo: 'ferramental', codigo, nonce: Date.now() });
-    setStep1Mode('cenarios');
+    setCenarioAberto(true);
+  };
+  const compararVisoesSlitter = (item: SlitterDemandItem) => {
+    const info = SlitterCatalogService.getSlitterInfo(item.larguraFita, item.espessura, item.mainProduct);
+    const codigo = info.cadastrado ? info.code : `DIM_${item.mainProduct.larguraFita}_${item.mainProduct.espessura}`;
+    setEscopoCenarios({ modo: 'slitter', codigo, nonce: Date.now() });
+    setCenarioAberto(true);
   };
 
   const [desiredQtyTon, setDesiredQtyTon] = useState<number>(10);
@@ -113,6 +168,10 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   );
 
   const [selectedCombination, setSelectedCombination] = useState<SlitterCombination | null>(null);
+  // Plano vindo da Visão A/B (ou do sugerido): corte pronto de cada bobina, na ordem de corte.
+  const [comboOverride, setComboOverride] = useState<(SlitterCombination | null)[] | null>(null);
+  const [opcaoPlano, setOpcaoPlano] = useState<'SUGERIDO' | VisaoOtimizacao | null>(null);
+  const [opcoesPlano, setOpcoesPlano] = useState<{ item: SlitterDemandItem; sugerido: { coils: Coil[]; combos: (SlitterCombination | null)[] } } | null>(null);
 
   // Etapa C: Emitir OP
   const [operador, setOperador] = useState<string>('');
@@ -167,7 +226,44 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     setDesiredQtyTon(item.effectiveDemandTon ?? item.totalDemandaT ?? item.mainProduct.demandaT ?? 10);
     setSelectedCoils(coilsToUse);
     setSelectedCombination(item.bestCombination || null);
+    setComboOverride(null);
+    setOpcaoPlano('SUGERIDO');
+    setOpcoesPlano({ item, sugerido: { coils: coilsToUse, combos: item.recommendedCombinations || [] } });
     setShowManualCoilPicker(coilsToUse.length === 0 && !item.coveredByWipOnly);
+    setCurrentStep(2);
+  };
+
+  const aplicarOpcao = (opcao: 'SUGERIDO' | VisaoOtimizacao) => {
+    if (!opcoesPlano) return;
+    const v = visoesSlitter[PlanningScenarioService.chaveSlitter(opcoesPlano.item.mainProduct)];
+    setOpcaoPlano(opcao);
+    setShowManualCoilPicker(false);
+    if (opcao === 'SUGERIDO') {
+      setSelectedCoils(opcoesPlano.sugerido.coils);
+      setSelectedCombination(opcoesPlano.sugerido.combos[0] || null);
+      setComboOverride(opcoesPlano.sugerido.combos.length === opcoesPlano.sugerido.coils.length ? opcoesPlano.sugerido.combos : null);
+      return;
+    }
+    const r = v?.[opcao];
+    if (!r || r.planos.length === 0) return;
+    setSelectedCoils(r.planos.map(p => p.coil));
+    setSelectedCombination(r.planos[0].combination);
+    setComboOverride(r.planos.map(p => p.combination));
+  };
+
+  const handleUsarVisao = (item: SlitterDemandItem, visao: VisaoOtimizacao) => {
+    const v = visoesSlitter[PlanningScenarioService.chaveSlitter(item.mainProduct)];
+    const r = v?.[visao];
+    if (!r || r.planos.length === 0) return;
+    setSelectedProduct(item.mainProduct);
+    setSelectedDemandGroup(item.produtos.map(p => ({ product: p.product, demandaT: p.demandaT })));
+    setDesiredQtyTon(item.effectiveDemandTon ?? item.totalDemandaT ?? item.mainProduct.demandaT ?? 10);
+    setOpcoesPlano({ item, sugerido: { coils: item.recommendedCoils || [], combos: item.recommendedCombinations || [] } });
+    setOpcaoPlano(visao);
+    setSelectedCoils(r.planos.map(p => p.coil));
+    setSelectedCombination(r.planos[0].combination);
+    setComboOverride(r.planos.map(p => p.combination));
+    setShowManualCoilPicker(false);
     setCurrentStep(2);
   };
 
@@ -177,6 +273,9 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
     setDesiredQtyTon(item.effectiveDemandTon ?? item.totalDemandaT ?? item.mainProduct.demandaT ?? 10);
     setSelectedCoils([]);
     setSelectedCombination(null);
+    setComboOverride(null);
+    setOpcoesPlano(null);
+    setOpcaoPlano(null);
     setShowManualCoilPicker(true);
     setCurrentStep(2);
   };
@@ -192,6 +291,8 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   );
 
   const handleToggleCoil = (coil: Coil) => {
+    setComboOverride(null);
+    setOpcaoPlano(null);
     if (selectedCoils.some(c => c.id === coil.id)) {
       setSelectedCoils(selectedCoils.filter(c => c.id !== coil.id));
     } else {
@@ -208,6 +309,8 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
       accum += rc.coil.peso;
       if (accum >= desiredQtyTon) break;
     }
+    setComboOverride(null);
+    setOpcaoPlano(null);
     setSelectedCoils(neededCoils);
   };
 
@@ -238,6 +341,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   // incluindo alternativas); com várias, cada uma usa seu melhor corte próprio.
   const perCoilCombinations = useMemo((): (SlitterCombination | null)[] => {
     if (!selectedProduct || selectedCoils.length === 0) return [];
+    if (comboOverride && comboOverride.length === selectedCoils.length) return comboOverride;
     if (selectedCoils.length === 1) return [selectedCombination];
 
     // Cada bobina atende a demanda que as anteriores não cobriram.
@@ -270,7 +374,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
       }
       return top;
     });
-  }, [selectedProduct, selectedCoils, selectedCombination, desiredQtyTon, products, selectedDemandGroup]);
+  }, [selectedProduct, selectedCoils, selectedCombination, desiredQtyTon, products, selectedDemandGroup, comboOverride]);
 
   const coilCutInputs = useMemo((): OrderCoilInput[] => {
     return selectedCoils
@@ -390,23 +494,6 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
   const step1Toggle = (
     <div className="space-y-3">
     <div className="flex flex-wrap items-center gap-3">
-    <div className="inline-flex rounded-xl bg-white border border-slate-200 p-1 shadow-sm">
-      {[
-        { id: 'demanda', label: 'Por Demanda (Planejamento Clássico)' },
-        { id: 'combinacoes', label: 'Combinações Otimizadas' },
-        { id: 'cenarios', label: 'Visões A/B & Cenários' }
-      ].map(m => (
-        <button
-          key={m.id}
-          onClick={() => setStep1Mode(m.id as 'demanda' | 'combinacoes' | 'cenarios')}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-            step1Mode === m.id ? 'bg-[#0B1F3A] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          {m.label}
-        </button>
-      ))}
-    </div>
       <button
         onClick={() => setShowCustomPlan(v => !v)}
         className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all ${
@@ -462,11 +549,9 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
                 Etapa 1: Escolher o que Produzir
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                {step1Mode === 'demanda'
-                  ? 'Demanda por slitter, agrupada por ferramental — aceite o plano sugerido ou personalize bobina e quantidade.'
-                  : step1Mode === 'combinacoes'
-                    ? 'Melhor bobina e plano de corte já calculados para cada ferramental, com todos os materiais de destino.'
-                    : 'Compare aproveitamento real x menos trocas de facas e produção mesclada x separada, respeitando as datas da programação.'}
+                {cenarioAberto
+                  ? 'Compare aproveitamento real x menos trocas de facas e produção mesclada x separada, respeitando o período escolhido.'
+                  : 'Demanda do período por slitter, agrupada por ferramental — aceite o plano sugerido, compare as Visões A/B ou personalize.'}
               </p>
             </div>
           </div>
@@ -484,7 +569,17 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
             />
           )}
 
-          {step1Mode === 'demanda' ? (
+          {cenarioAberto ? (
+            <OtimizacaoCenarios
+              products={products}
+              coils={coils}
+              intermediarySlitters={intermediarySlitters}
+              viewToggle={step1Toggle}
+              escopoInicial={escopoCenarios}
+              onClose={() => setCenarioAberto(false)}
+              onOpenInStudio={(inputs) => onProceedToSimulation(inputs[0].coil, inputs[0].strips, undefined, inputs)}
+            />
+          ) : (
             <DemandaSlitter
               products={products}
               coils={coils}
@@ -495,26 +590,9 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
               onAccept={handleAcceptSuggestion}
               onCustomize={handleCustomize}
               onPlanFerramental={planejarFerramentalCompleto}
-            />
-          ) : step1Mode === 'cenarios' ? (
-            <OtimizacaoCenarios
-              products={products}
-              coils={coils}
-              intermediarySlitters={intermediarySlitters}
-              viewToggle={step1Toggle}
-              escopoInicial={escopoCenarios}
-              onOpenInStudio={(inputs) => onProceedToSimulation(inputs[0].coil, inputs[0].strips, undefined, inputs)}
-            />
-          ) : (
-            <ProgramasSlitter
-              products={products}
-              coils={coils}
-              intermediarySlitters={intermediarySlitters}
-              filters={planningFilters}
-              viewToggle={step1Toggle}
-              onOpenProgramSimulation={onOpenProgramSimulation}
-              onOpenProgramOrder={onOpenProgramOrder}
-              onPlanFerramental={planejarFerramentalCompleto}
+              onCompareSlitter={compararVisoesSlitter}
+              visoesDe={visoesDe}
+              onUsarVisao={handleUsarVisao}
             />
           )}
         </div>
@@ -554,6 +632,36 @@ export const PlanningView: React.FC<PlanningViewProps> = ({
               />
             </div>
           </div>
+
+          {opcoesPlano && (
+            <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-2">
+              <div className="text-[11px] font-black uppercase text-[#0B1F3A]">Opções para este planejamento</div>
+              <div className="flex flex-wrap gap-2">
+                {([['SUGERIDO', 'Plano sugerido'], ['A', 'Visão A · melhor aproveitamento'], ['B', 'Visão B · menos trocas de facas']] as ['SUGERIDO' | VisaoOtimizacao, string][]).map(([id, label]) => {
+                  const v = visoesSlitter[PlanningScenarioService.chaveSlitter(opcoesPlano.item.mainProduct)];
+                  const r = id === 'SUGERIDO' ? null : v?.[id];
+                  const indisponivel = id !== 'SUGERIDO' && (!r || r.planos.length === 0);
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => aplicarOpcao(id)}
+                      disabled={indisponivel}
+                      className={`px-3 py-2 rounded-lg border text-xs font-bold transition-all text-left disabled:opacity-40 ${
+                        opcaoPlano === id ? 'bg-[#0B1F3A] text-white border-[#0B1F3A]' : 'bg-white text-slate-700 border-slate-200 hover:border-orange-400'
+                      }`}
+                    >
+                      <div>{label}</div>
+                      {r && r.planos.length > 0 && (
+                        <div className={`font-mono font-normal text-[10px] ${opcaoPlano === id ? 'text-white/80' : 'text-slate-500'}`}>
+                          {r.metricas.qtdBobinas} bobina(s) · {r.metricas.aproveitamentoPercent}% · {r.metricas.trocasFacas} troca(s) · atende {r.metricas.atendimentoPercent}%
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Banners preventivos SEMPRE visíveis, antes de qualquer confirmação */}
           <PolicyAlertBar alerts={policyAlerts} />

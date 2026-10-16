@@ -62,8 +62,21 @@ export const DataPlanejamentoBar: React.FC<DataPlanejamentoBarProps> = ({ produc
       ? inicio === fim ? PlanningScenarioService.formatData(inicio) : `${PlanningScenarioService.formatData(inicio)} a ${PlanningScenarioService.formatData(fim)}`
       : inicio ? `a partir de ${PlanningScenarioService.formatData(inicio)}` : `até ${PlanningScenarioService.formatData(fim)}`;
 
+  const ehHoje = inicio === hoje && fim === hoje;
+  const futuro = !!inicio && inicio > hoje;
+
   return (
     <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-2.5">
+      {ehHoje ? (
+        <div className="px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 font-bold">
+          Planejando a demanda do dia: hoje, {PlanningScenarioService.formatData(hoje)} (data da máquina). A otimização usa só o que está programado para hoje.
+        </div>
+      ) : futuro ? (
+        <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-300 text-xs text-amber-900 font-bold flex flex-wrap items-center gap-2">
+          <span>Planejamento antecipado: o período escolhido é futuro ({rotulo}). Para produzir o que é do dia, volte para hoje.</span>
+          <button onClick={() => onChange({ inicio: hoje, fim: hoje })} className="underline">Voltar para hoje</button>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <span className="flex items-center gap-1.5 text-[11px] font-black uppercase text-[#0B1F3A]">
           <CalendarDays className="w-4 h-4 text-orange-500" /> Período do planejamento

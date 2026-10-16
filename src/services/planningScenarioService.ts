@@ -397,6 +397,25 @@ export class PlanningScenarioService {
     return this.montarResultado(visao, cenario, blocos, resultados, idsFoco, bobinasCompativeis);
   }
 
+  /** Chave do slitter usada nos escopos (mesma de agruparPorSlitter). */
+  static chaveSlitter(p: Product): string {
+    const info = SlitterCatalogService.getSlitterInfo(p.larguraFita, p.espessura, p);
+    return info.cadastrado ? info.code : `DIM_${p.larguraFita}_${p.espessura}`;
+  }
+
+  /** Visões A e B de um escopo (produção mesclada), para exibir junto do plano sugerido. */
+  static compararVisoes(params: CenarioParams, cache: CacheOtimizador = new Map()): { A: ResultadoCenario; B: ResultadoCenario } {
+    const A = this.executar(params, 'A', 'MESCLADA', cache);
+    let B = this.executar(params, 'B', 'MESCLADA', cache);
+    if (A.planos.length > 0 && A.metricas.atendimentoPercent >= B.metricas.atendimentoPercent - 1) {
+      const reB = this.resequenciar(A, 'B');
+      if (reB.metricas.trocasFacas < B.metricas.trocasFacas || (reB.metricas.trocasFacas === B.metricas.trocasFacas && reB.metricas.setups < B.metricas.setups)) {
+        B = { ...reB, nota: 'As bobinas do plano de maior aproveitamento (Visão A), na sequência de menos trocas, já são o melhor plano de menos trocas de facas.' };
+      }
+    }
+    return { A, B };
+  }
+
   /** Mesclada x separada, Visão A x B: os 4 cenários com o mesmo cache de otimização. */
   static compararTodos(params: CenarioParams): ResultadoCenario[] {
     const cache: CacheOtimizador = new Map();

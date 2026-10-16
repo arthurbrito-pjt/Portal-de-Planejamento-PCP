@@ -29,6 +29,7 @@ interface OtimizacaoCenariosProps {
   intermediarySlitters: SlitterIntermediaryItem[];
   viewToggle?: React.ReactNode;
   escopoInicial?: { modo: Modo; codigo: string; nonce: number } | null;
+  onClose?: () => void;
   onOpenInStudio: (inputs: OrderCoilInput[]) => void;
 }
 
@@ -52,6 +53,7 @@ export const OtimizacaoCenarios: React.FC<OtimizacaoCenariosProps> = ({
   intermediarySlitters,
   viewToggle,
   escopoInicial,
+  onClose,
   onOpenInStudio
 }) => {
   const [modo, setModo] = useState<Modo>('slitter');
@@ -259,6 +261,15 @@ export const OtimizacaoCenarios: React.FC<OtimizacaoCenariosProps> = ({
   return (
     <div className="space-y-4">
       {viewToggle}
+
+      {onClose && (
+        <button
+          onClick={onClose}
+          className="px-3 py-2 rounded-lg bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 text-sm font-medium"
+        >
+          ← Voltar à demanda por slitter
+        </button>
+      )}
 
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
         <div className="flex flex-wrap items-center gap-3">
