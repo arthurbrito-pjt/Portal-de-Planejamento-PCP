@@ -133,6 +133,7 @@ export interface FerramentalGroup<T> {
   codigo: string; // 'COMPLEMENTAR' = bloco de itens que só entram como fita complementar
   nome: string;
   demandaT: number; // demanda total do ferramental, todas as espessuras
+  demandaListadaT?: number; // demanda dos slitters que aparecem listados neste grupo (após filtros)
   entries: T[];
 }
 
@@ -147,7 +148,8 @@ export function groupByFerramental<T>(
   entries: T[],
   mainProductOf: (entry: T) => Product,
   products: Product[],
-  filters: Pick<PlanningFilters, 'ferramentalFilter' | 'maquinaFilter' | 'ferramentalOptions'>
+  filters: Pick<PlanningFilters, 'ferramentalFilter' | 'maquinaFilter' | 'ferramentalOptions'>,
+  demandaDe?: (entry: T) => number
 ): FerramentalGroup<T>[] {
   const { ferramentalFilter, maquinaFilter, ferramentalOptions } = filters;
 
@@ -175,7 +177,11 @@ export function groupByFerramental<T>(
   });
 
   const ordered: FerramentalGroup<T>[] = Array.from(groups.values())
-    .map(g => ({ ...g, demandaT: Number((demandaPorFerramental.get(g.codigo) || 0).toFixed(2)) }))
+    .map(g => ({
+      ...g,
+      demandaT: Number((demandaPorFerramental.get(g.codigo) || 0).toFixed(2)),
+      demandaListadaT: demandaDe ? Number(g.entries.reduce((acc, e) => acc + demandaDe(e), 0).toFixed(2)) : undefined
+    }))
     .sort((x, y) => {
       if (x.codigo === SEM_FERRAMENTAL) return 1;
       if (y.codigo === SEM_FERRAMENTAL) return -1;
@@ -199,20 +205,29 @@ export function groupByFerramental<T>(
   return ordered;
 }
 
-export const FerramentalGroupHeader: React.FC<{ nome: string; demandaT: number; countLabel: string; onPlanejarCompleto?: () => void }> = ({ nome, demandaT, countLabel, onPlanejarCompleto }) => (
+export const FerramentalGroupHeader: React.FC<{ nome: string; demandaT: number; demandaListadaT?: number; countLabel: string; onPlanejarCompleto?: () => void }> = ({ nome, demandaT, demandaListadaT, countLabel, onPlanejarCompleto }) => (
   <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 rounded-xl bg-[#0B1F3A] text-white">
     <div className="flex items-center gap-2">
       <Wrench className="w-4 h-4 text-orange-400" />
       <span className="text-sm font-black">{nome}</span>
     </div>
     <div className="flex items-center gap-3 text-xs">
-      <span>Demanda do ferramental: <strong className="font-black text-orange-300">{demandaT} t</strong></span>
+      {demandaListadaT !== undefined && Math.abs(demandaListadaT - demandaT) > 0.05 ? (
+        <>
+          <span>Slitters listados: <strong className="font-black text-orange-300">{demandaListadaT} t</strong></span>
+          <span className="text-white/70" title="Soma de todas as espessuras e slitters deste ferramental no período; os que não aparecem na lista estão fora dos filtros de espessura/status ou sem demanda neste recorte">
+            Ferramental (todas as espessuras): {demandaT} t
+          </span>
+        </>
+      ) : (
+        <span>Demanda do ferramental: <strong className="font-black text-orange-300">{demandaT} t</strong></span>
+      )}
       <span className="text-white/60">{countLabel}</span>
       {onPlanejarCompleto && (
         <button
           onClick={onPlanejarCompleto}
           className="px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-[11px] font-black"
-          title="Planeja toda a demanda do ferramental junta: Visão A/B, mesclada x separada, mínimo de 3 bobinas"
+          title="Planeja toda a demanda do ferramental (todas as espessuras e slitters) junta: Visão A/B, mesclada x separada, mínimo de 3 bobinas"
         >
           Planejar ferramental completo
         </button>

@@ -94,7 +94,7 @@ export const DemandaSlitter: React.FC<DemandaSlitterProps> = ({
   );
 
   const grouped = useMemo(
-    () => groupByFerramental(filteredItems, item => item.mainProduct, products, filters),
+    () => groupByFerramental(filteredItems, item => item.mainProduct, products, filters, item => item.totalDemandaT),
     [filteredItems, products, filters]
   );
 
@@ -141,6 +141,7 @@ export const DemandaSlitter: React.FC<DemandaSlitterProps> = ({
             <FerramentalGroupHeader
               nome={group.nome}
               demandaT={group.demandaT}
+              demandaListadaT={group.demandaListadaT}
               countLabel={`${group.entries.length} ${group.entries.length === 1 ? 'slitter' : 'slitters'}`}
               onPlanejarCompleto={onPlanFerramental && group.codigo !== 'COMPLEMENTAR' ? () => onPlanFerramental(group.codigo) : undefined}
             />
