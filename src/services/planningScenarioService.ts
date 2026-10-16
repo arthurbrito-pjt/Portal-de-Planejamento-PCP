@@ -17,7 +17,10 @@ import { FerramentalConformacaoService } from './ferramentalConformacaoService';
 
 export type VisaoOtimizacao = 'A' | 'B';
 export type CenarioProducao = 'MESCLADA' | 'SEPARADA';
-export type ModoData = 'dia' | 'ate' | 'todas';
+export interface PeriodoData {
+  inicio: string; // yyyy-mm-dd; '' = sem limite inferior
+  fim: string; // yyyy-mm-dd; '' = sem limite superior
+}
 
 export const MIN_BOBINAS_PLANEJAMENTO = 3;
 const YIELD_TOL_B_PP = 2;
@@ -212,15 +215,16 @@ export class PlanningScenarioService {
   }
 
   /**
-   * Recorta a demanda pela data de planejamento: 'dia' = só o que está programado para a data,
-   * 'ate' = a data e as anteriores (atrasos), 'todas' = sem recorte. Itens sem data (pedidos fora
-   * da programação) só entram em 'todas', pois não há dia de produção definido para eles.
+   * Recorta a demanda pelo período de planejamento (de ... até ..., qualquer um dos lados pode ficar
+   * em aberto). Itens sem data (pedidos fora da programação) só entram quando o período está
+   * totalmente em aberto, pois não há dia de produção definido para eles.
    */
-  static filtrarPorData(products: Product[], modo: ModoData, data: string): Product[] {
-    if (modo === 'todas') return products;
+  static filtrarPorPeriodo(products: Product[], periodo: PeriodoData): Product[] {
+    const { inicio, fim } = periodo;
+    if (!inicio && !fim) return products;
     return products.map(p => {
       if (!p.demandaPorData || p.demandaPorData.length === 0) return { ...p, demandaT: 0 };
-      const entradas = p.demandaPorData.filter(e => !e.data || (modo === 'dia' ? e.data === data : e.data <= data));
+      const entradas = p.demandaPorData.filter(e => !e.data || ((!inicio || e.data >= inicio) && (!fim || e.data <= fim)));
       const total = round(entradas.reduce((a, e) => a + e.qtdT, 0), 3);
       const { demandaPorData: _antiga, ...resto } = p;
       return { ...resto, demandaT: total, ...(entradas.length > 0 ? { demandaPorData: entradas } : {}) };
